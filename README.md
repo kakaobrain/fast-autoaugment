@@ -68,35 +68,35 @@ Please cite below papers.
 ## References & Opensources
 
 1. ResNet References
-  - (ResNet) Deep Residual Learning for Image Recognition
-    - Paper : https://arxiv.org/abs/1512.03385
-  - (ResNet) Identity Mappings in Deep Residual Networks
-    - Paper : https://arxiv.org/abs/1603.05027
-  - Codes
-    - https://github.com/osmr/imgclsmob/tree/master/pytorch/pytorchcv/models
+    - (ResNet) Deep Residual Learning for Image Recognition
+      - Paper : https://arxiv.org/abs/1512.03385
+    - (ResNet) Identity Mappings in Deep Residual Networks
+      - Paper : https://arxiv.org/abs/1603.05027
+    - Codes
+      - https://github.com/osmr/imgclsmob/tree/master/pytorch/pytorchcv/models
 2. (PyramidNet) Deep Pyramidal Residual Networks
-  - Paper : https://arxiv.org/abs/1610.02915
-  - Author's Code : https://github.com/dyhan0920/PyramidNet-PyTorch
+    - Paper : https://arxiv.org/abs/1610.02915
+    - Author's Code : https://github.com/dyhan0920/PyramidNet-PyTorch
 3. (Wide-ResNet)
-  - Code : https://github.com/meliketoy/wide-resnet.pytorch
+    - Code : https://github.com/meliketoy/wide-resnet.pytorch
 4. (Shake-Shake)
-  - Code : https://github.com/owruby/shake-shake_pytorch
+    - Code : https://github.com/owruby/shake-shake_pytorch
 5. ShakeDrop Regularization for Deep Residual Learning
-  - Paper : https://arxiv.org/abs/1802.02375
-  - Code : https://github.com/owruby/shake-drop_pytorch
+    - Paper : https://arxiv.org/abs/1802.02375
+    - Code : https://github.com/owruby/shake-drop_pytorch
 6. LARS : Large Batch Training of Convolutional Networks
-  - Paper : https://arxiv.org/abs/1708.03888
-  - Code : https://github.com/noahgolmant/pytorch-lars/blob/master/lars.py
+    - Paper : https://arxiv.org/abs/1708.03888
+    - Code : https://github.com/noahgolmant/pytorch-lars/blob/master/lars.py
 7. (ARS-Aug) Learning data augmentation policies using augmented random search
-  - Paper : https://arxiv.org/abs/1811.04768
-  - Author's Code : https://github.com/gmy2013/ARS-Aug
+    - Paper : https://arxiv.org/abs/1811.04768
+    - Author's Code : https://github.com/gmy2013/ARS-Aug
 8. AutoAugment
-  - Code : https://github.com/tensorflow/models/tree/master/research/autoaugment
+    - Code : https://github.com/tensorflow/models/tree/master/research/autoaugment
 9. https://pytorch.org/docs/stable/torchvision/models.html
 10. https://github.com/eladhoffer/convNet.pytorch/blob/master/preprocess.py
 11. Ray
-  - https://github.com/ray-project/ray
-  - https://ray.readthedocs.io/en/latest/tune.html
-  - https://medium.com/formcept/scaling-python-modules-using-ray-framework-e5fc5430dc3e
+    - https://github.com/ray-project/ray
+    - https://ray.readthedocs.io/en/latest/tune.html
+    - https://medium.com/formcept/scaling-python-modules-using-ray-framework-e5fc5430dc3e
 12. HyperOpt
-  - https://github.com/hyperopt/hyperopt
+    - https://github.com/hyperopt/hyperopt
