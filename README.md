@@ -11,7 +11,7 @@ We do not open augmentation search codes at this moment, but it will be publicly
 
 ### Cifar-10 / 100
 
-Search : 3.5 GPU Hours, WResnet40x2 on Reduced Cifar10
+Search : **3.5 GPU Hours**, WResnet40x2 on Reduced Cifar10
 
 | Model(Cifar10)          | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |
 |-------------------------|------------|------------|-------------|------------------|
@@ -31,7 +31,7 @@ Search : 3.5 GPU Hours, WResnet40x2 on Reduced Cifar10
 
 ### Imagenet
 
-Search : 450 GPU Hours, Resnet50 on Reduced Imagenet
+Search : **450 GPU Hours**, Resnet50 on Reduced Imagenet
 
 | Model      | Baseline   | AutoAugment | Fast AutoAugment |
 |------------|------------|-------------|------------------|
