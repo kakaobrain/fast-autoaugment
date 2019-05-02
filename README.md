@@ -1,4 +1,4 @@
-# fast-autoaugment
+# Fast AutoAugment
 
 Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) Implementation in PyTorch.
 
