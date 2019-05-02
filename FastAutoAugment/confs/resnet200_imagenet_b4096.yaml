@@ -1,0 +1,17 @@
+model:
+  type: resnet200
+dataset: imagenet
+aug: inception
+cutout: 0
+batch: 86 # this value is only for one gpu. In our setting, we have 12 machines with 4 gpus. 86*4*12 = 4128 batch size was used.
+epoch: 270
+lr: 0.1
+lr_schedule:
+  type: 'resnet'
+  warmup:
+    multiplier: 16
+    epoch: 10
+optimizer:
+  type: sgd
+  nesterov: False
+  decay: 0.0001
