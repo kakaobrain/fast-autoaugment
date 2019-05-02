@@ -63,7 +63,15 @@ $ python train.py -c confs/resnet50_imagenet_b4096.yaml --aug fa_reduced_imagene
 
 Please cite below papers.
 
-- Arxiv : https://arxiv.org/abs/1905.00397
+```
+@article{lim2019fast,
+  title={Fast AutoAugment},
+  author={Lim, Sungbin and Kim, Ildoo and Kim, Taesup and Kim, Chiheon and Kim, Sungwoong},
+  journal={arXiv preprint arXiv:1905.00397},
+  year={2019}
+}
+```
+
 
 ## References & Opensources
 
