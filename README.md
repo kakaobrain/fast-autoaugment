@@ -11,7 +11,7 @@ We do not open augmentation search codes at this moment, but it will be publicly
 
 ### Cifar-10 / 100
 
-Search : **3.5 GPU Hours**, WResnet40x2 on Reduced Cifar10
+Search : **3.5 GPU Hours (1428x faster than AutoAugment)**, WResnet40x2 on Reduced Cifar10
 
 | Model(Cifar10)          | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |
 |-------------------------|------------|------------|-------------|------------------|
@@ -31,7 +31,7 @@ Search : **3.5 GPU Hours**, WResnet40x2 on Reduced Cifar10
 
 ### Imagenet
 
-Search : **450 GPU Hours**, Resnet50 on Reduced Imagenet
+Search : **450 GPU Hours (33x faster than AutoAugment)**, Resnet50 on Reduced Imagenet
 
 | Model      | Baseline   | AutoAugment | Fast AutoAugment |
 |------------|------------|-------------|------------------|
@@ -59,9 +59,9 @@ Note that we conducted experiments with imagenet dataset using 8 machines with f
 $ python train.py -c confs/resnet50_imagenet_b4096.yaml --aug fa_reduced_imagenet --horovod
 ```
 
-## Papers
+## Citation
 
-Please cite below papers.
+If you use any part of this code in your research, please cite our [paper](https://arxiv.org/abs/1905.00397).
 
 ```
 @article{lim2019fast,
@@ -71,6 +71,10 @@ Please cite below papers.
   year={2019}
 }
 ```
+
+## Contact for Issues
+- Ildoo Kim, ildoo.kim@kakaobrain.com
+- Sungbin Lim, sungbin.lim@kakaobrain.com
 
 
 ## References & Opensources
