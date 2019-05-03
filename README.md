@@ -1,6 +1,6 @@
 # Fast AutoAugment
 
-Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) Implementation in PyTorch.
+Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) implementation in PyTorch.
 
 - Fast AutoAugment learns augmentation policies using a more efficient search strategy based on density matching.
 - Fast AutoAugment speeds up the search time by orders of magnitude while maintaining the comparable performances.
@@ -9,11 +9,11 @@ We do not open augmentation search codes at this moment, but it will be publicly
 
 ## Results
 
-### Cifar-10 / 100
+### CIFAR-10 / 100
 
-Search : **3.5 GPU Hours (1428x faster than AutoAugment)**, WResnet40x2 on Reduced Cifar10
+Search : **3.5 GPU Hours (1428x faster than AutoAugment)**, WResNet-40x2 on Reduced CIFAR-10
 
-| Model(Cifar10)          | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |
+| Model(CIFAR-10)         | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |
 |-------------------------|------------|------------|-------------|------------------|
 | Wide-ResNet-40-2        | 5.3        | 4.1        | 3.7         | 3.6 / 3.7        |
 | Wide-ResNet-28-10       | 3.9        | 3.1        | 2.6         | 2.7 / 2.7        |
@@ -22,29 +22,29 @@ Search : **3.5 GPU Hours (1428x faster than AutoAugment)**, WResnet40x2 on Reduc
 | Shake-Shake(26 2x112d)  | 2.8        | 2.6        | 1.9         | 2.0 / 1.9        |
 | PyramidNet+ShakeDrop    | 2.7        | 2.3        | 1.5         | 1.8 / 1.7        |
 
-| Model(Cifar100)       | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |
+| Model(CIFAR-100)      | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |
 |-----------------------|------------|------------|-------------|------------------|
 | Wide-ResNet-40-2      | 26.0       | 25.2       | 20.7        | 20.7 / 20.6      |
 | Wide-ResNet-28-10     | 18.8       | 28.4       | 17.1        | 17.8 / 17.5      |
 | Shake-Shake(26 2x96d) | 17.1       | 16.0       | 14.3        | 14.9 / 14.6      |
 | PyramidNet+ShakeDrop  | 14.0       | 12.2       | 10.7        | 11.9 / 11.7      |
 
-### Imagenet
+### ImageNet
 
-Search : **450 GPU Hours (33x faster than AutoAugment)**, Resnet50 on Reduced Imagenet
+Search : **450 GPU Hours (33x faster than AutoAugment)**, ResNet-50 on Reduced ImageNet
 
 | Model      | Baseline   | AutoAugment | Fast AutoAugment |
 |------------|------------|-------------|------------------|
-| Resnet-50  | 23.7 / 6.9 | 22.4 / 6.2  | **21.4 / 5.9**   |
-| Resnet-200 | 21.5 / 5.8 | 20.0 / 5.0  | **19.4 / 4.7**   |
+| ResNet-50  | 23.7 / 6.9 | 22.4 / 6.2  | **21.4 / 5.9**   |
+| ResNet-200 | 21.5 / 5.8 | 20.0 / 5.0  | **19.4 / 4.7**   |
 
 
 ## Run
 
-You can train network architectures on cifar10/100 and imagenet with our searched policies.
+You can train network architectures on CIFAR-10 / 100 and ImageNet with our searched policies.
 
-- fa_reduced_cifar10 : reduced cifar10(4k images), wresnet40x2
-- fa_reduced_imagenet : reduced imagenet(50k images, 120 classes), resnet50
+- fa_reduced_cifar10 : reduced CIFAR-10(4k images), WResNet-40x2
+- fa_reduced_imagenet : reduced imagenet(50k images, 120 classes), ResNet-50
 
 ```
 $ python train.py -c confs/wresnet40x2_cifar10_b512.yaml --aug fa_reduced_cifar10 --dataset cifar10
@@ -53,7 +53,7 @@ $ python train.py -c confs/wresnet28x10_cifar10_b512.yaml --aug fa_reduced_cifar
 $ python train.py -c confs/wresnet28x10_cifar10_b512.yaml --aug fa_reduced_cifar10 --dataset cifar100
 ```
 
-Note that we conducted experiments with imagenet dataset using 8 machines with four V100 gpus each.
+Note that we conducted experiments with ImageNet dataset using 8 machines with four V100 GPUs each.
 
 ```
 $ python train.py -c confs/resnet50_imagenet_b4096.yaml --aug fa_reduced_imagenet --horovod
