@@ -108,11 +108,11 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     logger.debug('is_master=%s' % is_master)
 
     lr_scheduler_type = C.get()['lr_schedule'].get('type', 'cosine')
-    if lr_scheduler_type:
+    if lr_scheduler_type == 'cosine':
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=C.get()['epoch'], eta_min=0.)
-    elif C.get()['lr_schedule'].get('type', 'resnet'):
+    elif lr_scheduler_type == 'resnet':
         scheduler = adjust_learning_rate_resnet(optimizer)
-    elif C.get()['lr_schedule'].get('type', 'pyramid'):
+    elif lr_scheduler_type == 'pyramid':
         scheduler = adjust_learning_rate_pyramid(optimizer, C.get()['epoch'])
     else:
         raise ValueError('invalid lr_schduler=%s' % lr_scheduler_type)
