@@ -160,7 +160,7 @@ def SamplePairing(imgs):  # [0, 0.4]
     return f
 
 
-def augment_list(for_autoaug=True):  # 16 oeprations and their ranges
+def augment_list(for_autoaug=True):  # 16 operations and their ranges
     l = [
         (ShearX, -0.3, 0.3),  # 0
         (ShearY, -0.3, 0.3),  # 1
