@@ -1,11 +1,11 @@
 model:
-  type: wresnet40_2
+  type: shakeshake26_2x96d
 dataset: cifar10
 aug: default
 cutout: 16
 batch: 512
-epoch: 200
-lr: 0.1
+epoch: 1800
+lr: 0.01
 lr_schedule:
   type: 'cosine'
   warmup:
@@ -14,4 +14,4 @@ lr_schedule:
 optimizer:
   type: sgd
   nesterov: True
-  decay: 0.0002
+  decay: 0.002

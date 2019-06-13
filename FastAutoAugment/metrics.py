@@ -58,6 +58,9 @@ class Accumulator:
     def items(self):
         return self.metrics.items()
 
+    def __str__(self):
+        return str(dict(self.metrics))
+
     def __truediv__(self, other):
         newone = Accumulator()
         for key, value in self.items():

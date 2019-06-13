@@ -23,18 +23,18 @@ logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
 
 
-def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1):
+def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None):
+    tqdm_disable = bool(os.environ.get('TASK_NAME', ''))
     if verbose:
-        loader = tqdm(loader)
-        if optimizer:
-            curr_lr = optimizer.param_groups[0]['lr']
-            loader.set_description('[%s %04d/%04d] lr=%.4f' % (desc_default, epoch, C.get()['epoch'], curr_lr))
-        else:
-            loader.set_description('[%s %04d/%04d]' % (desc_default, epoch, C.get()['epoch']))
+        loader = tqdm(loader, disable=tqdm_disable)
+        loader.set_description('[%s %04d/%04d]' % (desc_default, epoch, C.get()['epoch']))
 
     metrics = Accumulator()
     cnt = 0
+    total_steps = len(loader)
+    steps = 0
     for data, label in loader:
+        steps += 1
         data, label = data.cuda(), label.cuda()
 
         if optimizer:
@@ -44,8 +44,12 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
         loss = loss_fn(preds, label)
 
         if optimizer:
-            nn.utils.clip_grad_norm_(model.parameters(), 5)
             loss.backward()
+            if getattr(optimizer, "synchronize", None):
+                optimizer.synchronize()
+            if C.get()['optimizer'].get('clip', 5) > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer'].get('clip', 5))
+
             optimizer.step()
 
         top1, top5 = accuracy(preds, label, (1, 5))
@@ -57,9 +61,18 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
         })
         cnt += len(data)
         if verbose:
-            loader.set_postfix(metrics / cnt)
+            postfix = metrics / cnt
+            if optimizer:
+                postfix['lr'] = optimizer.param_groups[0]['lr']
+            loader.set_postfix(postfix)
+
+        # if scheduler is not None:
+        #     scheduler.step(epoch - 1 + float(steps) / total_steps)
 
         del preds, loss, top1, top5, data, label
+
+    if tqdm_disable:
+        logger.info('[%s %03d/%03d] %s', desc_default, epoch, C.get()['epoch'], metrics / cnt)
 
     metrics /= cnt
     if optimizer:
@@ -101,6 +114,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     is_master = True
     if horovod:
         optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
+        optimizer._requires_update = set()  # issue : https://github.com/horovod/horovod/issues/1099
         hvd.broadcast_parameters(model.state_dict(), root_rank=0)
         hvd.broadcast_optimizer_state(optimizer, root_rank=0)
         if hvd.rank() != 0:
@@ -109,7 +123,10 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
     lr_scheduler_type = C.get()['lr_schedule'].get('type', 'cosine')
     if lr_scheduler_type == 'cosine':
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=C.get()['epoch'], eta_min=0.)
+        t_max = C.get()['epoch']
+        if C.get()['lr_schedule'].get('warmup', None):
+            t_max -= C.get()['lr_schedule']['warmup']['epoch']
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max, eta_min=0.)
     elif lr_scheduler_type == 'resnet':
         scheduler = adjust_learning_rate_resnet(optimizer)
     elif lr_scheduler_type == 'pyramid':
@@ -125,7 +142,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             after_scheduler=scheduler
         )
 
-    if not tag and is_master:
+    if not tag.strip() or not is_master:
         from FastAutoAugment.metrics import SummaryWriterDummy as SummaryWriter
         logger.warning('tag not provided, no tensorboard log.')
     else:
@@ -179,7 +196,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
         model.train()
         rs = dict()
-        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master)
+        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler)
         model.eval()
 
         if math.isnan(rs['train']['loss']):
@@ -242,7 +259,7 @@ if __name__ == '__main__':
         logger.info('decay reset=%.8f' % args.decay)
         C.get()['optimizer']['decay'] = args.decay
     if args.save:
-        logger.info('checkpoint will be saved at', args.save)
+        logger.info('checkpoint will be saved at %s', args.save)
 
     import time
     t = time.time()

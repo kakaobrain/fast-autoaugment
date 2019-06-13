@@ -6,14 +6,11 @@ model:
 dataset: cifar10
 aug: default
 cutout: 16
-batch: 128  # per gpu, 8 machines with 4 gpus each
+batch: 128
 epoch: 1800
 lr: 0.1
 lr_schedule:
   type: 'pyramid'
-  warmup:
-    multiplier: 8
-    epoch: 10
 optimizer:
   type: sgd
   nesterov: True

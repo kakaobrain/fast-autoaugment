@@ -24,7 +24,7 @@ Search : **3.5 GPU Hours (1428x faster than AutoAugment)**, WResNet-40x2 on Redu
 
 | Model(CIFAR-100)      | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |
 |-----------------------|------------|------------|-------------|------------------|
-| Wide-ResNet-40-2      | 26.0       | 25.2       | 20.7        | 20.7 / 20.6      |
+| Wide-ResNet-40-2      | 26.0       | 25.2       | 20.7        | 20.6 / 20.6      |
 | Wide-ResNet-28-10     | 18.8       | 28.4       | 17.1        | 17.8 / 17.5      |
 | Shake-Shake(26 2x96d) | 17.1       | 16.0       | 14.3        | 14.9 / 14.6      |
 | PyramidNet+ShakeDrop  | 14.0       | 12.2       | 10.7        | 11.9 / 11.7      |
@@ -35,7 +35,7 @@ Search : **450 GPU Hours (33x faster than AutoAugment)**, ResNet-50 on Reduced I
 
 | Model      | Baseline   | AutoAugment | Fast AutoAugment |
 |------------|------------|-------------|------------------|
-| ResNet-50  | 23.7 / 6.9 | 22.4 / 6.2  | **21.4 / 5.9**   |
+| ResNet-50  | 23.7 / 6.9 | 22.4 / 6.2  | **22.4 / 6.3**   |
 | ResNet-200 | 21.5 / 5.8 | 20.0 / 5.0  | **19.4 / 4.7**   |
 
 
@@ -56,7 +56,7 @@ $ python train.py -c confs/wresnet28x10_cifar10_b512.yaml --aug fa_reduced_cifar
 Note that we conducted experiments with ImageNet dataset using 8 machines with four V100 GPUs each.
 
 ```
-$ python train.py -c confs/resnet50_imagenet_b4096.yaml --aug fa_reduced_imagenet --horovod
+$ python train.py -c confs/resnet50_b4096.yaml --aug fa_reduced_imagenet --horovod
 ```
 
 ## Citation
@@ -67,7 +67,7 @@ If you use any part of this code in your research, please cite our [paper](https
 @article{lim2019fast,
   title={Fast AutoAugment},
   author={Lim, Sungbin and Kim, Ildoo and Kim, Taesup and Kim, Chiheon and Kim, Sungwoong},
-  journal={arXiv preprint arXiv:1905.00397},
+  journal={ICML AutoML workshop},
   year={2019}
 }
 ```

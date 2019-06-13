@@ -1,0 +1,17 @@
+model:
+  type: pyramid
+  depth: 272
+  alpha: 200
+  bottleneck: True
+dataset: cifar10
+aug: default
+cutout: 16
+batch: 64
+epoch: 1800
+lr: 0.05
+lr_schedule:
+  type: 'pyramid'
+optimizer:
+  type: sgd
+  nesterov: True
+  decay: 0.00005
