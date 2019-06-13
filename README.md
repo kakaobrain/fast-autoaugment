@@ -35,7 +35,7 @@ Search : **450 GPU Hours (33x faster than AutoAugment)**, ResNet-50 on Reduced I
 
 | Model      | Baseline   | AutoAugment | Fast AutoAugment |
 |------------|------------|-------------|------------------|
-| ResNet-50  | 23.7 / 6.9 | 22.4 / 6.2  | **21.4 / 5.9**   |
+| ResNet-50  | 23.7 / 6.9 | 22.4 / 6.2  | **22.4 / 6.3**   |
 | ResNet-200 | 21.5 / 5.8 | 20.0 / 5.0  | **19.4 / 4.7**   |
 
 
@@ -67,7 +67,7 @@ If you use any part of this code in your research, please cite our [paper](https
 @article{lim2019fast,
   title={Fast AutoAugment},
   author={Lim, Sungbin and Kim, Ildoo and Kim, Taesup and Kim, Chiheon and Kim, Sungwoong},
-  journal={arXiv preprint arXiv:1905.00397},
+  journal={ICML AutoML workshop},
   year={2019}
 }
 ```
