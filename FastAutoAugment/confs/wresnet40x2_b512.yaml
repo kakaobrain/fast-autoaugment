@@ -1,5 +1,5 @@
 model:
-  type: wresnet28_10
+  type: wresnet40_2
 dataset: cifar10
 aug: default
 cutout: 16

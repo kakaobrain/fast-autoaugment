@@ -17,6 +17,8 @@ from FastAutoAugment.archive import arsaug_policy, autoaug_policy, autoaug_paper
 # fa_resnet50_rimagenet, fa_shake26_2x96d_cifar100, fa_shake26_2x96d_cifar10, fa_reduced_cifar10_progressive
 from FastAutoAugment.augmentations import *
 from FastAutoAugment.common import get_logger
+from FastAutoAugment.samplers.distributed_sampler import DistributedStratifiedSampler
+from FastAutoAugment.samplers.stratified_sampler import StratifiedSampler
 
 logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
@@ -43,36 +45,34 @@ def get_dataloaders(dataset, batch, dataroot, split=0.0, split_idx=0, horovod=Fa
             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ])
     elif 'imagenet' in dataset:
-        if C.get()['aug'] in ['inception', 'fa_reduced_rimagenet'] or isinstance(C.get()['aug'], (list, tuple, dict)):
-            transform_train = transforms.Compose([
-                transforms.RandomResizedCrop(224),
-                transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(
-                    brightness=0.4,
-                    contrast=0.4,
-                    saturation=0.4,
-                ),
+        transform_train = transforms.Compose([
+            transforms.RandomResizedCrop(224),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(
+                brightness=0.4,
+                contrast=0.4,
+                saturation=0.4,
+                hue=0.2,
+            ),
+            transforms.ToTensor(),
+            # Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+        if C.get()['model']['type'] == 'resnet200':
+            # Instead, we test a single 320×320 crop from s = 320
+            transform_test = transforms.Compose([
+                transforms.Resize(320),
+                transforms.CenterCrop(320),
                 transforms.ToTensor(),
-                Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
-            if C.get()['model']['type'] == 'resnet200':
-                # Instead, we test a single 320×320 crop from s = 320
-                transform_test = transforms.Compose([
-                    transforms.Resize(320),
-                    transforms.CenterCrop(320),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-                ])
-            else:
-                transform_test = transforms.Compose([
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-                ])
         else:
-            raise ValueError(C.get()['aug'])
+            transform_test = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
     else:
         raise ValueError('dataset=%s' % dataset)
 
@@ -171,12 +171,13 @@ def get_dataloaders(dataset, batch, dataroot, split=0.0, split_idx=0, horovod=Fa
             import horovod.torch as hvd
             train_sampler = torch.utils.data.distributed.DistributedSampler(train_sampler, num_replicas=hvd.size(), rank=hvd.rank())
     else:
-        train_sampler = None
-        valid_sampler = SubsetSampler(list(range(16)))
+        valid_sampler = SubsetSampler([])
 
         if horovod:
             import horovod.torch as hvd
-            train_sampler = torch.utils.data.distributed.DistributedSampler(total_trainset, num_replicas=hvd.size(), rank=hvd.rank())
+            train_sampler = DistributedStratifiedSampler(total_trainset.train_labels, num_replicas=hvd.size(), rank=hvd.rank())
+        else:
+            train_sampler = StratifiedSampler(total_trainset.train_labels)
 
     trainloader = torch.utils.data.DataLoader(
         total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=32, pin_memory=True,

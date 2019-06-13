@@ -1,0 +1,17 @@
+model:
+  type: shakeshake26_2x112d
+dataset: cifar10
+aug: default
+cutout: 16
+batch: 512
+epoch: 1800
+lr: 0.01
+lr_schedule:
+  type: 'cosine'
+  warmup:
+    multiplier: 4
+    epoch: 5
+optimizer:
+  type: sgd
+  nesterov: True
+  decay: 0.002
