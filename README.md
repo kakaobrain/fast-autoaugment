@@ -1,4 +1,4 @@
-# Fast AutoAugment
+# Fast AutoAugment **(Accepted at NeurIPS 2019)**
 
 Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) implementation in PyTorch.
 
@@ -64,10 +64,10 @@ $ python train.py -c confs/resnet50_b4096.yaml --aug fa_reduced_imagenet --horov
 If you use any part of this code in your research, please cite our [paper](https://arxiv.org/abs/1905.00397).
 
 ```
-@article{lim2019fast,
+@inproceedings{lim2019fast,
   title={Fast AutoAugment},
   author={Lim, Sungbin and Kim, Ildoo and Kim, Taesup and Kim, Chiheon and Kim, Sungwoong},
-  journal={ICML AutoML workshop},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
   year={2019}
 }
 ```
