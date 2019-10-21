@@ -4,6 +4,8 @@ import random
 
 import PIL, PIL.ImageOps, PIL.ImageEnhance, PIL.ImageDraw
 import numpy as np
+import torch
+from torchvision.transforms.transforms import Compose
 
 random_mirror = True
 
@@ -118,16 +120,7 @@ def Cutout(img, v):  # [0, 60] => percentage: [0, 0.2]
         return img
 
     v = v * img.size[0]
-
     return CutoutAbs(img, v)
-
-    # x0 = np.random.uniform(w - v)
-    # y0 = np.random.uniform(h - v)
-    # xy = (x0, y0, x0 + v, y0 + v)
-    # color = (127, 127, 127)
-    # img = img.copy()
-    # PIL.ImageDraw.Draw(img).rectangle(xy, color)
-    # return img
 
 
 def CutoutAbs(img, v):  # [0, 60] => percentage: [0, 0.2]
@@ -160,7 +153,7 @@ def SamplePairing(imgs):  # [0, 0.4]
     return f
 
 
-def augment_list(for_autoaug=True):  # 16 operations and their ranges
+def augment_list(for_autoaug=True):  # 16 oeprations and their ranges
     l = [
         (ShearX, -0.3, 0.3),  # 0
         (ShearY, -0.3, 0.3),  # 1
@@ -199,3 +192,24 @@ def get_augment(name):
 def apply_augment(img, name, level):
     augment_fn, low, high = get_augment(name)
     return augment_fn(img.copy(), level * (high - low) + low)
+
+
+class Lighting(object):
+    """Lighting noise(AlexNet - style PCA - based noise)"""
+
+    def __init__(self, alphastd, eigval, eigvec):
+        self.alphastd = alphastd
+        self.eigval = torch.Tensor(eigval)
+        self.eigvec = torch.Tensor(eigvec)
+
+    def __call__(self, img):
+        if self.alphastd == 0:
+            return img
+
+        alpha = img.new().resize_(3).normal_(0, self.alphastd)
+        rgb = self.eigvec.type_as(img).clone() \
+            .mul(alpha.view(1, 3).expand(3, 3)) \
+            .mul(self.eigval.view(1, 3).expand(3, 3)) \
+            .sum(1).squeeze()
+
+        return img.add(rgb.view(3, 1, 1).expand_as(img))

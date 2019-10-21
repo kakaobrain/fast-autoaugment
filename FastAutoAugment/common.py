@@ -1,6 +1,8 @@
 import logging
+import warnings
 
 formatter = logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
+warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
 
 
 def get_logger(name, level=logging.DEBUG):
