@@ -1,4 +1,5 @@
 import itertools
+import json
 import logging
 import math
 import os
@@ -6,6 +7,7 @@ from collections import OrderedDict
 
 import torch
 from torch import nn, optim
+from torch.nn.parallel.data_parallel import DataParallel
 
 from tqdm import tqdm
 from theconf import Config as C, ConfigArgumentParser
@@ -15,16 +17,14 @@ from FastAutoAugment.data import get_dataloaders
 from FastAutoAugment.lr_scheduler import adjust_learning_rate_pyramid, adjust_learning_rate_resnet
 from FastAutoAugment.metrics import accuracy, Accumulator
 from FastAutoAugment.networks import get_model, num_class
-
 from warmup_scheduler import GradualWarmupScheduler
-
 
 logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
 
 
 def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None):
-    tqdm_disable = bool(os.environ.get('TASK_NAME', ''))
+    tqdm_disable = bool(os.environ.get('TASK_NAME', ''))    # KakaoBrain Environment
     if verbose:
         loader = tqdm(loader, disable=tqdm_disable)
         loader.set_description('[%s %04d/%04d]' % (desc_default, epoch, C.get()['epoch']))
@@ -46,14 +46,12 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
         if optimizer:
             loss.backward()
             if getattr(optimizer, "synchronize", None):
-                optimizer.synchronize()
+                optimizer.synchronize()     # for horovod
             if C.get()['optimizer'].get('clip', 5) > 0:
                 nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer'].get('clip', 5))
-
             optimizer.step()
 
         top1, top5 = accuracy(preds, label, (1, 5))
-
         metrics.add_dict({
             'loss': loss.item() * len(data),
             'top1': top1.item() * len(data),
@@ -66,13 +64,16 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
                 postfix['lr'] = optimizer.param_groups[0]['lr']
             loader.set_postfix(postfix)
 
-        # if scheduler is not None:
-        #     scheduler.step(epoch - 1 + float(steps) / total_steps)
+        if scheduler is not None:
+            scheduler.step(epoch - 1 + float(steps) / total_steps)
 
         del preds, loss, top1, top5, data, label
 
     if tqdm_disable:
-        logger.info('[%s %03d/%03d] %s', desc_default, epoch, C.get()['epoch'], metrics / cnt)
+        if optimizer:
+            logger.info('[%s %03d/%03d] %s lr=%.6f', desc_default, epoch, C.get()['epoch'], metrics / cnt, optimizer.param_groups[0]['lr'])
+        else:
+            logger.info('[%s %03d/%03d] %s', desc_default, epoch, C.get()['epoch'], metrics / cnt)
 
     metrics /= cnt
     if optimizer:
@@ -123,10 +124,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
     lr_scheduler_type = C.get()['lr_schedule'].get('type', 'cosine')
     if lr_scheduler_type == 'cosine':
-        t_max = C.get()['epoch']
-        if C.get()['lr_schedule'].get('warmup', None):
-            t_max -= C.get()['lr_schedule']['warmup']['epoch']
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max, eta_min=0.)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=C.get()['epoch'], eta_min=0.)
     elif lr_scheduler_type == 'resnet':
         scheduler = adjust_learning_rate_resnet(optimizer)
     elif lr_scheduler_type == 'pyramid':
@@ -142,7 +140,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             after_scheduler=scheduler
         )
 
-    if not tag.strip() or not is_master:
+    if not tag or not is_master:
         from FastAutoAugment.metrics import SummaryWriterDummy as SummaryWriter
         logger.warning('tag not provided, no tensorboard log.')
     else:
@@ -152,27 +150,27 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     result = OrderedDict()
     epoch_start = 1
     if save_path and os.path.exists(save_path):
+        logger.info('%s file found. loading...' % save_path)
         data = torch.load(save_path)
         if 'model' in data:
-            # TODO : patch, horovod trained checkpoint
-            new_state_dict = {}
-            for k, v in data['model'].items():
-                if not horovod and 'module.' not in k:
-                    new_state_dict['module.' + k] = v
-                else:
-                    new_state_dict[k] = v
-
-            model.load_state_dict(new_state_dict)
+            logger.info('checkpoint epoch@%d' % data['epoch'])
+            if not isinstance(model, DataParallel):
+                model.load_state_dict({k.replace('module.', ''): v for k, v in data['model'].items()})
+            else:
+                model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data['model'].items()})
             optimizer.load_state_dict(data['optimizer'])
-            logger.info('ckpt epoch@%d' % data['epoch'])
             if data['epoch'] < C.get()['epoch']:
                 epoch_start = data['epoch']
             else:
                 only_eval = True
-            logger.info('epoch=%d' % data['epoch'])
         else:
-            model.load_state_dict(data)
+            model.load_state_dict({k: v for k, v in data.items()})
         del data
+    else:
+        logger.info('"%s" file not found. skip to pretrain weights...' % save_path)
+        if only_eval:
+            logger.warning('model checkpoint not found. only-evaluation mode is off.')
+        only_eval = False
 
     if only_eval:
         logger.info('evaluation only+')
@@ -182,15 +180,15 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=0, writer=writers[1])
         rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=0, writer=writers[2])
         for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
+            if setname not in rs:
+                continue
             result['%s_%s' % (key, setname)] = rs[setname][key]
         result['epoch'] = 0
         return result
 
     # train loop
-    best_valid_loss = 10e10
+    best_top1 = 0
     for epoch in range(epoch_start, max_epoch + 1):
-        scheduler.step()
-
         if horovod:
             trainsampler.set_epoch(epoch)
 
@@ -202,13 +200,13 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         if math.isnan(rs['train']['loss']):
             raise Exception('train loss is NaN.')
 
-        if epoch % (10 if 'cifar' in C.get()['dataset'] else 30) == 0 or epoch == max_epoch:
+        if epoch % 5 == 0 or epoch == max_epoch:
             rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
             rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
 
-            if metric == 'last' or rs[metric]['loss'] < best_valid_loss:    # TODO
+            if metric == 'last' or rs[metric]['top1'] > best_top1:
                 if metric != 'last':
-                    best_valid_loss = rs[metric]['loss']
+                    best_top1 = rs[metric]['top1']
                 for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
                     result['%s_%s' % (key, setname)] = rs[setname][key]
                 result['epoch'] = epoch
@@ -221,22 +219,22 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                     loss_test=rs['test']['loss'], top1_test=rs['test']['top1']
                 )
 
-            # save checkpoint
-            if is_master and save_path:
-                logger.info('save model@%d to %s' % (epoch, save_path))
-                torch.save({
-                    'epoch': epoch,
-                    'log': {
-                        'train': rs['train'].get_dict(),
-                        'valid': rs['valid'].get_dict(),
-                        'test': rs['test'].get_dict(),
-                    },
-                    'optimizer': optimizer.state_dict(),
-                    'model': model.state_dict()
-                }, save_path)
-
+                # save checkpoint
+                if is_master and save_path:
+                    logger.info('save model@%d to %s' % (epoch, save_path))
+                    torch.save({
+                        'epoch': epoch,
+                        'log': {
+                            'train': rs['train'].get_dict(),
+                            'valid': rs['valid'].get_dict(),
+                            'test': rs['test'].get_dict(),
+                        },
+                        'optimizer': optimizer.state_dict(),
+                        'model': model.state_dict()
+                    }, save_path)
     del model
 
+    result['top1_test'] = best_top1
     return result
 
 
@@ -244,31 +242,31 @@ if __name__ == '__main__':
     parser = ConfigArgumentParser(conflict_handler='resolve')
     parser.add_argument('--tag', type=str, default='')
     parser.add_argument('--dataroot', type=str, default='/data/private/pretrainedmodels', help='torchvision data folder')
-    parser.add_argument('--save', type=str, default='')
+    parser.add_argument('--save', type=str, default='test.pth')
     parser.add_argument('--cv-ratio', type=float, default=0.0)
     parser.add_argument('--cv', type=int, default=0)
-    parser.add_argument('--decay', type=float, default=-1)
     parser.add_argument('--horovod', action='store_true')
     parser.add_argument('--only-eval', action='store_true')
     args = parser.parse_args()
 
     assert not (args.horovod and args.only_eval), 'can not use horovod when evaluation mode is enabled.'
-    assert (args.only_eval and not args.save) or not args.only_eval, 'checkpoint path not provided in evaluation mode.'
+    assert (args.only_eval and args.save) or not args.only_eval, 'checkpoint path not provided in evaluation mode.'
 
-    if args.decay > 0:
-        logger.info('decay reset=%.8f' % args.decay)
-        C.get()['optimizer']['decay'] = args.decay
-    if args.save:
-        logger.info('checkpoint will be saved at %s', args.save)
+    if not args.only_eval:
+        if args.save:
+            logger.info('checkpoint will be saved at %s' % args.save)
+        else:
+            logger.warning('Provide --save argument to save the checkpoint. Without it, training result will not be saved!')
 
     import time
     t = time.time()
-    result = train_and_eval(args.tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, save_path=args.save, horovod=args.horovod)
+    result = train_and_eval(args.tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, save_path=args.save, only_eval=args.only_eval, horovod=args.horovod, metric='test')
     elapsed = time.time() - t
 
-    logger.info('training done.')
+    logger.info('done.')
     logger.info('model: %s' % C.get()['model'])
     logger.info('augmentation: %s' % C.get()['aug'])
-    logger.info(result)
+    logger.info('\n' + json.dumps(result, indent=4))
     logger.info('elapsed time: %.3f Hours' % (elapsed / 3600.))
     logger.info('top1 error in testset: %.4f' % (1. - result['top1_test']))
+    logger.info(args.save)

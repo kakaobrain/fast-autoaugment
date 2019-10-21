@@ -16,7 +16,7 @@ def adjust_learning_rate_pyramid(optimizer, max_epoch):
 
 def adjust_learning_rate_resnet(optimizer):
     """
-    Sets the learning rate to the initial LR decayed by 10 every [90, 180, 240] epochs
+    Sets the learning rate to the initial LR decayed by 10 on every predefined epochs
     Ref: AutoAugment
     """
 

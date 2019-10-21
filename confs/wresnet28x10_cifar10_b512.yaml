@@ -1,7 +1,7 @@
 model:
   type: wresnet28_10
 dataset: cifar10
-aug: default
+aug: fa_reduced_cifar10
 cutout: 16
 batch: 512
 epoch: 200

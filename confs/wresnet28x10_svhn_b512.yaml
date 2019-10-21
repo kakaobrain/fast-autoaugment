@@ -1,10 +1,10 @@
 model:
-  type: shakeshake26_2x112d
-dataset: cifar10
-aug: default
-cutout: 16
+  type: wresnet28_10
+dataset: svhn
+aug: fa_reduced_svhn
+cutout: 20
 batch: 512
-epoch: 1800
+epoch: 200
 lr: 0.01
 lr_schedule:
   type: 'cosine'
@@ -14,4 +14,4 @@ lr_schedule:
 optimizer:
   type: sgd
   nesterov: True
-  decay: 0.002
+  decay: 0.0005

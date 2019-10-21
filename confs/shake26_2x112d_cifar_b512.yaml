@@ -1,7 +1,7 @@
 model:
-  type: shakeshake26_2x32d
+  type: shakeshake26_2x112d
 dataset: cifar10
-aug: default
+aug: fa_reduced_cifar10
 cutout: 16
 batch: 512
 epoch: 1800
@@ -14,4 +14,4 @@ lr_schedule:
 optimizer:
   type: sgd
   nesterov: True
-  decay: 0.001
+  decay: 0.002
