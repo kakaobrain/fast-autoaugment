@@ -8,7 +8,7 @@ Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) implementation in 
 
 <!-- ![search](./img/search.jpg) -->
 
-![autoaug](./img/autoaug.png){:class="center-block" height="200px"}
+![autoaug](./img/autoaug.png){:class="center-block" height="70%"}
 
 ## Results
 
