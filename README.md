@@ -1,14 +1,14 @@
 # Fast AutoAugment **(Accepted at NeurIPS 2019)**
 
+
 Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) implementation in PyTorch.
 
 - Fast AutoAugment learns augmentation policies using a more efficient search strategy based on density matching.
 - Fast AutoAugment speeds up the search time by orders of magnitude while maintaining the comparable performances.
 
-
-<!-- ![search](./img/search.jpg) -->
-
-![autoaug](./img/autoaug.png){:class="center-block" height="70%"}
+<p align="center">
+<img src="./img/search.jpg" height=350>
+</p>
 
 ## Results
 
@@ -105,29 +105,15 @@ If you use any part of this code in your research, please cite our [paper](https
 
 ## References & Opensources
 
-1. ResNet References
-    - (ResNet) Deep Residual Learning for Image Recognition
-      - Paper : https://arxiv.org/abs/1512.03385
-    - (ResNet) Identity Mappings in Deep Residual Networks
-      - Paper : https://arxiv.org/abs/1603.05027
-    - Codes
-      - https://github.com/osmr/imgclsmob/tree/master/pytorch/pytorchcv/models
-2. (PyramidNet) Deep Pyramidal Residual Networks
-    - Paper : https://arxiv.org/abs/1610.02915
-    - Author's Code : https://github.com/dyhan0920/PyramidNet-PyTorch
-3. (Wide-ResNet)
-    - Code : https://github.com/meliketoy/wide-resnet.pytorch
-4. (Shake-Shake)
-    - Code : https://github.com/owruby/shake-shake_pytorch
-5. ShakeDrop Regularization for Deep Residual Learning
-    - Paper : https://arxiv.org/abs/1802.02375
-    - Code : https://github.com/owruby/shake-drop_pytorch
-6. (ARS-Aug) Learning data augmentation policies using augmented random search
-    - Paper : https://arxiv.org/abs/1811.04768
-    - Author's Code : https://github.com/gmy2013/ARS-Aug
-7. AutoAugment
-    - Code : https://github.com/tensorflow/models/tree/master/research/autoaugment
-8. https://pytorch.org/docs/stable/torchvision/models.html
-9. https://github.com/eladhoffer/convNet.pytorch/blob/master/preprocess.py
-10. Ray : https://github.com/ray-project/ray
-12. HyperOpt : https://github.com/hyperopt/hyperopt
+We increase the batch size and adapt the learning rate accordingly to boost the training. Otherwise, we set other hyperparameters equal to AutoAugment if possible. For the unknown hyperparameters, we follow values from the original references or we tune them to match baseline performances.
+
+- **ResNet** : [paper1](https://arxiv.org/abs/1512.03385), [paper2](https://arxiv.org/abs/1603.05027), [code](https://github.com/osmr/imgclsmob/tree/master/pytorch/pytorchcv/models)
+- **PyramidNet** : [paper](https://arxiv.org/abs/1610.02915), [code](https://github.com/dyhan0920/PyramidNet-PyTorch)
+- **Wide-ResNet** : [code](https://github.com/meliketoy/wide-resnet.pytorch)
+- **Shake-Shake** : [code](https://github.com/owruby/shake-shake_pytorch)
+- **ShakeDrop Regularization** : [paper](https://arxiv.org/abs/1802.02375), [code](https://github.com/owruby/shake-drop_pytorch)
+- **AutoAugment** : [code](https://github.com/tensorflow/models/tree/master/research/autoaugment)
+- **Ray** : [code](https://github.com/ray-project/ray)
+- **HyperOpt** : [code](https://github.com/hyperopt/hyperopt)
+
+
