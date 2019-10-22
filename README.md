@@ -43,7 +43,7 @@ Search : **450 GPU Hours (33x faster than AutoAugment)**, ResNet-50 on Reduced I
 
 ### SVHN Test
 
-Search : **0.3413 GPU Hours**
+Search : **1.5 GPU Hours**
 
 |                                  | Baseline | AutoAug / Our | Fast AutoAugment  |
 |----------------------------------|---------:|--------------:|--------:|
@@ -115,5 +115,3 @@ We increase the batch size and adapt the learning rate accordingly to boost the 
 - **AutoAugment** : [code](https://github.com/tensorflow/models/tree/master/research/autoaugment)
 - **Ray** : [code](https://github.com/ray-project/ray)
 - **HyperOpt** : [code](https://github.com/hyperopt/hyperopt)
-
-
