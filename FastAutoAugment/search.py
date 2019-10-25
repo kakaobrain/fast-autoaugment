@@ -20,7 +20,7 @@ from FastAutoAugment.archive import remove_deplicates, policy_decoder
 from FastAutoAugment.augmentations import augment_list
 from FastAutoAugment.common import get_logger, add_filehandler
 from FastAutoAugment.data import get_dataloaders
-from FastAutoAugment.metrics import Accumulator, eval_tta
+from FastAutoAugment.metrics import Accumulator
 from FastAutoAugment.networks import get_model, num_class
 from FastAutoAugment.train import train_and_eval
 from theconf import Config as C, ConfigArgumentParser
@@ -67,6 +67,73 @@ def train_model(config, dataroot, augment, cv_ratio_test, cv_fold, save_path=Non
     return C.get()['model']['type'], cv_fold, result
 
 
+def eval_tta(config, augment, reporter):
+    C.get()
+    C.get().conf = config
+    cv_ratio_test, cv_fold, save_path = augment['cv_ratio_test'], augment['cv_fold'], augment['save_path']
+
+    # setup - provided augmentation rules
+    C.get()['aug'] = policy_decoder(augment, augment['num_policy'], augment['num_op'])
+
+    # eval
+    model = get_model(C.get()['model'], num_class(C.get()['dataset']))
+    ckpt = torch.load(save_path)
+    if 'model' in ckpt:
+        model.load_state_dict(ckpt['model'])
+    else:
+        model.load_state_dict(ckpt)
+    model.eval()
+
+    loaders = []
+    for _ in range(augment['num_policy']):  # TODO
+        _, tl, validloader, tl2 = get_dataloaders(C.get()['dataset'], C.get()['batch'], augment['dataroot'], cv_ratio_test, split_idx=cv_fold)
+        loaders.append(iter(validloader))
+        del tl, tl2
+
+    start_t = time.time()
+    metrics = Accumulator()
+    loss_fn = torch.nn.CrossEntropyLoss(reduction='none')
+    try:
+        while True:
+            losses = []
+            corrects = []
+            for loader in loaders:
+                data, label = next(loader)
+                data = data.cuda()
+                label = label.cuda()
+
+                pred = model(data)
+
+                loss = loss_fn(pred, label)
+                losses.append(loss.detach().cpu().numpy())
+
+                _, pred = pred.topk(1, 1, True, True)
+                pred = pred.t()
+                correct = pred.eq(label.view(1, -1).expand_as(pred)).detach().cpu().numpy()
+                corrects.append(correct)
+                del loss, correct, pred, data, label
+
+            losses = np.concatenate(losses)
+            losses_min = np.min(losses, axis=0).squeeze()
+
+            corrects = np.concatenate(corrects)
+            corrects_max = np.max(corrects, axis=0).squeeze()
+            metrics.add_dict({
+                'minus_loss': -1 * np.sum(losses_min),
+                'correct': np.sum(corrects_max),
+                'cnt': len(corrects_max)
+            })
+            del corrects, corrects_max
+    except StopIteration:
+        pass
+
+    del model
+    metrics = metrics / 'cnt'
+    gpu_secs = (time.time() - start_t) * torch.cuda.device_count()
+    reporter(minus_loss=metrics['minus_loss'], top1_valid=metrics['correct'], elapsed_time=gpu_secs, done=True)
+    return metrics['correct']
+
+
 if __name__ == '__main__':
     import json
     from pystopwatch2 import PyStopwatch
@@ -81,9 +148,8 @@ if __name__ == '__main__':
     parser.add_argument('--cv-ratio', type=float, default=0.4)
     parser.add_argument('--decay', type=float, default=-1)
     parser.add_argument('--redis', type=str, default='gpu-cloud-vnode30.dakao.io:23655')
+    parser.add_argument('--per-class', action='store_true')
     parser.add_argument('--resume', action='store_true')
-
-    parser.add_argument('--onlycv', type=float, default=-1)
     parser.add_argument('--smoke-test', action='store_true')
     args = parser.parse_args()
 
@@ -97,7 +163,7 @@ if __name__ == '__main__':
     logger.info('initialize ray...')
     ray.init(redis_address=args.redis)
 
-    num_result_per_cv = 3
+    num_result_per_cv = 10
     cv_num = 5
     copied_c = copy.deepcopy(C.get().conf)
 
@@ -153,17 +219,15 @@ if __name__ == '__main__':
             space['prob_%d_%d' % (i, j)] = hp.uniform('prob_%d_ %d' % (i, j), 0.0, 1.0)
             space['level_%d_%d' % (i, j)] = hp.uniform('level_%d_ %d' % (i, j), 0.0, 1.0)
 
-    final_policy_set = defaultdict(list)
+    final_policy_set = []
     total_computation = 0
     reward_attr = 'top1_valid'      # top1_valid or minus_loss
-    for cv_fold in range(cv_num):
-        if args.onlycv >= 0 and args.onlycv != cv_fold:
-            continue
-        for class_idx in range(num_class(C.get()['dataset'])):
-            name = "search_%s_%s_fold%d_ratio%.1f_classidx=%d" % (C.get()['dataset'], C.get()['model']['type'], cv_fold, args.cv_ratio, class_idx)
-            logger.info(name)
+    for _ in range(1):  # run multiple times.
+        for cv_fold in range(cv_num):
+            name = "search_%s_%s_fold%d_ratio%.1f" % (C.get()['dataset'], C.get()['model']['type'], cv_fold, args.cv_ratio)
+            print(name)
             register_trainable(name, lambda augs, rpt: eval_tta(copy.deepcopy(copied_c), augs, rpt))
-            algo = HyperOptSearch(space, max_concurrent=4*10, reward_attr=reward_attr)
+            algo = HyperOptSearch(space, max_concurrent=4*20, reward_attr=reward_attr)
 
             exp_config = {
                 name: {
@@ -174,12 +238,12 @@ if __name__ == '__main__':
                     'config': {
                         'dataroot': args.dataroot, 'save_path': paths[cv_fold],
                         'cv_ratio_test': args.cv_ratio, 'cv_fold': cv_fold,
-                        'num_op': args.num_op, 'num_policy': args.num_policy,
-                        'class_idx': class_idx
+                        'num_op': args.num_op, 'num_policy': args.num_policy
                     },
                 }
             }
             results = run_experiments(exp_config, search_alg=algo, scheduler=None, verbose=0, queue_trials=True, resume=args.resume, raise_on_failed_trial=False)
+            print()
             results = [x for x in results if x.last_result is not None]
             results = sorted(results, key=lambda x: x.last_result[reward_attr], reverse=True)
 
@@ -192,7 +256,7 @@ if __name__ == '__main__':
                 logger.info('loss=%.12f top1_valid=%.4f %s' % (result.last_result['minus_loss'], result.last_result['top1_valid'], final_policy))
 
                 final_policy = remove_deplicates(final_policy)
-                final_policy_set[class_idx].extend(final_policy)
+                final_policy_set.extend(final_policy)
 
     logger.info(json.dumps(final_policy_set))
     logger.info('final_policy=%d' % len(final_policy_set))
