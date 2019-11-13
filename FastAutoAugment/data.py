@@ -13,6 +13,7 @@ from theconf import Config as C
 from FastAutoAugment.archive import arsaug_policy, autoaug_policy, autoaug_paper_cifar10, fa_reduced_cifar10, fa_reduced_svhn, fa_resnet50_rimagenet
 from FastAutoAugment.augmentations import *
 from FastAutoAugment.common import get_logger
+from FastAutoAugment.imagenet import ImageNet
 
 logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
@@ -123,16 +124,16 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
 
         testset = torchvision.datasets.SVHN(root=dataroot, split='test', download=True, transform=transform_test)
     elif dataset == 'imagenet':
-        total_trainset = torchvision.datasets.ImageFolder(root=os.path.join(dataroot, 'imagenet/train'), transform=transform_train)
-        testset = torchvision.datasets.ImageFolder(root=os.path.join(dataroot, 'imagenet/val'), transform=transform_test)
+        total_trainset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), transform=transform_train)
+        testset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), split='val', transform=transform_test)
 
         # compatibility
         total_trainset.targets = [lb for _, lb in total_trainset.samples]
     elif dataset == 'reduced_imagenet':
         # randomly chosen indices
         idx120 = [904, 385, 759, 884, 784, 844, 132, 214, 990, 786, 979, 582, 104, 288, 697, 480, 66, 943, 308, 282, 118, 926, 882, 478, 133, 884, 570, 964, 825, 656, 661, 289, 385, 448, 705, 609, 955, 5, 703, 713, 695, 811, 958, 147, 6, 3, 59, 354, 315, 514, 741, 525, 685, 673, 657, 267, 575, 501, 30, 455, 905, 860, 355, 911, 24, 708, 346, 195, 660, 528, 330, 511, 439, 150, 988, 940, 236, 803, 741, 295, 111, 520, 856, 248, 203, 147, 625, 589, 708, 201, 712, 630, 630, 367, 273, 931, 960, 274, 112, 239, 463, 355, 955, 525, 404, 59, 981, 725, 90, 782, 604, 323, 418, 35, 95, 97, 193, 690, 869, 172]
-        total_trainset = torchvision.datasets.ImageFolder(root=os.path.join(dataroot, 'imagenet/train'), transform=transform_train)
-        testset = torchvision.datasets.ImageFolder(root=os.path.join(dataroot, 'imagenet/val'), transform=transform_test)
+        total_trainset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), transform=transform_train)
+        testset = ImageNet(root=os.path.join(dataroot, 'imagenet-pytorch'), split='val', transform=transform_test)
 
         # compatibility
         total_trainset.targets = [lb for _, lb in total_trainset.samples]

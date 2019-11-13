@@ -14,7 +14,7 @@ from theconf import Config as C, ConfigArgumentParser
 
 from FastAutoAugment.common import get_logger
 from FastAutoAugment.data import get_dataloaders
-from FastAutoAugment.lr_scheduler import adjust_learning_rate_pyramid, adjust_learning_rate_resnet
+from FastAutoAugment.lr_scheduler import adjust_learning_rate_resnet
 from FastAutoAugment.metrics import accuracy, Accumulator
 from FastAutoAugment.networks import get_model, num_class
 from warmup_scheduler import GradualWarmupScheduler
@@ -127,8 +127,6 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=C.get()['epoch'], eta_min=0.)
     elif lr_scheduler_type == 'resnet':
         scheduler = adjust_learning_rate_resnet(optimizer)
-    elif lr_scheduler_type == 'pyramid':
-        scheduler = adjust_learning_rate_pyramid(optimizer, C.get()['epoch'])
     else:
         raise ValueError('invalid lr_schduler=%s' % lr_scheduler_type)
 
@@ -152,12 +150,13 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     if save_path and os.path.exists(save_path):
         logger.info('%s file found. loading...' % save_path)
         data = torch.load(save_path)
-        if 'model' in data:
+        if 'model' in data or 'state_dict' in data:
+            key = 'model' if 'model' in data else 'state_dict'
             logger.info('checkpoint epoch@%d' % data['epoch'])
             if not isinstance(model, DataParallel):
-                model.load_state_dict({k.replace('module.', ''): v for k, v in data['model'].items()})
+                model.load_state_dict({k.replace('module.', ''): v for k, v in data[key].items()})
             else:
-                model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data['model'].items()})
+                model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data[key].items()})
             optimizer.load_state_dict(data['optimizer'])
             if data['epoch'] < C.get()['epoch']:
                 epoch_start = data['epoch']
@@ -232,6 +231,17 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                         'optimizer': optimizer.state_dict(),
                         'model': model.state_dict()
                     }, save_path)
+                    torch.save({
+                        'epoch': epoch,
+                        'log': {
+                            'train': rs['train'].get_dict(),
+                            'valid': rs['valid'].get_dict(),
+                            'test': rs['test'].get_dict(),
+                        },
+                        'optimizer': optimizer.state_dict(),
+                        'model': model.state_dict()
+                    }, save_path.replace('.pth', '_e%d_top1_%.3f_%.3f' % (epoch, rs['train']['top1'], rs['test']['top1']) + '.pth'))
+
     del model
 
     result['top1_test'] = best_top1

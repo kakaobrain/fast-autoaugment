@@ -22,14 +22,14 @@ Search : **3.5 GPU Hours (1428x faster than AutoAugment)**, WResNet-40x2 on Redu
 | Shake-Shake(26 2x32d)   | 3.6        | 3.0        | 2.5         | 2.7 / 2.5        | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar10_shake26_2x32d_top1_2.68.pth) |
 | Shake-Shake(26 2x96d)   | 2.9        | 2.6        | 2.0         | 2.0 / 2.0        | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar10_shake26_2x96d_top1_1.97.pth) |
 | Shake-Shake(26 2x112d)  | 2.8        | 2.6        | 1.9         | 2.0 / 1.9        | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar10_shake26_2x112d_top1_2.04.pth) |
-| PyramidNet+ShakeDrop    | 2.7        | 2.3        | 1.5         | 1.8 / 1.7        |
+| PyramidNet+ShakeDrop    | 2.7        | 2.3        | 1.5         | 1.8 / 1.7        | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar10_pyramid272_top1_1.44.pth) |
 
 | Model(CIFAR-100)      | Baseline   | Cutout     | AutoAugment | Fast AutoAugment<br/>(transfer/direct) |    |
 |-----------------------|------------|------------|-------------|------------------|----|
 | Wide-ResNet-40-2      | 26.0       | 25.2       | 20.7        | 20.7 / 20.6      | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar100_wresnet40x2_top1_20.43.pth) |
 | Wide-ResNet-28-10     | 18.8       | 18.4       | 17.1        | 17.3 / 17.3      | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar100_wresnet28x10_top1_17.17.pth) |
 | Shake-Shake(26 2x96d) | 17.1       | 16.0       | 14.3        | 14.9 / 14.6      | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar100_shake26_2x96d_top1_15.15.pth) |
-| PyramidNet+ShakeDrop  | 14.0       | 12.2       | 10.7        | 11.9 / 11.7      |
+| PyramidNet+ShakeDrop  | 14.0       | 12.2       | 10.7        | 11.9 / 11.7      | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/cifar100_pyramid272_top1_11.74.pth) |
 
 ### ImageNet
 
@@ -38,7 +38,12 @@ Search : **450 GPU Hours (33x faster than AutoAugment)**, ResNet-50 on Reduced I
 | Model      | Baseline   | AutoAugment | Fast AutoAugment<br/>(Top1/Top5) |    |
 |------------|------------|-------------|------------------|----|
 | ResNet-50  | 23.7 / 6.9 | 22.4 / 6.2  | **22.4 / 6.3**   | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/imagenet_resnet50_top1_22.2.pth) |
-| ResNet-200 | 21.5 / 5.8 | 20.0 / 5.0  | **19.4 / 4.7**   |
+| ResNet-200 | 21.5 / 5.8 | 20.0 / 5.0  | **19.4 / 4.7**   | [Download](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/imagenet_resnet200_top1_19.4.pth) |
+
+Notes
+* We evaluated resnet-50 and resnet-200 with resolution of 224 and 320, respectively. According to the original resnet paper, resnet 200 was tested with the resolution of 320. Also our resnet-200 baseline's performance was similar when we use the resolution.
+* But with recent our code clean-up and bugfixes, we've found that the baseline performs similar to the baseline even using 224x224.
+* When we use 224x224, resnet-200 performs **20.0 / 5.2**. Download link for the trained model is [here](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/imagenet_resnet200_res224.pth).
 
 ### SVHN Test
 
