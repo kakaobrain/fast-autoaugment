@@ -85,6 +85,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
 
 
 def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='last', save_path=None, only_eval=False, horovod=False):
+    # initialize horovod
     if horovod:
         import horovod.torch as hvd
         hvd.init()

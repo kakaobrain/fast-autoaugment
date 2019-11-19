@@ -28,69 +28,8 @@ _IMAGENET_PCA = {
 _CIFAR_MEAN, _CIFAR_STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
 
 
-def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=False, target_lb=-1):
-    if 'cifar' in dataset or 'svhn' in dataset:
-        transform_train = transforms.Compose([
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(_CIFAR_MEAN, _CIFAR_STD),
-        ])
-        transform_test = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(_CIFAR_MEAN, _CIFAR_STD),
-        ])
-    elif 'imagenet' in dataset:
-        transform_train = transforms.Compose([
-            transforms.RandomResizedCrop(224, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
-            transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(
-                brightness=0.4,
-                contrast=0.4,
-                saturation=0.4,
-            ),
-            transforms.ToTensor(),
-            Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-
-        transform_test = transforms.Compose([
-            transforms.Resize(256, interpolation=Image.BICUBIC),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-    else:
-        raise ValueError('dataset=%s' % dataset)
-
-    total_aug = augs = None
-    if isinstance(C.get()['aug'], list):
-        logger.debug('augmentation provided.')
-        transform_train.transforms.insert(0, Augmentation(C.get()['aug']))
-    else:
-        logger.debug('augmentation: %s' % C.get()['aug'])
-        if C.get()['aug'] == 'fa_reduced_cifar10':
-            transform_train.transforms.insert(0, Augmentation(fa_reduced_cifar10()))
-
-        elif C.get()['aug'] == 'fa_reduced_imagenet':
-            transform_train.transforms.insert(0, Augmentation(fa_resnet50_rimagenet()))
-
-        elif C.get()['aug'] == 'fa_reduced_svhn':
-            transform_train.transforms.insert(0, Augmentation(fa_reduced_svhn()))
-
-        elif C.get()['aug'] == 'arsaug':
-            transform_train.transforms.insert(0, Augmentation(arsaug_policy()))
-        elif C.get()['aug'] == 'autoaug_cifar10':
-            transform_train.transforms.insert(0, Augmentation(autoaug_paper_cifar10()))
-        elif C.get()['aug'] == 'autoaug_extend':
-            transform_train.transforms.insert(0, Augmentation(autoaug_policy()))
-        elif C.get()['aug'] in ['default', 'inception', 'inception320']:
-            pass
-        else:
-            raise ValueError('not found augmentations. %s' % C.get()['aug'])
-
-    if C.get()['cutout'] > 0:
-        transform_train.transforms.append(CutoutDefault(C.get()['cutout']))
+def get_datasets(dataset, dataroot, transform_train, transform_test):
+    train_idx, split_idx, valid_idx, total_trainset, testset = None, None, None, None, None
 
     if dataset == 'cifar10':
         total_trainset = torchvision.datasets.CIFAR10(root=dataroot, train=True, download=True, transform=transform_train)
@@ -162,13 +101,13 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
         testset = Subset(testset, test_idx)
         print('reduced_imagenet train=', len(total_trainset))
     else:
-        raise ValueError('invalid dataset name=%s' % dataset)
+        raise ValueError('invalid dataset name=%s' % dataset) 
 
-    if total_aug is not None and augs is not None:
-        total_trainset.set_preaug(augs, total_aug)
-        print('set_preaug-')
+    return  train_idx, split_idx, valid_idx, total_trainset, testset
 
-    train_sampler = None
+
+def get_train_sampler(split, train_idx, split_idx, valid_idx, total_trainset, horovod, target_lb):
+    train_sampler, valid_sampler = None, None
     if split > 0.0:
         sss = StratifiedShuffleSplit(n_splits=5, test_size=split, random_state=0)
         sss = sss.split(list(range(len(total_trainset))), total_trainset.targets)
@@ -190,7 +129,95 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
 
         if horovod:
             import horovod.torch as hvd
-            train_sampler = torch.utils.data.distributed.DistributedSampler(valid_sampler, num_replicas=hvd.size(), rank=hvd.rank())
+            train_sampler = torch.utils.data.distributed.DistributedSampler(valid_sampler, num_replicas=hvd.size(), rank=hvd.rank())    
+
+    return train_sampler, valid_sampler
+
+
+def get_augs(transform_train):
+    total_aug = augs = None
+    aug = C.get()['aug']
+    if isinstance(aug, list):
+        logger.debug('augmentation provided.')
+        transform_train.transforms.insert(0, Augmentation(aug))
+    else:
+        logger.debug('augmentation: %s' % aug)
+        if aug == 'fa_reduced_cifar10':
+            transform_train.transforms.insert(0, Augmentation(fa_reduced_cifar10()))
+
+        elif aug == 'fa_reduced_imagenet':
+            transform_train.transforms.insert(0, Augmentation(fa_resnet50_rimagenet()))
+
+        elif aug == 'fa_reduced_svhn':
+            transform_train.transforms.insert(0, Augmentation(fa_reduced_svhn()))
+
+        elif aug == 'arsaug':
+            transform_train.transforms.insert(0, Augmentation(arsaug_policy()))
+        elif aug == 'autoaug_cifar10':
+            transform_train.transforms.insert(0, Augmentation(autoaug_paper_cifar10()))
+        elif aug == 'autoaug_extend':
+            transform_train.transforms.insert(0, Augmentation(autoaug_policy()))
+        elif aug in ['default', 'inception', 'inception320']:
+            pass
+        else:
+            raise ValueError('not found augmentations. %s' % aug)  
+    return total_aug, augs  
+
+def get_transforms(dataset):
+    transform_train, transform_test = None, None
+
+    if 'cifar' in dataset or 'svhn' in dataset:
+        transform_train = transforms.Compose([
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(_CIFAR_MEAN, _CIFAR_STD),
+        ])
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(_CIFAR_MEAN, _CIFAR_STD),
+        ])
+    elif 'imagenet' in dataset:
+        transform_train = transforms.Compose([
+            transforms.RandomResizedCrop(224, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(
+                brightness=0.4,
+                contrast=0.4,
+                saturation=0.4,
+            ),
+            transforms.ToTensor(),
+            Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
+        transform_test = transforms.Compose([
+            transforms.Resize(256, interpolation=Image.BICUBIC),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+    else:
+        raise ValueError('dataset=%s' % dataset)    
+
+    return transform_train, transform_test
+
+def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=False, target_lb=-1):
+    transform_train, transform_test = get_transforms(dataset)
+
+    total_aug, augs = get_augs(transform_train)    
+
+    if C.get()['cutout'] > 0:
+        transform_train.transforms.append(CutoutDefault(C.get()['cutout']))
+
+    train_idx, split_idx, valid_idx, total_trainset, testset = \
+        get_datasets(dataset, dataroot, transform_train, transform_test)
+
+    if total_aug is not None and augs is not None:
+        total_trainset.set_preaug(augs, total_aug)
+        print('set_preaug-')
+
+    train_sampler, valid_sampler = get_train_sampler(split, train_idx, split_idx, valid_idx, total_trainset, horovod, target_lb)
 
     trainloader = torch.utils.data.DataLoader(
         total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=32, pin_memory=True,
