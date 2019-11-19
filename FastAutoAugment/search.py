@@ -86,8 +86,9 @@ def eval_tta(config, augment, reporter):
 
     loaders = []
     for _ in range(augment['num_policy']):  # TODO
-        _, tl, validloader, tl2 = get_dataloaders(C.get()['dataset'], C.get()['batch'], augment['dataroot'], cv_ratio_test, split_idx=cv_fold)
-        loaders.append(iter(validloader))
+        _, tl, validloader, tl2 = get_dataloaders(C.get()['dataset'], C.get()['batch'], augment['dataroot'], 
+            cv_ratio_test, split_idx=cv_fold)
+            loaders.append(iter(validloader))
         del tl, tl2
 
     start_t = time.time()

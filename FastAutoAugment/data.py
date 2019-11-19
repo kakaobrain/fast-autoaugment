@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 
 import torch
 import torchvision
@@ -125,6 +126,7 @@ def get_train_sampler(split, train_idx, split_idx, valid_idx, total_trainset, ho
             import horovod.torch as hvd
             train_sampler = torch.utils.data.distributed.DistributedSampler(train_sampler, num_replicas=hvd.size(), rank=hvd.rank())
     else:
+        # this means no sampling, validation set would be empty
         valid_sampler = SubsetSampler([])
 
         if horovod:
@@ -134,13 +136,14 @@ def get_train_sampler(split, train_idx, split_idx, valid_idx, total_trainset, ho
     return train_sampler, valid_sampler
 
 
-def get_augs(transform_train):
+def add_augs(transform_train, aug, cutout):
+    # TODO: total_aug remains None in original code
     total_aug = augs = None
-    aug = C.get()['aug']
+
     if isinstance(aug, list):
         logger.debug('augmentation provided.')
         transform_train.transforms.insert(0, Augmentation(aug))
-    else:
+    elif aug is not None:
         logger.debug('augmentation: %s' % aug)
         if aug == 'fa_reduced_cifar10':
             transform_train.transforms.insert(0, Augmentation(fa_reduced_cifar10()))
@@ -161,6 +164,12 @@ def get_augs(transform_train):
             pass
         else:
             raise ValueError('not found augmentations. %s' % aug)  
+
+    # add cutout transform
+    if cutout > 0:
+        transform_train.transforms.append(CutoutDefault(C.get()['cutout']))
+
+    #else returns augs = None
     return total_aug, augs  
 
 def get_transforms(dataset):
@@ -202,17 +211,23 @@ def get_transforms(dataset):
 
     return transform_train, transform_test
 
-def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=False, target_lb=-1):
+def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=False, target_lb=-1, num_workers=None):
+    if num_workers is None:
+        if 'pydevd' in sys.modules: # if debugging 
+            num_workers = 0
+        else:
+            num_workers = 32
+
+    # get usual random crop/flip transforms
     transform_train, transform_test = get_transforms(dataset)
 
-    total_aug, augs = get_augs(transform_train)    
-
-    if C.get()['cutout'] > 0:
-        transform_train.transforms.append(CutoutDefault(C.get()['cutout']))
+    # add additional transforms from config
+    total_aug, augs = add_augs(transform_train, C.get()['aug'], C.get()['cutout'])    
 
     train_idx, split_idx, valid_idx, total_trainset, testset = \
         get_datasets(dataset, dataroot, transform_train, transform_test)
 
+    # TODO: below will never get executed, set_preaug does not exist in PyTorch
     if total_aug is not None and augs is not None:
         total_trainset.set_preaug(augs, total_aug)
         print('set_preaug-')
@@ -220,14 +235,14 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
     train_sampler, valid_sampler = get_train_sampler(split, train_idx, split_idx, valid_idx, total_trainset, horovod, target_lb)
 
     trainloader = torch.utils.data.DataLoader(
-        total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=32, pin_memory=True,
+        total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=num_workers, pin_memory=True,
         sampler=train_sampler, drop_last=True)
     validloader = torch.utils.data.DataLoader(
-        total_trainset, batch_size=batch, shuffle=False, num_workers=16, pin_memory=True,
+        total_trainset, batch_size=batch, shuffle=False, num_workers=num_workers/2, pin_memory=True,
         sampler=valid_sampler, drop_last=False)
 
     testloader = torch.utils.data.DataLoader(
-        testset, batch_size=batch, shuffle=False, num_workers=32, pin_memory=True,
+        testset, batch_size=batch, shuffle=False, num_workers=num_workers, pin_memory=True,
         drop_last=False
     )
     return train_sampler, trainloader, validloader, testloader
