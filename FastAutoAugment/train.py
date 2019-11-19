@@ -251,8 +251,8 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 if __name__ == '__main__':
     parser = ConfigArgumentParser(conflict_handler='resolve')
     parser.add_argument('--tag', type=str, default='')
-    parser.add_argument('--dataroot', type=str, default='/data/private/pretrainedmodels', help='torchvision data folder')
-    parser.add_argument('--save', type=str, default='test.pth')
+    parser.add_argument('--dataroot', type=str, default='~/torchvision_data_dir', help='torchvision data folder')
+    parser.add_argument('--save', type=str, default='~/logdir')
     parser.add_argument('--cv-ratio', type=float, default=0.0)
     parser.add_argument('--cv', type=int, default=0)
     parser.add_argument('--horovod', action='store_true')
@@ -262,15 +262,22 @@ if __name__ == '__main__':
     assert not (args.horovod and args.only_eval), 'can not use horovod when evaluation mode is enabled.'
     assert (args.only_eval and args.save) or not args.only_eval, 'checkpoint path not provided in evaluation mode.'
 
-    if not args.only_eval:
-        if args.save:
-            logger.info('checkpoint will be saved at %s' % args.save)
-        else:
-            logger.warning('Provide --save argument to save the checkpoint. Without it, training result will not be saved!')
+    if args.save:
+        logger.info('checkpoint will be saved at %s' % args.save)
+
+    logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
+
+    os.makedirs(os.path.expanduser(args.save), exist_ok=True)
+    os.makedirs(os.path.expanduser(args.dataroot), exist_ok=True)
+    save_path = os.path.join(args.save, 'model.pth') 
+
+    if not args.only_eval and not args.save:
+        logger.warning('Provide --save argument to save the checkpoint. Without it, training result will not be saved!')
 
     import time
     t = time.time()
-    result = train_and_eval(args.tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, save_path=args.save, only_eval=args.only_eval, horovod=args.horovod, metric='test')
+    result = train_and_eval(args.tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, 
+                            save_path=save_path, only_eval=args.only_eval, horovod=args.horovod, metric='test')
     elapsed = time.time() - t
 
     logger.info('done.')
@@ -279,4 +286,4 @@ if __name__ == '__main__':
     logger.info('\n' + json.dumps(result, indent=4))
     logger.info('elapsed time: %.3f Hours' % (elapsed / 3600.))
     logger.info('top1 error in testset: %.4f' % (1. - result['top1_test']))
-    logger.info(args.save)
+    logger.info('Save path: %s' % save_path)
