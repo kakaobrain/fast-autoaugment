@@ -8,22 +8,32 @@ from collections import OrderedDict
 import torch
 from torch import nn, optim
 from torch.nn.parallel.data_parallel import DataParallel
+import torch.backends.cudnn as cudnn
+
+import numpy as np
 
 from tqdm import tqdm
 from theconf import Config as C, ConfigArgumentParser
 
 from FastAutoAugment.common import get_logger
 from FastAutoAugment.data import get_dataloaders
-from FastAutoAugment.lr_scheduler import adjust_learning_rate_resnet
+from FastAutoAugment.lr_scheduler import adjust_learning_rate_pyramid, adjust_learning_rate_resnet
 from FastAutoAugment.metrics import accuracy, Accumulator
 from FastAutoAugment.networks import get_model, num_class
 from warmup_scheduler import GradualWarmupScheduler
 
+import tensorwatch as tw
+
 logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
 
+# TODO: remove scheduler parameter?
+def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, 
+        scheduler=None):
+    """Runs epoch for given dataloader and model. If optimizer is supplied then backprop and model
+    update is done as well. This can be called from test to train modes.
+    """
 
-def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None):
     tqdm_disable = bool(os.environ.get('TASK_NAME', ''))    # KakaoBrain Environment
     if verbose:
         loader = tqdm(loader, disable=tqdm_disable)
@@ -41,12 +51,20 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
             optimizer.zero_grad()
 
         preds = model(data)
+
+        # Try to visualize model via tensorwatch
+        # tw.draw_model(model, tuple(data.shape)).save('/home/dedey/model.png')
+
+        # Try to visualize model via tensorboard
+        # writer.add_graph(model, data)
+        # logger.info('Just wrote model file!')
         loss = loss_fn(preds, label)
 
         if optimizer:
             loss.backward()
             if getattr(optimizer, "synchronize", None):
                 optimizer.synchronize()     # for horovod
+            # grad clipping defaults to 5 (same as Darts)
             if C.get()['optimizer'].get('clip', 5) > 0:
                 nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer'].get('clip', 5))
             optimizer.step()
@@ -64,8 +82,10 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
                 postfix['lr'] = optimizer.param_groups[0]['lr']
             loader.set_postfix(postfix)
 
-        if scheduler is not None:
-            scheduler.step(epoch - 1 + float(steps) / total_steps)
+        # below changes LR for every batch in epoch
+        # TODO: should we do LR step at epoch start only?
+        # if scheduler is not None:
+        #     scheduler.step(epoch - 1 + float(steps) / total_steps)
 
         del preds, loss, top1, top5, data, label
 
@@ -83,8 +103,10 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
             writer.add_scalar(key, value, epoch)
     return metrics
 
+# metric could be 'last', 'test', 'val', 'train'.
+def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='test', 
+    save_path=None, only_eval=False, horovod=False, checkpoint_freq=10, log_dir=None):
 
-def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='last', save_path=None, only_eval=False, horovod=False):
     # initialize horovod
     if horovod:
         import horovod.torch as hvd
@@ -95,13 +117,14 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     if not reporter:
         reporter = lambda **kwargs: 0
 
-    max_epoch = C.get()['epoch']
+    # get dataloaders with transformations and splits applied
     trainsampler, trainloader, validloader, testloader_ = get_dataloaders(C.get()['dataset'], C.get()['batch'], dataroot, 
         test_ratio, split_idx=cv_fold, horovod=horovod)
 
     # create a model & an optimizer
     model = get_model(C.get()['model'], num_class(C.get()['dataset']), data_parallel=(not horovod))
 
+    # select loss function and optimizer
     criterion = nn.CrossEntropyLoss()
     if C.get()['optimizer']['type'] == 'sgd':
         optimizer = optim.SGD(
@@ -114,6 +137,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     else:
         raise ValueError('invalid optimizer type=%s' % C.get()['optimizer']['type'])
 
+    # distributed optimizer if horovod is used
     is_master = True
     if horovod:
         optimizer = hvd.DistributedOptimizer(optimizer, named_parameters=model.named_parameters())
@@ -124,14 +148,23 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             is_master = False
     logger.debug('is_master=%s' % is_master)
 
+    # select LR schedule
     lr_scheduler_type = C.get()['lr_schedule'].get('type', 'cosine')
+    scheduler = None
     if lr_scheduler_type == 'cosine':
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=C.get()['epoch'], eta_min=0.)
+        t_max = C.get()['epoch']
+        # adjust max epochs for warmup
+        # TODO: shouldn't we be increasing t_max or schedule lr only after warmup?
+        if C.get()['lr_schedule'].get('warmup', None):
+            t_max -= C.get()['lr_schedule']['warmup']['epoch']
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max, eta_min=0.)
     elif lr_scheduler_type == 'resnet':
         scheduler = adjust_learning_rate_resnet(optimizer)
+    elif lr_scheduler_type == 'pyramid':
+        scheduler = adjust_learning_rate_pyramid(optimizer, C.get()['epoch'])
     else:
         raise ValueError('invalid lr_schduler=%s' % lr_scheduler_type)
-
+    # select warmup for LR schedule
     if C.get()['lr_schedule'].get('warmup', None):
         scheduler = GradualWarmupScheduler(
             optimizer,
@@ -140,74 +173,96 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             after_scheduler=scheduler
         )
 
-    if not tag or not is_master:
+    # create tensorboard writers
+    if not tb_tag or not is_master:
+        # create dummy writer that will ignore all writes
         from FastAutoAugment.metrics import SummaryWriterDummy as SummaryWriter
-        logger.warning('tag not provided, no tensorboard log.')
+        logger.warning('tb_tag not provided, no tensorboard log.')
     else:
-        from tensorboardX import SummaryWriter
-    writers = [SummaryWriter(log_dir='./logs/%s/%s' % (tag, x)) for x in ['train', 'valid', 'test']]
+        from torch.utils.tensorboard import SummaryWriter
+    writers = [SummaryWriter(log_dir=f'{log_dir}/logs/{tb_tag}/{x}') for x in ['train', 'valid', 'test']]
 
     result = OrderedDict()
     epoch_start = 1
+    # if model available from previous checkpount then load it
     if save_path and os.path.exists(save_path):
-        logger.info('%s file found. loading...' % save_path)
+        logger.info('%s checkpoint found. loading...' % save_path)
         data = torch.load(save_path)
+
+        # wehn checkpointing we do add 'model' key so other cases are special cases
         if 'model' in data or 'state_dict' in data:
             key = 'model' if 'model' in data else 'state_dict'
             logger.info('checkpoint epoch@%d' % data['epoch'])
+            
+            # TODO: do we need change here?
             if not isinstance(model, DataParallel):
+                # for non-dataparallel models, remove default 'module.' prefix
                 model.load_state_dict({k.replace('module.', ''): v for k, v in data[key].items()})
             else:
+                # for dataparallel models, make sure 'module.' prefix exist
                 model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data[key].items()})
+
+            # load optimizer
             optimizer.load_state_dict(data['optimizer'])
+
+            # restore epoch count
             if data['epoch'] < C.get()['epoch']:
                 epoch_start = data['epoch']
             else:
-                only_eval = True
+                raise RuntimeError("Epoch provided in config {} is >= epoch in model {} at {}".format(
+                    data['epoch'], C.get()['epoch'], save_path
+                ))
         else:
             model.load_state_dict({k: v for k, v in data.items()})
         del data
     else:
-        logger.info('"%s" file not found. skip to pretrain weights...' % save_path)
+        logger.info('model checkpoint does not exist at "%s". skip to pretrain weights...' % save_path)
         if only_eval:
-            logger.warning('model checkpoint not found. only-evaluation mode is off.')
-        only_eval = False
+            raise RuntimeError('only-eval arg was passed but model checkpoint does not exist at {}.'.format(
+                save_path))
 
+    # if eval only then run model on train, test and val sets
     if only_eval:
         logger.info('evaluation only+')
         model.eval()
-        rs = dict()
+        rs = dict() # stores metrics for each set
         rs['train'] = run_epoch(model, trainloader, criterion, None, desc_default='train', epoch=0, writer=writers[0])
         rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=0, writer=writers[1])
         rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=0, writer=writers[2])
         for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
-            if setname not in rs:
-                continue
             result['%s_%s' % (key, setname)] = rs[setname][key]
         result['epoch'] = 0
         return result
 
     # train loop
-    best_top1 = 0
+    best_top1, best_valid_loss = 0, 10.0e10
+    max_epoch = C.get()['epoch']
     for epoch in range(epoch_start, max_epoch + 1):
         if horovod:
             trainsampler.set_epoch(epoch)
 
+        # run train epoch and update the model
         model.train()
         rs = dict()
         rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler)
+        if scheduler:
+            scheduler.step()
+
         model.eval()
 
+        # check for nan loss
         if math.isnan(rs['train']['loss']):
             raise Exception('train loss is NaN.')
 
-        if epoch % 5 == 0 or epoch == max_epoch:
+        # collect metrics on val and test set, checkpoint 
+        if epoch % checkpoint_freq == 0 or epoch == max_epoch:
             rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
             rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
 
-            if metric == 'last' or rs[metric]['top1'] > best_top1:
-                if metric != 'last':
-                    best_top1 = rs[metric]['top1']
+            # TODO: is this good enough condition?
+            if rs[metric]['loss'] < best_valid_loss or rs[metric]['top1'] > best_top1:
+                best_top1 = rs[metric]['top1']
+                best_valid_loss = rs[metric]['loss']
                 for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
                     result['%s_%s' % (key, setname)] = rs[setname][key]
                 result['epoch'] = epoch
@@ -233,16 +288,6 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                         'optimizer': optimizer.state_dict(),
                         'model': model.state_dict()
                     }, save_path)
-                    torch.save({
-                        'epoch': epoch,
-                        'log': {
-                            'train': rs['train'].get_dict(),
-                            'valid': rs['valid'].get_dict(),
-                            'test': rs['test'].get_dict(),
-                        },
-                        'optimizer': optimizer.state_dict(),
-                        'model': model.state_dict()
-                    }, save_path.replace('.pth', '_e%d_top1_%.3f_%.3f' % (epoch, rs['train']['top1'], rs['test']['top1']) + '.pth'))
 
     del model
 
@@ -252,18 +297,31 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
 if __name__ == '__main__':
     parser = ConfigArgumentParser(conflict_handler='resolve')
-    parser.add_argument('--tag', type=str, default='')
+    parser.add_argument('--tb-tag', type=str, default='', help='If set then tensorboard log will be generated from this node')
     parser.add_argument('--dataroot', type=str, default='~/torchvision_data_dir', help='torchvision data folder')
     parser.add_argument('--save', type=str, default='~/logdir')
     parser.add_argument('--cv-ratio', type=float, default=0.0)
     parser.add_argument('--cv', type=int, default=0)
+    parser.add_argument('--decay', type=float, default=-1)
     parser.add_argument('--horovod', action='store_true')
     parser.add_argument('--only-eval', action='store_true')
+    parser.add_argument('--seed', type=int, default=42, help='random seed')
+    
     args = parser.parse_args()
 
     assert not (args.horovod and args.only_eval), 'can not use horovod when evaluation mode is enabled.'
     assert (args.only_eval and args.save) or not args.only_eval, 'checkpoint path not provided in evaluation mode.'
 
+    np.random.seed(args.seed)
+    cudnn.benchmark = True
+    cudnn.enabled = True
+    torch.manual_seed(args.seed)
+    # TODO: enable below only in debug mode
+    torch.autograd.set_detect_anomaly(True)
+
+    if args.decay > 0:
+        logger.info('decay reset=%.8f' % args.decay)
+        C.get()['optimizer']['decay'] = args.decay
     if args.save:
         logger.info('checkpoint will be saved at %s' % args.save)
 
@@ -278,11 +336,12 @@ if __name__ == '__main__':
 
     import time
     t = time.time()
-    result = train_and_eval(args.tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, 
-                            save_path=save_path, only_eval=args.only_eval, horovod=args.horovod, metric='test')
+    result = train_and_eval(args.tb_tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, 
+                            save_path=save_path, only_eval=args.only_eval, horovod=args.horovod, metric='test', 
+                            log_dir=args.save, checkpoint_freq=C.get()['model'].get('checkpoint_freq', 10))
     elapsed = time.time() - t
 
-    logger.info('done.')
+    logger.info('training done.')
     logger.info('model: %s' % C.get()['model'])
     logger.info('augmentation: %s' % C.get()['aug'])
     logger.info('\n' + json.dumps(result, indent=4))
