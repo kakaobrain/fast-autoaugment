@@ -30,7 +30,7 @@ _CIFAR_MEAN, _CIFAR_STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
 
 
 def get_datasets(dataset, dataroot, transform_train, transform_test):
-    train_idx, split_idx, valid_idx, total_trainset, testset = None, None, None, None, None
+    total_trainset, testset = None, None
 
     if dataset == 'cifar10':
         total_trainset = torchvision.datasets.CIFAR10(root=dataroot, train=True, download=True, transform=transform_train)
@@ -104,15 +104,31 @@ def get_datasets(dataset, dataroot, transform_train, transform_test):
     else:
         raise ValueError('invalid dataset name=%s' % dataset) 
 
-    return  train_idx, split_idx, valid_idx, total_trainset, testset
+    return  total_trainset, testset
 
+# target_lb allows to filter dataset for a specific class, used only for experimentation
+def get_train_sampler(split:float, cv_fold:int, total_trainset, horovod, target_lb:int):
+    """Splits train set into train and validation sets using stratified random sampling.
+    
+    Arguments:
+        split {float} -- % of data to put in test set
+        cv_fold {int} -- Total of 5 folds are created, cv_fold specifies which one to use
+        target_lb {int} -- If >= 0 then trainset is filtered for only that target class ID
+    """
+    assert cv_fold >= 0
 
-def get_train_sampler(split, train_idx, split_idx, valid_idx, total_trainset, horovod, target_lb):
     train_sampler, valid_sampler = None, None
-    if split > 0.0:
+    if split > 0.0: # if split is not specified then val sampler will be empty
+        # stratified shuffle split will yield return total of n_splits, each split containing
+        # tuple of train and test set with test set size portion = split, while samples for 
+        # each class having same proportions as original dataset
+        # TODO: random_state should be None so np.random is used
+        # TODO: keep hardcoded n_splits=5?
         sss = StratifiedShuffleSplit(n_splits=5, test_size=split, random_state=0)
         sss = sss.split(list(range(len(total_trainset))), total_trainset.targets)
-        for _ in range(split_idx + 1):
+
+        # we have 5 plits, but will select only one of them as specified by cv_fold
+        for _ in range(cv_fold + 1):
             train_idx, valid_idx = next(sss)
 
         if target_lb >= 0:
@@ -207,13 +223,13 @@ def get_transforms(dataset):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
     else:
-        raise ValueError('dataset=%s' % dataset)    
+        raise ValueError('dataset=%s' % dataset)
 
     return transform_train, transform_test
 
-def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=False, target_lb=-1, num_workers=None):
+def get_dataloaders(dataset, batch, dataroot, split=0.15, cv_fold=0, horovod=False, target_lb=-1, num_workers=None):
     if num_workers is None:
-        if 'pydevd' in sys.modules: # if debugging 
+        if 'pydevd' in sys.modules: # if debugging
             num_workers = 0
         else:
             num_workers = 32
@@ -222,17 +238,16 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
     transform_train, transform_test = get_transforms(dataset)
 
     # add additional transforms from config
-    total_aug, augs = add_augs(transform_train, C.get()['aug'], C.get()['cutout'])    
+    total_aug, augs = add_augs(transform_train, C.get()['aug'], C.get()['cutout'])
 
-    train_idx, split_idx, valid_idx, total_trainset, testset = \
-        get_datasets(dataset, dataroot, transform_train, transform_test)
+    total_trainset, testset = get_datasets(dataset, dataroot, transform_train, transform_test)
 
     # TODO: below will never get executed, set_preaug does not exist in PyTorch
     if total_aug is not None and augs is not None:
         total_trainset.set_preaug(augs, total_aug)
         print('set_preaug-')
 
-    train_sampler, valid_sampler = get_train_sampler(split, train_idx, split_idx, valid_idx, total_trainset, horovod, target_lb)
+    train_sampler, valid_sampler = get_train_sampler(split, cv_fold, total_trainset, horovod, target_lb)
 
     trainloader = torch.utils.data.DataLoader(
         total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=num_workers, pin_memory=True,

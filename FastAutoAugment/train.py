@@ -8,24 +8,21 @@ from collections import OrderedDict
 import torch
 from torch import nn, optim
 from torch.nn.parallel.data_parallel import DataParallel
-import torch.backends.cudnn as cudnn
 
 import numpy as np
 
 from tqdm import tqdm
 from theconf import Config as C, ConfigArgumentParser
 
-from FastAutoAugment.common import get_logger
+from FastAutoAugment.common import get_logger, common_init
 from FastAutoAugment.data import get_dataloaders
 from FastAutoAugment.lr_scheduler import adjust_learning_rate_pyramid, adjust_learning_rate_resnet
 from FastAutoAugment.metrics import accuracy, Accumulator
 from FastAutoAugment.networks import get_model, num_class
+
 from warmup_scheduler import GradualWarmupScheduler
 
 import tensorwatch as tw
-
-logger = get_logger('Fast AutoAugment')
-logger.setLevel(logging.INFO)
 
 # TODO: remove scheduler parameter?
 def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, 
@@ -118,8 +115,8 @@ def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, m
         reporter = lambda **kwargs: 0
 
     # get dataloaders with transformations and splits applied
-    trainsampler, trainloader, validloader, testloader_ = get_dataloaders(C.get()['dataset'], C.get()['batch'], dataroot, 
-        test_ratio, split_idx=cv_fold, horovod=horovod)
+    trainsampler, trainloader, validloader, testloader_ = get_dataloaders(C.get()['dataset'], C.get()['batch'], dataroot,
+        test_ratio, cv_fold=cv_fold, horovod=horovod)
 
     # create a model & an optimizer
     model = get_model(C.get()['model'], num_class(C.get()['dataset']), data_parallel=(not horovod))
@@ -299,9 +296,9 @@ if __name__ == '__main__':
     parser = ConfigArgumentParser(conflict_handler='resolve')
     parser.add_argument('--tb-tag', type=str, default='', help='If set then tensorboard log will be generated from this node')
     parser.add_argument('--dataroot', type=str, default='~/torchvision_data_dir', help='torchvision data folder')
-    parser.add_argument('--save', type=str, default='~/logdir')
-    parser.add_argument('--cv-ratio', type=float, default=0.0)
-    parser.add_argument('--cv', type=int, default=0)
+    parser.add_argument('--logdir', type=str, default='~/logdir')
+    parser.add_argument('--cv-ratio', type=float, default=0.0, help='ratio of train data to use as validation set')
+    parser.add_argument('--cv-fold', type=int, default=0, help='Fold number to use (0 to 4)')
     parser.add_argument('--decay', type=float, default=-1)
     parser.add_argument('--horovod', action='store_true')
     parser.add_argument('--only-eval', action='store_true')
@@ -310,35 +307,28 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     assert not (args.horovod and args.only_eval), 'can not use horovod when evaluation mode is enabled.'
-    assert (args.only_eval and args.save) or not args.only_eval, 'checkpoint path not provided in evaluation mode.'
+    assert (args.only_eval and args.logdir) or not args.only_eval, 'checkpoint path not provided in evaluation mode.'
 
-    np.random.seed(args.seed)
-    cudnn.benchmark = True
-    cudnn.enabled = True
-    torch.manual_seed(args.seed)
-    # TODO: enable below only in debug mode
-    torch.autograd.set_detect_anomaly(True)
+    logger = common_init(args.logdir, args.dataroot, args.seed)
 
     if args.decay > 0:
         logger.info('decay reset=%.8f' % args.decay)
         C.get()['optimizer']['decay'] = args.decay
-    if args.save:
-        logger.info('checkpoint will be saved at %s' % args.save)
+    if args.logdir:
+        logger.info('checkpoint will be saved at %s' % args.logdir)
 
     logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
 
-    os.makedirs(os.path.expanduser(args.save), exist_ok=True)
-    os.makedirs(os.path.expanduser(args.dataroot), exist_ok=True)
-    save_path = os.path.join(args.save, 'model.pth') 
+    save_path = os.path.join(args.logdir, 'model.pth') 
 
-    if not args.only_eval and not args.save:
-        logger.warning('Provide --save argument to save the checkpoint. Without it, training result will not be saved!')
+    if not args.only_eval and not args.logdir:
+        logger.warning('Provide --logdir argument to save the checkpoint. Without it, training result will not be saved!')
 
     import time
     t = time.time()
-    result = train_and_eval(args.tb_tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, 
+    result = train_and_eval(args.tb_tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv_fold, 
                             save_path=save_path, only_eval=args.only_eval, horovod=args.horovod, metric='test', 
-                            log_dir=args.save, checkpoint_freq=C.get()['model'].get('checkpoint_freq', 10))
+                            log_dir=args.logdir, checkpoint_freq=C.get()['model'].get('checkpoint_freq', 10))
     elapsed = time.time() - t
 
     logger.info('training done.')

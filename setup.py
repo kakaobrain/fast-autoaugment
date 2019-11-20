@@ -29,7 +29,7 @@ setuptools.setup(
         'pystopwatch2 @ git+https://github.com/ildoonet/pystopwatch2.git',
         'hyperopt @ git+https://github.com/hyperopt/hyperopt.git',
         'pretrainedmodels', 'tqdm', 'tensorboardx', 'sklearn', 'ray', 'matplotlib', 'psutil', 
-        'requests', 'tensorwatch'
+        'requests', 'tensorwatch', 'gorilla'
     ]    
 )
 
