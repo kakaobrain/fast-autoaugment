@@ -45,3 +45,7 @@ def common_init(logdir:str, dataroot:str, seed=42, detect_anomaly=True, log_leve
     os.makedirs(os.path.expanduser(dataroot), exist_ok=True)
 
     return logger
+
+def get_model_savepath(logdir, dataset, model, tag):
+    return os.path.join(logdir, '%s_%s_%s.model' \
+        % (dataset, model, tag))    
