@@ -207,17 +207,15 @@ def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, m
             if data['epoch'] < C.get()['epoch']:
                 epoch_start = data['epoch']
             else:
-                raise RuntimeError("Epoch provided in config {} is >= epoch in model {} at {}".format(
-                    data['epoch'], C.get()['epoch'], save_path
-                ))
+                # epochs finished, switch to eval mode
+                only_eval = False
+
         else:
             model.load_state_dict({k: v for k, v in data.items()})
         del data
     else:
         logger.info('model checkpoint does not exist at "%s". skip to pretrain weights...' % save_path)
-        if only_eval:
-            raise RuntimeError('only-eval arg was passed but model checkpoint does not exist at {}.'.format(
-                save_path))
+        only_eval = False # we made attempt to load checkpt but as it does not exist, switch to train mode
 
     # if eval only then run model on train, test and val sets
     if only_eval:
