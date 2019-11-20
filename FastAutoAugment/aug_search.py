@@ -12,7 +12,7 @@ import ray
 import torch
 import time
 import os
-import tqdm
+from tqdm import tqdm
 
 from FastAutoAugment.archive import remove_deplicates, policy_decoder
 from FastAutoAugment.data import get_dataloaders
@@ -50,7 +50,7 @@ def step_w_log(self):
 patch = gorilla.Patch(ray.tune.trial_runner.TrialRunner, 'step', step_w_log, settings=gorilla.Settings(allow_hit=True))
 gorilla.apply(patch)
 
-@ray.remote(num_gpus=4, max_calls=1)
+@ray.remote(num_gpus=torch.cuda.device_count(), max_calls=1)
 def train_model(config, dataroot, augment, cv_ratio_test, cv_fold, save_path=None, only_eval=False):
     C.get()
     C.get().conf = config
@@ -86,9 +86,12 @@ def train_no_aug(logger, sw, dataroot, logdir, cv_num, cv_ratio):
             epochs_per_cv = OrderedDict()
             for cv_idx in range(cv_num):
                 try:
-                    latest_ckpt = torch.load(save_paths[cv_idx])
-                    if 'epoch' not in latest_ckpt:
-                        epochs_per_cv['cv%d' % (cv_idx + 1)] = C.get()['epoch']
+                    if os.path.exists(save_paths[cv_idx]):
+                        latest_ckpt = torch.load(save_paths[cv_idx])
+                        if 'epoch' not in latest_ckpt:
+                            epochs_per_cv['cv%d' % (cv_idx + 1)] = C.get()['epoch']
+                            continue
+                    else:
                         continue
                     epochs_per_cv['cv%d' % (cv_idx+1)] = latest_ckpt['epoch']
                 except Exception as e:

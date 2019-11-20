@@ -36,7 +36,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logger = common_init(args.logdir, args.dataroot, args.seed)
+    logger, args.logdir, args.dataroot = common_init(args.logdir, args.dataroot, args.seed)
 
     if args.decay > 0:
         logger.info('decay=%.4f' % args.decay)

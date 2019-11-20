@@ -2,6 +2,7 @@ import logging
 import warnings
 import numpy as np
 import os
+from typing import Tuple
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -10,7 +11,7 @@ formatter = logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(messag
 warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
 
 
-def get_logger(name, level=logging.DEBUG)->logging.Logger:
+def get_logger(name='Fast AutoAugment', level=logging.DEBUG)->logging.Logger:
     logger = logging.getLogger(name)
     logger.handlers.clear()
     logger.setLevel(level)
@@ -22,14 +23,15 @@ def get_logger(name, level=logging.DEBUG)->logging.Logger:
 
 
 def add_filehandler(logger, filepath):
-    fh = logging.FileHandler(filepath)
+    fh = logging.FileHandler(os.path.expanduser(filepath))
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
 # initializes random number gen, debugging etc
-def common_init(logdir:str, dataroot:str, seed=42, detect_anomaly=True, log_level=logging.DEBUG)->logging.Logger:
-    # TODO: change name?
+def common_init(logdir:str, dataroot:str, seed=42, detect_anomaly=True, log_level=logging.DEBUG) \
+        -> Tuple[logging.Logger, str, str]:
+
     logger = get_logger('Fast AutoAugment')
 
     np.random.seed(seed)
@@ -41,11 +43,12 @@ def common_init(logdir:str, dataroot:str, seed=42, detect_anomaly=True, log_leve
         # TODO: enable below only in debug mode
         torch.autograd.set_detect_anomaly(True)
 
-    os.makedirs(os.path.expanduser(logdir), exist_ok=True)
-    os.makedirs(os.path.expanduser(dataroot), exist_ok=True)
+    logdir, dataroot = os.path.expanduser(logdir), os.path.expanduser(dataroot)
+    os.makedirs(logdir, exist_ok=True)
+    os.makedirs(dataroot, exist_ok=True)
 
-    return logger
+    return logger, logdir, dataroot
 
 def get_model_savepath(logdir, dataset, model, tag):
     return os.path.join(logdir, '%s_%s_%s.model' \
-        % (dataset, model, tag))    
+        % (dataset, model, tag))

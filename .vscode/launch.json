@@ -5,13 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Train aug wresnet40x2 cifar10 ",
+            "name": "Train wresnet40x2 cifar10 ",
             "type": "python",
             "request": "launch",
-            "program": "FastAutoAugment/train.py",
+            "program": "${cwd}/FastAutoAugment/train.py",
             "console": "integratedTerminal",
-            "args": ["-c", "confs/wresnet40x2_cifar10_b512.yaml", 
-                "--aug", "fa_reduced_cifar10", 
+            "args": ["-c", "confs/wresnet40x2_cifar10_b512.yaml",
+                "--aug", "fa_reduced_cifar10",
+                "--dataset", "cifar10"]
+        },
+        {
+            "name": "Search wresnet40x2 cifar10 ",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/FastAutoAugment/search.py",
+            "console": "integratedTerminal",
+            "args": ["-c", "confs/wresnet40x2_cifar10_b512.yaml",
                 "--dataset", "cifar10"]
         }
     ]

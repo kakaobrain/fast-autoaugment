@@ -1,6 +1,5 @@
 import itertools
 import json
-import logging
 import math
 import os
 from collections import OrderedDict
@@ -25,7 +24,7 @@ from warmup_scheduler import GradualWarmupScheduler
 import tensorwatch as tw
 
 # TODO: remove scheduler parameter?
-def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, 
+def run_epoch(logger, model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1,
         scheduler=None):
     """Runs epoch for given dataloader and model. If optimizer is supplied then backprop and model
     update is done as well. This can be called from test to train modes.
@@ -101,8 +100,10 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
     return metrics
 
 # metric could be 'last', 'test', 'val', 'train'.
-def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='test', 
+def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='test',
     save_path=None, only_eval=False, horovod=False, checkpoint_freq=10, log_dir=None):
+
+    logger = get_logger()
 
     # initialize horovod
     if horovod:
@@ -190,7 +191,7 @@ def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, m
         if 'model' in data or 'state_dict' in data:
             key = 'model' if 'model' in data else 'state_dict'
             logger.info('checkpoint epoch@%d' % data['epoch'])
-            
+
             # TODO: do we need change here?
             if not isinstance(model, DataParallel):
                 # for non-dataparallel models, remove default 'module.' prefix
@@ -223,9 +224,9 @@ def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, m
         logger.info('evaluation only+')
         model.eval()
         rs = dict() # stores metrics for each set
-        rs['train'] = run_epoch(model, trainloader, criterion, None, desc_default='train', epoch=0, writer=writers[0])
-        rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=0, writer=writers[1])
-        rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=0, writer=writers[2])
+        rs['train'] = run_epoch(logger, model, trainloader, criterion, None, desc_default='train', epoch=0, writer=writers[0])
+        rs['valid'] = run_epoch(logger, model, validloader, criterion, None, desc_default='valid', epoch=0, writer=writers[1])
+        rs['test'] = run_epoch(logger, model, testloader_, criterion, None, desc_default='*test', epoch=0, writer=writers[2])
         for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
             result['%s_%s' % (key, setname)] = rs[setname][key]
         result['epoch'] = 0
@@ -241,7 +242,7 @@ def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, m
         # run train epoch and update the model
         model.train()
         rs = dict()
-        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler)
+        rs['train'] = run_epoch(logger, model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler)
         if scheduler:
             scheduler.step()
 
@@ -251,10 +252,10 @@ def train_and_eval(tb_tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, m
         if math.isnan(rs['train']['loss']):
             raise Exception('train loss is NaN.')
 
-        # collect metrics on val and test set, checkpoint 
+        # collect metrics on val and test set, checkpoint
         if epoch % checkpoint_freq == 0 or epoch == max_epoch:
-            rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
-            rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
+            rs['valid'] = run_epoch(logger, model, validloader, criterion, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
+            rs['test'] = run_epoch(logger, model, testloader_, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
 
             # TODO: is this good enough condition?
             if rs[metric]['loss'] < best_valid_loss or rs[metric]['top1'] > best_top1:
@@ -303,13 +304,13 @@ if __name__ == '__main__':
     parser.add_argument('--horovod', action='store_true')
     parser.add_argument('--only-eval', action='store_true')
     parser.add_argument('--seed', type=int, default=42, help='random seed')
-    
+
     args = parser.parse_args()
 
     assert not (args.horovod and args.only_eval), 'can not use horovod when evaluation mode is enabled.'
     assert (args.only_eval and args.logdir) or not args.only_eval, 'checkpoint path not provided in evaluation mode.'
 
-    logger = common_init(args.logdir, args.dataroot, args.seed)
+    logger, args.logdir, args.dataroot = common_init(args.logdir, args.dataroot, args.seed)
 
     if args.decay > 0:
         logger.info('decay reset=%.8f' % args.decay)
@@ -319,15 +320,15 @@ if __name__ == '__main__':
 
     logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
 
-    save_path = os.path.join(args.logdir, 'model.pth') 
+    save_path = os.path.join(args.logdir, 'model.pth')
 
     if not args.only_eval and not args.logdir:
         logger.warning('Provide --logdir argument to save the checkpoint. Without it, training result will not be saved!')
 
     import time
     t = time.time()
-    result = train_and_eval(args.tb_tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv_fold, 
-                            save_path=save_path, only_eval=args.only_eval, horovod=args.horovod, metric='test', 
+    result = train_and_eval(args.tb_tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv_fold,
+                            save_path=save_path, only_eval=args.only_eval, horovod=args.horovod, metric='test',
                             log_dir=args.logdir, checkpoint_freq=C.get()['model'].get('checkpoint_freq', 10))
     elapsed = time.time() - t
 
