@@ -1,6 +1,7 @@
 import logging
 import numpy as np
 import os
+from typing import List
 
 from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import gorilla
@@ -39,7 +40,7 @@ def _add_filehandler(logger, filepath):
     logger.addHandler(fh)
 
 # initializes random number gen, debugging etc
-def common_init(config_filepath:str, defaults_filepath:str,
+def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]=[],
         app_name='DefaultApp', seed=42, detect_anomaly=True, log_level=logging.DEBUG) \
         -> Config:
 
@@ -83,7 +84,7 @@ def common_init(config_filepath:str, defaults_filepath:str,
     _add_filehandler(logger, logfile_path)
 
     logger.info('configuration:')
-    logger.info(conf)
+    logger.info(conf.main_yaml)
     logger.info('--------------')
     logger.info('checkpoint will be saved at %s' % logdir)
     logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
