@@ -9,24 +9,12 @@ from PIL import Image
 from torch.utils.data import SubsetRandomSampler, Sampler, Subset, ConcatDataset
 from torchvision.transforms import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
-from theconf import Config as C
 
-from FastAutoAugment.archive import arsaug_policy, autoaug_policy, autoaug_paper_cifar10, fa_reduced_cifar10, fa_reduced_svhn, fa_resnet50_rimagenet
-from FastAutoAugment.augmentations import *
-from FastAutoAugment.common import get_logger
-from FastAutoAugment.imagenet import ImageNet
-
-logger = get_logger('Fast AutoAugment')
-logger.setLevel(logging.INFO)
-_IMAGENET_PCA = {
-    'eigval': [0.2175, 0.0188, 0.0045],
-    'eigvec': [
-        [-0.5675,  0.7192,  0.4009],
-        [-0.5808, -0.0045, -0.8140],
-        [-0.5836, -0.6948,  0.4203],
-    ]
-}
-_CIFAR_MEAN, _CIFAR_STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+from .archive import arsaug_policy, autoaug_policy, autoaug_paper_cifar10, \
+    fa_reduced_cifar10, fa_reduced_svhn, fa_resnet50_rimagenet
+from .augmentations import *
+from .common import get_logger
+from .imagenet import ImageNet
 
 
 def get_datasets(dataset, dataroot, transform_train, transform_test):
@@ -102,29 +90,29 @@ def get_datasets(dataset, dataroot, transform_train, transform_test):
         testset = Subset(testset, test_idx)
         print('reduced_imagenet train=', len(total_trainset))
     else:
-        raise ValueError('invalid dataset name=%s' % dataset) 
+        raise ValueError('invalid dataset name=%s' % dataset)
 
     return  total_trainset, testset
 
 # target_lb allows to filter dataset for a specific class, used only for experimentation
-def get_train_sampler(split:float, cv_fold:int, total_trainset, horovod, target_lb:int):
+def get_train_sampler(cv_ratio:float, cv_fold:int, total_trainset, horovod, target_lb:int):
     """Splits train set into train and validation sets using stratified random sampling.
-    
+
     Arguments:
-        split {float} -- % of data to put in test set
+        cv_ratio {float} -- % of data to put in test set
         cv_fold {int} -- Total of 5 folds are created, cv_fold specifies which one to use
         target_lb {int} -- If >= 0 then trainset is filtered for only that target class ID
     """
     assert cv_fold >= 0
 
     train_sampler, valid_sampler = None, None
-    if split > 0.0: # if split is not specified then val sampler will be empty
-        # stratified shuffle split will yield return total of n_splits, each split containing
-        # tuple of train and test set with test set size portion = split, while samples for 
+    if cv_ratio > 0.0: # if cv_ratio is not specified then val sampler will be empty
+        # stratified shuffle cv_ratio will yield return total of n_splits, each cv_ratio containing
+        # tuple of train and test set with test set size portion = cv_ratio, while samples for
         # each class having same proportions as original dataset
         # TODO: random_state should be None so np.random is used
         # TODO: keep hardcoded n_splits=5?
-        sss = StratifiedShuffleSplit(n_splits=5, test_size=split, random_state=0)
+        sss = StratifiedShuffleSplit(n_splits=5, test_size=cv_ratio, random_state=0)
         sss = sss.split(list(range(len(total_trainset))), total_trainset.targets)
 
         # we have 5 plits, but will select only one of them as specified by cv_fold
@@ -147,19 +135,22 @@ def get_train_sampler(split:float, cv_fold:int, total_trainset, horovod, target_
 
         if horovod:
             import horovod.torch as hvd
-            train_sampler = torch.utils.data.distributed.DistributedSampler(valid_sampler, num_replicas=hvd.size(), rank=hvd.rank())    
+            train_sampler = torch.utils.data.distributed.DistributedSampler(valid_sampler, num_replicas=hvd.size(), rank=hvd.rank())
 
     return train_sampler, valid_sampler
 
 
-def add_augs(transform_train, aug, cutout):
+def add_augs(transform_train, aug:str, cutout:int):
+    logger = get_logger('Fast AutoAugment')
+    logger.setLevel(logging.INFO)
+
     # TODO: total_aug remains None in original code
     total_aug = augs = None
 
     if isinstance(aug, list):
         logger.debug('augmentation provided.')
         transform_train.transforms.insert(0, Augmentation(aug))
-    elif aug is not None:
+    elif aug:
         logger.debug('augmentation: %s' % aug)
         if aug == 'fa_reduced_cifar10':
             transform_train.transforms.insert(0, Augmentation(fa_reduced_cifar10()))
@@ -179,19 +170,21 @@ def add_augs(transform_train, aug, cutout):
         elif aug in ['default', 'inception', 'inception320']:
             pass
         else:
-            raise ValueError('not found augmentations. %s' % aug)  
+            raise ValueError('not found augmentations. %s' % aug)
 
     # add cutout transform
     if cutout > 0:
-        transform_train.transforms.append(CutoutDefault(C.get()['cutout']))
+        transform_train.transforms.append(CutoutDefault(cutout))
 
     #else returns augs = None
-    return total_aug, augs  
+    return total_aug, augs
 
 def get_transforms(dataset):
     transform_train, transform_test = None, None
 
     if 'cifar' in dataset or 'svhn' in dataset:
+        _CIFAR_MEAN, _CIFAR_STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -203,6 +196,15 @@ def get_transforms(dataset):
             transforms.Normalize(_CIFAR_MEAN, _CIFAR_STD),
         ])
     elif 'imagenet' in dataset:
+        _IMAGENET_PCA = {
+            'eigval': [0.2175, 0.0188, 0.0045],
+            'eigvec': [
+                [-0.5675,  0.7192,  0.4009],
+                [-0.5808, -0.0045, -0.8140],
+                [-0.5836, -0.6948,  0.4203],
+            ]
+        }
+
         transform_train = transforms.Compose([
             transforms.RandomResizedCrop(224, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(),
@@ -227,7 +229,9 @@ def get_transforms(dataset):
 
     return transform_train, transform_test
 
-def get_dataloaders(dataset, batch, dataroot, split=0.15, cv_fold=0, horovod=False, target_lb=-1, num_workers=None):
+def get_dataloaders(dataset, batch, dataroot, aug=None, cutout=0, cv_ratio=0.15,
+    cv_fold=0, horovod=False, target_lb=-1, num_workers=None):
+
     if num_workers is None:
         if 'pydevd' in sys.modules: # if debugging
             num_workers = 0
@@ -238,7 +242,7 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, cv_fold=0, horovod=Fal
     transform_train, transform_test = get_transforms(dataset)
 
     # add additional transforms from config
-    total_aug, augs = add_augs(transform_train, C.get()['aug'], C.get()['cutout'])
+    total_aug, augs = add_augs(transform_train, aug, cutout)
 
     total_trainset, testset = get_datasets(dataset, dataroot, transform_train, transform_test)
 
@@ -247,7 +251,7 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, cv_fold=0, horovod=Fal
         total_trainset.set_preaug(augs, total_aug)
         print('set_preaug-')
 
-    train_sampler, valid_sampler = get_train_sampler(split, cv_fold, total_trainset, horovod, target_lb)
+    train_sampler, valid_sampler = get_train_sampler(cv_ratio, cv_fold, total_trainset, horovod, target_lb)
 
     trainloader = torch.utils.data.DataLoader(
         total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=num_workers, pin_memory=True,

@@ -24,12 +24,11 @@ setuptools.setup(
     ),
     include_package_data=True,
     install_requires=[
-        'theconf @ git+https://github.com/wbaek/theconf', 
         'warmup-scheduler @ git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git@v0.2',
         'pystopwatch2 @ git+https://github.com/ildoonet/pystopwatch2.git',
-        'hyperopt @ git+https://github.com/hyperopt/hyperopt.git',
-        'pretrainedmodels', 'tqdm', 'tensorboardx', 'sklearn', 'ray', 'matplotlib', 'psutil', 
+        'hyperopt', #  @ git+https://github.com/hyperopt/hyperopt.git
+        'pretrainedmodels', 'tqdm', 'tensorboardx', 'sklearn', 'ray', 'matplotlib', 'psutil',
         'requests', 'tensorwatch', 'gorilla', 'pyyaml'
-    ]    
+    ]
 )
 

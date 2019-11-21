@@ -1,5 +1,5 @@
 from hyperopt import hp
-from ray.tune.trial_runner import TrialRunner
+from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import gorilla
 from ray.tune.trial import Trial
 from ray.tune.suggest import HyperOptSearch
@@ -14,17 +14,20 @@ import time
 import os
 from tqdm import tqdm
 
-from FastAutoAugment.archive import remove_deplicates, policy_decoder
-from FastAutoAugment.data import get_dataloaders
-from FastAutoAugment.metrics import Accumulator
-from FastAutoAugment.networks import get_model, num_class
-from FastAutoAugment.augmentations import augment_list
-from FastAutoAugment.train import train_and_eval
-from FastAutoAugment.common import get_model_savepath
-from theconf import Config as C
+from .archive import remove_deplicates, policy_decoder
+from .data import get_dataloaders
+from .metrics import Accumulator
+from .networks import get_model, num_class
+from .augmentations import augment_list
+from .train import train_and_eval
+from .common import get_model_savepath, get_logger
+
+from .config import Config
+from .stopwatch import StopWatch
+
 
 # this method is overriden version of ray.tune.trial_runner.TrialRunner.step using monkey patching
-def step_w_log(self):
+def _step_w_log(self):
     original = gorilla.get_original_attribute(ray.tune.trial_runner.TrialRunner, 'step')
 
     # collect counts by status for all trials
@@ -47,24 +50,29 @@ def step_w_log(self):
     return original(self)
 
 # override ray.tune.trial_runner.TrialRunner.step method so we can print best accuracy at each step
-patch = gorilla.Patch(ray.tune.trial_runner.TrialRunner, 'step', step_w_log, settings=gorilla.Settings(allow_hit=True))
+patch = gorilla.Patch(ray.tune.trial_runner.TrialRunner, 'step', _step_w_log, settings=gorilla.Settings(allow_hit=True))
 gorilla.apply(patch)
 
+
+
 @ray.remote(num_gpus=torch.cuda.device_count(), max_calls=1)
-def train_model(config, dataroot, augment, cv_ratio_test, cv_fold, save_path=None, only_eval=False):
-    C.get()
-    C.get().conf = config
-    C.get()['aug'] = augment
+def _train_model(conf, dataroot, augment, cv_ratio, cv_fold, save_path=None, only_eval=False):
+    Config.set(conf)
+    conf['aug'] = augment
 
-    result = train_and_eval(None, dataroot, cv_ratio_test, cv_fold, save_path=save_path, only_eval=only_eval)
-    return C.get()['model']['type'], cv_fold, result
+    result = train_and_eval(conf, cv_ratio=cv_ratio, cv_fold=cv_fold, save_path=save_path, only_eval=only_eval)
+    return conf['model']['type'], cv_fold, result
 
-def train_no_aug(logger, sw, dataroot, logdir, cv_num, cv_ratio):
+def _train_no_aug(conf):
+    logger = get_logger()
+    sw = StopWatch.get()
+    dataroot, logdir, cv_num, cv_ratio = conf['dataroot'], conf['logdir'], conf['cv_num'], conf['cv_ratio']
+
     logger.info('----- Train without Augmentations cv=%d ratio(test)=%.1f -----' % (cv_num, cv_ratio))
     sw.start(tag='train_no_aug')
 
     # for each fold, we will save model
-    save_paths = [get_model_savepath(logdir, C.get()['dataset'], C.get()['model']['type'], 'ratio%.1f_fold%d' \
+    save_paths = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_fold%d' \
                 % (cv_ratio, i)) for i in range(cv_num)]
     #print(save_paths)
 
@@ -72,14 +80,15 @@ def train_no_aug(logger, sw, dataroot, logdir, cv_num, cv_ratio):
     # These models are trained with aug specified in config.
     # TODO: configuration will be changed ('aug' key), but do we really need deepcopy everywhere?
     reqs = [
-        train_model.remote(copy.deepcopy(copy.deepcopy(C.get().conf)), dataroot, C.get()['aug'], cv_ratio, i,
+        # TODO: eliminate need for deep copy as only aug key is changed
+        _train_model.remote(copy.deepcopy(copy.deepcopy(conf)), dataroot, conf['aug'], cv_ratio, i,
             save_path=save_paths[i], only_eval=True)
         for i in range(cv_num)]
 
     # we now probe saved models for each fold to check the epoch number
     # they are on. When every fold crosses an epoch number, we update
     # the progress.
-    tqdm_epoch = tqdm(range(C.get()['epoch']))
+    tqdm_epoch = tqdm(range(conf['epoch']))
     is_done = False
     for epoch in tqdm_epoch:
         while True:
@@ -89,7 +98,7 @@ def train_no_aug(logger, sw, dataroot, logdir, cv_num, cv_ratio):
                     if os.path.exists(save_paths[cv_idx]):
                         latest_ckpt = torch.load(save_paths[cv_idx])
                         if 'epoch' not in latest_ckpt:
-                            epochs_per_cv['cv%d' % (cv_idx + 1)] = C.get()['epoch']
+                            epochs_per_cv['cv%d' % (cv_idx + 1)] = conf['epoch']
                             continue
                     else:
                         continue
@@ -97,7 +106,7 @@ def train_no_aug(logger, sw, dataroot, logdir, cv_num, cv_ratio):
                 except Exception as e:
                     continue
             tqdm_epoch.set_postfix(epochs_per_cv)
-            if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= C.get()['epoch']:
+            if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= conf['epoch']:
                 is_done = True
             if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= epoch:
                 break
@@ -111,16 +120,33 @@ def train_no_aug(logger, sw, dataroot, logdir, cv_num, cv_ratio):
         logger.info('model=%s cv=%d top1_train=%.4f top1_valid=%.4f' % (r_model, r_cv+1, r_dict['top1_train'], r_dict['top1_valid']))
     logger.info('processed in %.4f secs' % sw.pause('train_no_aug'))
 
-def search_aug(logger, sw, dataroot, logdir, num_policy, num_op, cv_num, cv_ratio, num_samples,
-    num_result_per_cv, resume):
+def search_aug(conf):
+    logger = get_logger()
+    logger.info('initialize ray...')
+    ray.init(redis_address=conf['redis'],
+        # allocate all GPUs on local node if cluster is not specified
+        num_gpus=torch.cuda.device_count() if not conf['redis'] else None)
+    logger.info('search augmentation policies, dataset=%s model=%s' % (conf['dataset'], conf['model']['type']))
+
+    # first train with no aug
+    _train_no_aug(conf)
+
+    sw = StopWatch.get()
+
+    # get values from config
+    dataroot, logdir, num_policy, num_op, cv_num, cv_ratio, num_samples, \
+        num_result_per_cv, resume = \
+        conf['dataroot'], conf['logdir'], conf['autoaug']['num_policy'], conf['autoaug']['num_op'], conf['cv_num'], \
+            conf['cv_ratio'], 4 if conf['smoke_test'] else conf['autoaug']['num_search'], \
+            conf['autoaug']['num_result_per_cv'], conf['resume']
 
     logger.info('----- Search Test-Time Augmentation Policies -----')
     sw.start(tag='search')
 
-    save_paths = [get_model_savepath(logdir, C.get()['dataset'], C.get()['model']['type'], 'ratio%.1f_fold%d' \
+    save_paths = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_fold%d' \
                 % (cv_ratio, i)) for i in range(cv_num)]
 
-    copied_c = copy.deepcopy(C.get().conf)
+    copied_c = copy.deepcopy(conf)
     ops = augment_list(False)
     space = {}
     for i in range(num_policy):
@@ -134,9 +160,9 @@ def search_aug(logger, sw, dataroot, logdir, num_policy, num_op, cv_num, cv_rati
     reward_attr = 'top1_valid'      # top1_valid or minus_loss
     for _ in range(1):  # run multiple times.
         for cv_fold in range(cv_num):
-            name = "search_%s_%s_fold%d_ratio%.1f" % (C.get()['dataset'], C.get()['model']['type'], cv_fold, cv_ratio)
+            name = "search_%s_%s_fold%d_ratio%.1f" % (conf['dataset'], conf['model']['type'], cv_fold, cv_ratio)
             print(name)
-            register_trainable(name, lambda augs, rpt: eval_tta(copy.deepcopy(copied_c), augs, rpt))
+            register_trainable(name, lambda augs, rpt: _eval_tta(copy.deepcopy(copied_c), augs, rpt))
             algo = HyperOptSearch(space, max_concurrent=4*20, reward_attr=reward_attr)
 
             exp_config = {
@@ -147,7 +173,7 @@ def search_aug(logger, sw, dataroot, logdir, num_policy, num_op, cv_num, cv_rati
                     'stop': {'training_iteration': num_policy},
                     'config': {
                         'dataroot': dataroot, 'save_path': save_paths[cv_fold],
-                        'cv_ratio_test': cv_ratio, 'cv_fold': cv_fold,
+                        'cv_ratio': cv_ratio, 'cv_fold': cv_fold,
                         'num_op': num_op, 'num_policy': num_policy
                     },
                 }
@@ -174,20 +200,20 @@ def search_aug(logger, sw, dataroot, logdir, num_policy, num_op, cv_num, cv_rati
     logger.info('final_policy=%d' % len(final_policy_set))
     logger.info('processed in %.4f secs, gpu hours=%.4f' % (sw.pause('search'), total_computation / 3600.))
     logger.info('----- Train with Augmentations model=%s dataset=%s aug=%s ratio(test)=%.1f -----' \
-        % (C.get()['model']['type'], C.get()['dataset'], C.get()['aug'], cv_ratio))
+        % (conf['model']['type'], conf['dataset'], conf['aug'], cv_ratio))
     sw.start(tag='train_aug')
 
     num_experiments = 5
-    default_path = [get_model_savepath(logdir, C.get()['dataset'], C.get()['model']['type'], 'ratio%.1f_default%d'  \
+    default_path = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_default%d'  \
         % (cv_ratio, _)) for _ in range(num_experiments)]
-    augment_path = [get_model_savepath(logdir, C.get()['dataset'], C.get()['model']['type'], 'ratio%.1f_augment%d'  \
+    augment_path = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_augment%d'  \
         % (cv_ratio, _)) for _ in range(num_experiments)]
-    reqs = [train_model.remote(copy.deepcopy(copied_c), dataroot, C.get()['aug'], 0.0, 0, save_path=default_path[_], only_eval=True) \
+    reqs = [_train_model.remote(copy.deepcopy(copied_c), dataroot, conf['aug'], 0.0, 0, save_path=default_path[_], only_eval=True) \
         for _ in range(num_experiments)] + \
-        [train_model.remote(copy.deepcopy(copied_c), dataroot, final_policy_set, 0.0, 0, save_path=augment_path[_]) \
+        [_train_model.remote(copy.deepcopy(copied_c), dataroot, final_policy_set, 0.0, 0, save_path=augment_path[_]) \
             for _ in range(num_experiments)]
 
-    tqdm_epoch = tqdm(range(C.get()['epoch']))
+    tqdm_epoch = tqdm(range(conf['epoch']))
     is_done = False
     for epoch in tqdm_epoch:
         while True:
@@ -207,7 +233,7 @@ def search_aug(logger, sw, dataroot, logdir, num_policy, num_op, cv_num, cv_rati
                     pass
 
             tqdm_epoch.set_postfix(epochs)
-            if len(epochs) == num_experiments*2 and min(epochs.values()) >= C.get()['epoch']:
+            if len(epochs) == num_experiments*2 and min(epochs.values()) >= conf['epoch']:
                 is_done = True
             if len(epochs) == num_experiments*2 and min(epochs.values()) >= epoch:
                 break
@@ -231,16 +257,15 @@ def search_aug(logger, sw, dataroot, logdir, num_policy, num_op, cv_num, cv_rati
     logger.info(sw)
 
 
-def eval_tta(config, augment, reporter):
-    C.get()
-    C.get().conf = config
-    cv_ratio_test, cv_fold, save_path = augment['cv_ratio_test'], augment['cv_fold'], augment['save_path']
+def _eval_tta(conf, augment, reporter):
+    Config.set(conf)
+    cv_ratio, cv_fold, save_path = augment['cv_ratio'], augment['cv_fold'], augment['save_path']
 
     # setup - provided augmentation rules
-    C.get()['aug'] = policy_decoder(augment, augment['num_policy'], augment['num_op'])
+    conf['aug'] = policy_decoder(augment, augment['num_policy'], augment['num_op'])
 
     # eval
-    model = get_model(C.get()['model'], num_class(C.get()['dataset']))
+    model = get_model(conf['model'], num_class(conf['dataset']))
     ckpt = torch.load(save_path)
     if 'model' in ckpt:
         model.load_state_dict(ckpt['model'])
@@ -250,8 +275,8 @@ def eval_tta(config, augment, reporter):
 
     loaders = []
     for _ in range(augment['num_policy']):  # TODO
-        _, tl, validloader, tl2 = get_dataloaders(C.get()['dataset'], C.get()['batch'], augment['dataroot'],
-            cv_ratio_test, cv_fold=cv_fold)
+        _, tl, validloader, tl2 = get_dataloaders(conf['dataset'], conf['batch'], augment['dataroot'],
+            conf['aug'], conf['cutout'], cv_ratio, cv_fold=cv_fold)
         loaders.append(iter(validloader))
         del tl, tl2
 

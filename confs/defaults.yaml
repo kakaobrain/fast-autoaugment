@@ -1,13 +1,25 @@
+# DO NOT use directly for an experiment, create new experiment specific file
+# this file is loaded first followed by experiment specific file
+
 cv_ratio: 0.4 #split portion for test set, 0 to 1
 cv_fold: 0 #Fold number to use (0 to 4)
-dataroot: '~/torchvision_data_dir', help='torchvision data folder'
-logdir: ~/logdir'
-resume: false
-smoke_test: false
+cv_num: 5 # total number of folds available
+dataroot: '~/torchvision_data_dir' #torchvision data folder
+decay: -1
+logdir: '~/logdir'
+resume: False
+smoke_test: False
 seed: 42
+dataset: 'cifar10'
+tb_tag: None #If set then tensorboard log will be generated from this node
+horovod: False
+only_eval: False
+checkpoint_freq: 10
+aug: '' # additional augmentations to use
+cutout: 0 # use cutout augmentation when > 0
 
 # reddis address of Ray cluster. Use None for single node run
-# otherwise it should something like host:6379. Make sure to run on head node: 
+# otherwise it should something like host:6379. Make sure to run on head node:
 # "ray start --head --redis-port=6379"
 redis: null
 
@@ -15,4 +27,4 @@ autoaug:
   num_op: 2
   num_policy: 5
   num_search: 200
-  decay: -1
+  num_result_per_cv: 10 # after conducting N trials, we will chose the results of top num_result_per_cv
