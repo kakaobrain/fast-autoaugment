@@ -3,6 +3,7 @@ import json
 from collections import defaultdict
 import torch
 import ray
+import yaml
 
 
 from FastAutoAugment.common import get_logger, add_filehandler, common_init, get_model_savepath
