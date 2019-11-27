@@ -4,11 +4,11 @@ from torch import nn
 from torch.nn import DataParallel
 # from torchvision import models
 
-from FastAutoAugment.networks.resnet import ResNet
-from FastAutoAugment.networks.pyramidnet import PyramidNet
-from FastAutoAugment.networks.shakeshake.shake_resnet import ShakeResNet
-from FastAutoAugment.networks.wideresnet import WideResNet
-from FastAutoAugment.networks.shakeshake.shake_resnext import ShakeResNeXt
+from .resnet import ResNet
+from .pyramidnet import PyramidNet
+from .shakeshake.shake_resnet import ShakeResNet
+from .wideresnet import WideResNet
+from .shakeshake.shake_resnext import ShakeResNeXt
 
 
 def get_model(conf, num_class=10, data_parallel=True):

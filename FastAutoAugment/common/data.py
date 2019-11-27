@@ -10,7 +10,7 @@ from torch.utils.data import SubsetRandomSampler, Sampler, Subset, ConcatDataset
 from torchvision.transforms import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
 
-from .archive import arsaug_policy, autoaug_policy, autoaug_paper_cifar10, \
+from .aug_policies import arsaug_policy, autoaug_policy, autoaug_paper_cifar10, \
     fa_reduced_cifar10, fa_reduced_svhn, fa_resnet50_rimagenet
 from .augmentations import *
 from .common import get_logger
@@ -247,9 +247,9 @@ def get_dataloaders(dataset, batch, dataroot, aug=None, cutout=0, cv_ratio=0.15,
     total_trainset, testset = get_datasets(dataset, dataroot, transform_train, transform_test)
 
     # TODO: below will never get executed, set_preaug does not exist in PyTorch
-    if total_aug is not None and augs is not None:
-        total_trainset.set_preaug(augs, total_aug)
-        print('set_preaug-')
+    # if total_aug is not None and augs is not None:
+    #     total_trainset.set_preaug(augs, total_aug)
+    #     print('set_preaug-')
 
     train_sampler, valid_sampler = get_train_sampler(cv_ratio, cv_fold, total_trainset, horovod, target_lb)
 

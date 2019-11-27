@@ -13,7 +13,7 @@ from .common import get_logger
 from .data import get_dataloaders
 from .lr_scheduler import adjust_learning_rate_pyramid, adjust_learning_rate_resnet
 from .metrics import accuracy, Accumulator
-from .networks import get_model, num_class
+from ..networks import get_model, num_class
 
 from warmup_scheduler import GradualWarmupScheduler
 
@@ -175,7 +175,7 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, tb_tag=None, r
     # create tensorboard writers
     if not tb_tag or not is_master:
         # create dummy writer that will ignore all writes
-        from FastAutoAugment.metrics import SummaryWriterDummy as SummaryWriter
+        from ..common.metrics import SummaryWriterDummy as SummaryWriter
         logger.warning('tb_tag not provided, no tensorboard log.')
     else:
         from torch.utils.tensorboard import SummaryWriter

@@ -5,7 +5,7 @@ from __future__ import print_function
 
 from collections import defaultdict
 
-from FastAutoAugment.augmentations import get_augment, augment_list
+from .augmentations import get_augment, augment_list
 
 
 def arsaug_policy():

@@ -19,11 +19,11 @@ _app_name = 'DefaultApp'
 def _get_formatter():
     return logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
 
-def get_logger(app_name=None)->logging.Logger:
-    return logging.getLogger(app_name or _app_name)
+def get_logger(experiment_name=None)->logging.Logger:
+    return logging.getLogger(experiment_name or _app_name)
 
-def _setup_logger(app_name, level=logging.DEBUG)->logging.Logger:
-    logger = logging.getLogger(app_name)
+def _setup_logger(experiment_name, level=logging.DEBUG)->logging.Logger:
+    logger = logging.getLogger(experiment_name)
     logger.handlers.clear()
     logger.setLevel(level)
     ch = logging.StreamHandler()
@@ -41,11 +41,11 @@ def _add_filehandler(logger, filepath):
 
 # initializes random number gen, debugging etc
 def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]=[],
-        app_name='DefaultApp', seed=42, detect_anomaly=True, log_level=logging.DEBUG) \
+        experiment_name='', seed=42, detect_anomaly=True, log_level=logging.DEBUG) \
         -> Config:
 
     global _app_name
-    _app_name = app_name
+    _app_name = experiment_name
 
     conf = Config(config_filepath=config_filepath, defaults_filepath=defaults_filepath)
 
@@ -57,7 +57,7 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
     sw = StopWatch()
     StopWatch.set(sw)
 
-    logger = _setup_logger(app_name)
+    logger = _setup_logger(experiment_name)
 
     np.random.seed(seed)
     cudnn.benchmark = True
@@ -69,18 +69,20 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
         torch.autograd.set_detect_anomaly(True)
 
     logdir, dataroot = os.path.expanduser(conf['logdir']), os.path.expanduser(conf['dataroot'])
+    if experiment_name:
+        logdir = os.path.join(logdir, experiment_name)
     os.makedirs(logdir, exist_ok=True)
     os.makedirs(dataroot, exist_ok=True)
     conf['logdir'], conf['dataroot'] = logdir, dataroot
 
-    # TODO: remove this in future
-    if conf.get('decay', 0) > 0:
-        logger.info('decay=%.4f' % conf['decay'])
-        conf['optimizer']['decay'] = conf['decay']
+    # copy net config to experiment folder for reference
+    with open(os.path.join(logdir, 'full_config.yaml'), 'w') as f:
+        yaml.dump(conf, f, default_flow_style=False)
 
     # file where logger would log messages
-    logfile_path = os.path.join(logdir, '%s_%s_cv%.1f.log' % (conf['dataset'], conf['model']['type'],
-            conf['cv_ratio']))
+    logfilename = '{}_{}_cv{:.1f}.log'.format(conf['dataset'], conf['model']['type'],
+            conf['cv_ratio'])
+    logfile_path = os.path.join(logdir, logfilename)
     _add_filehandler(logger, logfile_path)
 
     logger.info('configuration:')
@@ -88,6 +90,20 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
     logger.info('--------------')
     logger.info('checkpoint will be saved at %s' % logdir)
     logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
+    logger.info('Original CUDA_VISIBLE_DEVICES: {}'.format( \
+            os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ else 'NotSet'))
+
+    if conf['gpus'] is not None:
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(conf['gpus'])
+        logger.info('Only these GPUs will be used: {}'.format(conf['gpus']))
+
+    gpu_usage = os.popen(
+            'nvidia-smi --query-gpu=memory.total,memory.used --format=csv,nounits,noheader'
+                ).read().split('\n')
+    for i, line in enumerate(gpu_usage):
+        vals = line.split(',')
+        if len(vals) == 2:
+            logger.info('GPU {} mem: {}, used: {}'.format(i, vals[0], vals[1]))
 
     return conf
 

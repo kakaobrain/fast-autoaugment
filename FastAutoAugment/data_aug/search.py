@@ -14,16 +14,16 @@ import time
 import os
 from tqdm import tqdm
 
-from .archive import remove_deplicates, policy_decoder
-from .data import get_dataloaders
-from .metrics import Accumulator
-from .networks import get_model, num_class
-from .augmentations import augment_list
-from .train import train_and_eval
-from .common import get_model_savepath, get_logger
+from ..common.aug_policies import remove_deplicates, policy_decoder
+from ..common.data import get_dataloaders
+from ..common.metrics import Accumulator
+from ..networks import get_model, num_class
+from ..common.augmentations import augment_list
+from ..common.train import train_and_eval
+from ..common.common import get_model_savepath, get_logger
 
-from .config import Config
-from .stopwatch import StopWatch
+from ..common.config import Config
+from ..common.stopwatch import StopWatch
 
 
 # this method is overriden version of ray.tune.trial_runner.TrialRunner.step using monkey patching
@@ -120,7 +120,7 @@ def _train_no_aug(conf):
         logger.info('model=%s cv=%d top1_train=%.4f top1_valid=%.4f' % (r_model, r_cv+1, r_dict['top1_train'], r_dict['top1_valid']))
     logger.info('processed in %.4f secs' % sw.pause('train_no_aug'))
 
-def search_aug(conf):
+def search(conf):
     logger = get_logger()
     logger.info('initialize ray...')
     ray.init(redis_address=conf['redis'],

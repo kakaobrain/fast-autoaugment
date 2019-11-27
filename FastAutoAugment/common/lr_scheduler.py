@@ -1,7 +1,5 @@
 import torch
 
-from theconf import Config as C
-
 
 def adjust_learning_rate_pyramid(optimizer, max_epoch):
     def __adjust_learning_rate_pyramid(epoch):
