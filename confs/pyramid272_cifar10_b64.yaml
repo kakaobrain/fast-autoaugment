@@ -8,10 +8,10 @@ aug: fa_reduced_cifar10
 cutout: 16
 batch: 64
 epoch: 1800
-lr: 0.05
 lr_schedule:
   type: 'cosine'
 optimizer:
   type: sgd
+  lr: 0.05
   nesterov: True
   decay: 0.00005

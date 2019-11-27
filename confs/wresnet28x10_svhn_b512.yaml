@@ -5,7 +5,6 @@ aug: fa_reduced_svhn
 cutout: 20
 batch: 512
 epoch: 200
-lr: 0.01
 lr_schedule:
   type: 'cosine'
   warmup:
@@ -13,5 +12,6 @@ lr_schedule:
     epoch: 5
 optimizer:
   type: sgd
+  lr: 0.01
   nesterov: True
   decay: 0.0005

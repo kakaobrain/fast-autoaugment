@@ -1,2 +1,30 @@
-darts:
-  bilevel: True
+
+cv_ratio: 0.5 #split portion for test set, 0 to 1
+momentum: 0.9 # momentum for model parameters
+decay: 3e-4 # weight decay for model parameters
+cutout: 16 # cutout length, use cutout augmentation when > 0
+batch: 64
+epoch: 50 # num of training epochs
+
+optimizer_arch:
+  type: 'adam'
+  lr: 3e-4
+  decay: 1e-3
+  betas: [0.5, 0.999]
+  # momentum: 0.9 # pytorch default is 0
+  # nesterov: False
+  # clip: 5 # grads above this value is clipped
+  # warmup: null
+
+optimizer:
+  type: 'sgd'
+  lr: 0.025 # init learning rate
+  decay: 3e-4
+  momentum: 0.9 # pytorch default is 0
+  nesterov: False
+  clip: 5 # grads above this value is clipped
+  warmup: null
+
+lr_schedule:
+  type: 'cosine'
+  lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler

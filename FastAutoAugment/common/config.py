@@ -4,6 +4,8 @@ from collections import UserDict
 from typing import List
 from argparse import ArgumentError
 
+from .common import deep_update
+
 _config:'Config' = None
 
 class Config(UserDict):
@@ -45,9 +47,9 @@ class Config(UserDict):
         Config._update_config_from_args(self.main_yaml, self.extra_args)
 
         # load defaults
-        self.update(self.default_yaml)
+        self.deep_update(self.default_yaml)
         # override defaults with main
-        self.update(self.main_yaml)
+        self.deep_update(self.main_yaml)
 
         # without below Python would let static method override instance method
         self.get = super(Config, self).get
@@ -61,13 +63,6 @@ class Config(UserDict):
                 raise ArgumentError('Value is expected after argument {key}')
             if arg.startswith(("--")):
                 arg = arg[len("--"):]
-                path = arg.split('.')
-                c = conf
-                for key in path[:-1]:
-                    if not key in c:
-                        raise ArgumentError('{key} argument not recognized')
-                    c = c[key]
-                key = path[-1]
                 if not key in c:
                     raise ArgumentError('{key} argument not recognized')
                 if c[key] is None:
@@ -83,3 +78,4 @@ class Config(UserDict):
     def get()->'Config':
         global _config
         return _config
+

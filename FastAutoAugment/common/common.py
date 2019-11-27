@@ -2,17 +2,17 @@ import logging
 import numpy as np
 import os
 from typing import List
+from collections.abc import Mapping, MutableMapping
 
 from ray.tune.trial_runner import TrialRunner # will be patched but not used
-import gorilla
-
+import yaml
 
 import torch
 import torch.backends.cudnn as cudnn
 
 from .config import Config
 from .stopwatch import StopWatch
-import yaml
+
 
 _app_name = 'DefaultApp'
 
@@ -110,4 +110,13 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
 def get_model_savepath(logdir, dataset, model, tag):
     return os.path.join(logdir, '%s_%s_%s.model' \
         % (dataset, model, tag))
+
+def deep_update(d:MutableMapping, u:Mapping)->Mapping:
+    for k, v in u.items():
+        if isinstance(v, Mapping):
+            d[k] = deep_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
 

@@ -1,34 +1,54 @@
 # DO NOT use directly for an experiment, create new experiment specific file
 # this file is loaded first followed by experiment specific file
 
+dataroot: '~/torchvision_data_dir' #torchvision data folder
+logdir: '~/logdir'
+seed: 42
+tb_tag: None #If set then tensorboard log will be generated from this node
+horovod: False
+checkpoint_freq: 10
+report_freq: 50 # after every N updates dump loss and other metrics in logger
+
+smoke_test: False
+only_eval: False
+resume: False
+
+dataset: 'cifar10'
+num_classes: 10
 cv_ratio: 0.4 #split portion for test set, 0 to 1
 cv_fold: 0 #Fold number to use (0 to 4)
 cv_num: 5 # total number of folds available
-dataroot: '~/torchvision_data_dir' #torchvision data folder
-decay: -1
-logdir: '~/logdir'
-resume: False
-smoke_test: False
-seed: 42
-dataset: 'cifar10'
-tb_tag: None #If set then tensorboard log will be generated from this node
-horovod: False
-only_eval: False
-checkpoint_freq: 10
 aug: '' # additional augmentations to use
-cutout: 0 # use cutout augmentation when > 0
-gpus: null # use GPU IDs specified here (comma separated), if null then use all GPUs
+cutout: 0 # cutout length, use cutout augmentation when > 0
 
 # reddis address of Ray cluster. Use None for single node run
 # otherwise it should something like host:6379. Make sure to run on head node:
 # "ray start --head --redis-port=6379"
 redis: null
+gpus: null # use GPU IDs specified here (comma separated), if null then use all GPUs
 
 optimizer:
+  type: 'sgd'
   decay: 0
+  momentum: 0.9 # pytorch default is 0
+  nesterov: False
+  clip: 5 # grads above this value is clipped
+  warmup: null
+    # multiplier: 2
+    # epoch: 3
+  betas: [0.9, 0.999] # PyTorch default betas for Adam
+
+lr_schedule:
+  type: 'cosine'
+  lr_min: 0.0 # min learning rate, this will be used in eta_min param of scheduler
 
 autoaug:
   num_op: 2
   num_policy: 5
   num_search: 200
   num_result_per_cv: 10 # after conducting N trials, we will chose the results of top num_result_per_cv
+
+darts:
+  bilevel: True
+  init_ch: 16 # num of init channels
+  layers: 8 # total number of layers

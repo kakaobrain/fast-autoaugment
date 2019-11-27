@@ -4,18 +4,16 @@ import os
 from collections import OrderedDict
 
 import torch
-from torch import nn, optim
+from torch import nn
 from torch.nn.parallel.data_parallel import DataParallel
 
 from tqdm import tqdm
 
 from .common import get_logger
+from .optimizer import get_scheduler, get_optimizer
 from .data import get_dataloaders
-from .lr_scheduler import adjust_learning_rate_pyramid, adjust_learning_rate_resnet
 from .metrics import accuracy, Accumulator
 from ..networks import get_model, num_class
-
-from warmup_scheduler import GradualWarmupScheduler
 
 
 # TODO: remove scheduler parameter?
@@ -56,8 +54,8 @@ def run_epoch(conf, logger, model, loader, loss_fn, optimizer, desc_default='', 
             if getattr(optimizer, "synchronize", None):
                 optimizer.synchronize()     # for horovod
             # grad clipping defaults to 5 (same as Darts)
-            if conf['optimizer'].get('clip', 5) > 0:
-                nn.utils.clip_grad_norm_(model.parameters(), conf['optimizer'].get('clip', 5))
+            if conf['optimizer']['clip'] > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), conf['optimizer']['clip'])
             optimizer.step()
 
         top1, top5 = accuracy(preds, label, (1, 5))
@@ -125,16 +123,7 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, tb_tag=None, r
 
     # select loss function and optimizer
     criterion = nn.CrossEntropyLoss()
-    if conf['optimizer']['type'] == 'sgd':
-        optimizer = optim.SGD(
-            model.parameters(),
-            lr=conf['lr'],
-            momentum=conf['optimizer'].get('momentum', 0.9),
-            weight_decay=conf['optimizer']['decay'],
-            nesterov=conf['optimizer']['nesterov']
-        )
-    else:
-        raise ValueError('invalid optimizer type=%s' % conf['optimizer']['type'])
+    optimizer = get_optimizer(conf['optimizer'], model.parameters())
 
     # distributed optimizer if horovod is used
     is_master = True
@@ -148,29 +137,8 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, tb_tag=None, r
     logger.debug('is_master=%s' % is_master)
 
     # select LR schedule
-    lr_scheduler_type = conf['lr_schedule'].get('type', 'cosine')
-    scheduler = None
-    if lr_scheduler_type == 'cosine':
-        t_max = conf['epoch']
-        # adjust max epochs for warmup
-        # TODO: shouldn't we be increasing t_max or schedule lr only after warmup?
-        if conf['lr_schedule'].get('warmup', None):
-            t_max -= conf['lr_schedule']['warmup']['epoch']
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max, eta_min=0.)
-    elif lr_scheduler_type == 'resnet':
-        scheduler = adjust_learning_rate_resnet(optimizer)
-    elif lr_scheduler_type == 'pyramid':
-        scheduler = adjust_learning_rate_pyramid(optimizer, conf['epoch'])
-    else:
-        raise ValueError('invalid lr_schduler=%s' % lr_scheduler_type)
-    # select warmup for LR schedule
-    if conf['lr_schedule'].get('warmup', None):
-        scheduler = GradualWarmupScheduler(
-            optimizer,
-            multiplier=conf['lr_schedule']['warmup']['multiplier'],
-            total_epoch=conf['lr_schedule']['warmup']['epoch'],
-            after_scheduler=scheduler
-        )
+    scheduler = get_scheduler(conf, optimizer)
+
 
     # create tensorboard writers
     if not tb_tag or not is_master:

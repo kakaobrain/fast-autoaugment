@@ -1,11 +1,12 @@
 model:
   type: wresnet28_10
+
 dataset: cifar10
+
 aug: fa_reduced_cifar10
 cutout: 16
 batch: 512
 epoch: 200
-lr: 0.1
 lr_schedule:
   type: 'cosine'
   warmup:
@@ -13,5 +14,6 @@ lr_schedule:
     epoch: 5
 optimizer:
   type: sgd
+  lr: 0.1
   nesterov: True
   decay: 0.0005

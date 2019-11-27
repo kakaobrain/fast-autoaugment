@@ -5,7 +5,7 @@ aug: fa_reduced_imagenet
 cutout: 0
 batch: 256
 epoch: 270
-lr: 0.05
+
 lr_schedule:
   type: 'resnet'
   warmup:
@@ -13,6 +13,7 @@ lr_schedule:
     epoch: 3
 optimizer:
   type: sgd
+  lr: 0.05
   nesterov: True
   decay: 0.0001
   clip: 0
