@@ -1,7 +1,7 @@
 import yaml
 import argparse
 from collections import UserDict
-from typing import List
+from typing import Sequence
 from argparse import ArgumentError
 from collections.abc import Mapping, MutableMapping
 
@@ -19,7 +19,7 @@ _config:'Config' = None
 
 class Config(UserDict):
     def __init__(self, config_filepath=None, app_desc=None, use_args=True,
-        defaults_filepath=None, param_args:List[str]=[])->None:
+        defaults_filepath=None, param_args:Sequence[str]=[])->None:
 
         super(Config, self).__init__()
         # without below Python would let static method override instance method
@@ -65,7 +65,7 @@ class Config(UserDict):
 
 
     @staticmethod
-    def _update_config_from_args(conf:dict, extra_args:List[str])->None:
+    def _update_config_from_args(conf:dict, extra_args:Sequence[str])->None:
         for i, arg in enumerate(extra_args):
             if i % 2 != 0:
                 continue

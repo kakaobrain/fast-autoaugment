@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import os
-from typing import List
+from typing import List, Iterable
 
 from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import yaml
@@ -58,10 +58,11 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
 
     logger = _setup_logger(experiment_name)
 
-    np.random.seed(seed)
     cudnn.benchmark = True
     cudnn.enabled = True
+    np.random.seed(seed)
     torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
     if detect_anomaly:
         # TODO: enable below only in debug mode
@@ -92,6 +93,7 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
     if conf['gpus'] is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(conf['gpus'])
         logger.info('Only these GPUs will be used: {}'.format(conf['gpus']))
+        # alternative: torch.cuda.set_device(config.gpus[0])
 
     gpu_usage = os.popen(
             'nvidia-smi --query-gpu=memory.total,memory.used --format=csv,nounits,noheader'
@@ -106,6 +108,14 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
 def get_model_savepath(logdir, dataset, model, tag):
     return os.path.join(logdir, '%s_%s_%s.model' \
         % (dataset, model, tag))
+
+def create_tb_writers(conf:Config, is_master=True, sub_folders:Iterable[str]=['0']):
+    if not conf['enable_tb'] or not is_master:
+        # create dummy writer that will ignore all writes
+        from .metrics import SummaryWriterDummy as SummaryWriter
+    else:
+        from torch.utils.tensorboard import SummaryWriter
+    return [SummaryWriter(log_dir=f'{log_dir}/tb/{x}') for x in sub_folders]
 
 
 

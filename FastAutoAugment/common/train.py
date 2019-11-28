@@ -9,7 +9,7 @@ from torch.nn.parallel.data_parallel import DataParallel
 
 from tqdm import tqdm
 
-from .common import get_logger
+from .common import get_logger, create_tb_writers
 from .optimizer import get_scheduler, get_optimizer
 from .data import get_dataloaders
 from .metrics import accuracy, Accumulator
@@ -94,7 +94,7 @@ def run_epoch(conf, logger, model, loader, loss_fn, optimizer, desc_default='', 
     return metrics
 
 # metric could be 'last', 'test', 'val', 'train'.
-def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, tb_tag=None, reporter=None, metric='test'):
+def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, reporter=None, metric='test'):
 
     logger = get_logger()
 
@@ -141,13 +141,7 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, tb_tag=None, r
 
 
     # create tensorboard writers
-    if not tb_tag or not is_master:
-        # create dummy writer that will ignore all writes
-        from ..common.metrics import SummaryWriterDummy as SummaryWriter
-        logger.warning('tb_tag not provided, no tensorboard log.')
-    else:
-        from torch.utils.tensorboard import SummaryWriter
-    writers = [SummaryWriter(log_dir=f'{log_dir}/logs/{tb_tag}/{x}') for x in ['train', 'valid', 'test']]
+    writers = create_tb_writers(conf, is_master, ['train', 'valid', 'test'])
 
     result = OrderedDict()
     epoch_start = 1

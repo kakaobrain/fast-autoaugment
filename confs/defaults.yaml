@@ -4,7 +4,7 @@
 dataroot: '~/torchvision_data_dir' #torchvision data folder
 logdir: '~/logdir'
 seed: 42
-tb_tag: None #If set then tensorboard log will be generated from this node
+enable_tb: True # if False then TensorBoard logging is ignored
 horovod: False
 checkpoint_freq: 10
 report_freq: 50 # after every N updates dump loss and other metrics in logger

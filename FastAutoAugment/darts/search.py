@@ -9,7 +9,7 @@ import os
 from ..common.config import Config
 from .model_arch import Network
 from .arch import Arch
-from ..common.common import get_logger
+from ..common.common import get_logger, create_tb_writers
 from ..common import utils
 from ..common.optimizer import get_scheduler, get_optimizer
 
@@ -19,8 +19,8 @@ def search_arch(conf:Config)->None:
     if not conf['darts']['bilevel']:
         logger.warn('bilevel arg is NOT true. This is useful only for abalation study for bilevel optimization!')
 
-    # select first visible GPU ID
-    device = torch.device('cuda:0')
+    device = torch.device('cuda')
+    writer = create_tb_writers(conf)[0]
 
     # CIFAR classification task
     criterion = nn.CrossEntropyLoss().to(device)
