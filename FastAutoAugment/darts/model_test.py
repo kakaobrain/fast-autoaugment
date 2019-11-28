@@ -1,7 +1,8 @@
-import  torch
-import  torch.nn as nn
-from    operations import *
-from    utils import drop_path
+import torch
+import torch.nn as nn
+
+from .operations import *
+from ..common.utils import drop_path
 
 
 class Cell(nn.Module):
@@ -23,7 +24,7 @@ class Cell(nn.Module):
 
         print(C_prev_prev, C_prev, C)
 
-        # if previous layer was reduction layer 
+        # if previous layer was reduction layer
         if reduction_prev:
             self.preprocess0 = FactorizedReduce(C_prev_prev, C)
         else:
@@ -74,7 +75,7 @@ class Cell(nn.Module):
 
         states = [s0, s1]
         for i in range(self._steps):
-            # for each noce i, find which previous two node we 
+            # for each noce i, find which previous two node we
             # connect to and corresponding ops for them
             h1 = states[self._indices[2 * i]]
             h2 = states[self._indices[2 * i + 1]]
@@ -195,16 +196,6 @@ class NetworkCIFAR(nn.Module):
         out = self.global_pooling(s1)
         logits = self.classifier(out.view(out.size(0), -1))
         return logits, logits_aux
-
-
-
-
-
-
-
-
-
-
 
 
 class NetworkImageNet(nn.Module):

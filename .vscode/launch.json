@@ -28,7 +28,15 @@
             "request": "launch",
             "program": "${cwd}/tests/darts_search.py",
             "console": "integratedTerminal",
-            "args": ["-c", "confs/cifar_darts_search.yaml"]
+            "args": ["-c", "confs/cifar_darts.yaml"]
+        },
+        {
+            "name": "TestDarts cifar10 ",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/tests/darts_test.py",
+            "console": "integratedTerminal",
+            "args": ["-c", "confs/cifar_darts.yaml"]
         }
     ]
 }

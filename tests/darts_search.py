@@ -1,8 +1,8 @@
 from FastAutoAugment.common.common import common_init
-from FastAutoAugment.darts.search_arch import search
+from FastAutoAugment.darts.search import search_arch
 
 if __name__ == '__main__':
     conf = common_init(config_filepath='confs/cifar_darts_search.yaml',
         defaults_filepath='confs/defaults.yaml')
 
-    search(conf)
+    search_arch(conf)

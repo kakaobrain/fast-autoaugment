@@ -19,7 +19,7 @@ cv_ratio: 0.4 #split portion for test set, 0 to 1
 cv_fold: 0 #Fold number to use (0 to 4)
 cv_num: 5 # total number of folds available
 aug: '' # additional augmentations to use
-cutout: 0 # cutout length, use cutout augmentation when > 0
+cutout: 16 # cutout length, use cutout augmentation when > 0
 
 # reddis address of Ray cluster. Use None for single node run
 # otherwise it should something like host:6379. Make sure to run on head node:
@@ -52,3 +52,8 @@ darts:
   bilevel: True
   init_ch: 16 # num of init channels
   layers: 8 # total number of layers
+  test_genotype: 'DARTS'
+  search_cutout: 0
+  test_auxtowers: True
+  drop_path_prob: 0.2 # drop path probability
+  test_model_filename: 'cifar10_model.pt'

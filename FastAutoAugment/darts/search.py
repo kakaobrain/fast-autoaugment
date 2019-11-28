@@ -13,7 +13,7 @@ from ..common.common import get_logger
 from ..common import utils
 from ..common.optimizer import get_scheduler, get_optimizer
 
-def search(conf:Config)->None:
+def search_arch(conf:Config)->None:
     logger = get_logger()
 
     if not conf['darts']['bilevel']:
@@ -35,7 +35,7 @@ def search(conf:Config)->None:
     # note that we get only train set here and break it down in 1/2 to get validation set
     # cifar10 has 60K images in 10 classes, 50k in train, 10k in test
     # so ultimately we have 25K train, 25K val, 10k test
-    train_transform, valid_transform = utils._data_transforms_cifar10(conf['cutout'])
+    train_transform, valid_transform = utils._data_transforms_cifar10(conf['darts']['search_cutout'])
     train_data = tvds.CIFAR10(root=conf['dataroot'], train=True, download=True, transform=train_transform)
 
     num_train = len(train_data) # 50000
@@ -80,7 +80,8 @@ def search(conf:Config)->None:
         valid_acc, valid_obj = _infer(valid_dl, model, criterion, device, conf['report_freq'])
         logger.info('valid acc: %f', valid_acc)
 
-        utils.save(model, os.path.join(conf['logdir'], 'search.pt'))
+        model_filepath = os.path.join(conf['logdir'], conf['darts']['test_model_filename'])
+        utils.save(model, model_filepath)
 
 
 def _train_epoch(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterion, optimizer, lr,
