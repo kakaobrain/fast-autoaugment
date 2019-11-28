@@ -2,7 +2,6 @@ import logging
 import numpy as np
 import os
 from typing import List
-from collections.abc import Mapping, MutableMapping
 
 from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import yaml
@@ -80,14 +79,11 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
         yaml.dump(conf, f, default_flow_style=False)
 
     # file where logger would log messages
-    logfilename = '{}_{}_cv{:.1f}.log'.format(conf['dataset'], conf['model']['type'],
+    logfilename = '{}_cv{:.1f}.log'.format(conf['dataset'],
             conf['cv_ratio'])
     logfile_path = os.path.join(logdir, logfilename)
     _add_filehandler(logger, logfile_path)
 
-    logger.info('configuration:')
-    logger.info(conf.main_yaml)
-    logger.info('--------------')
     logger.info('checkpoint will be saved at %s' % logdir)
     logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
     logger.info('Original CUDA_VISIBLE_DEVICES: {}'.format( \
@@ -111,12 +107,5 @@ def get_model_savepath(logdir, dataset, model, tag):
     return os.path.join(logdir, '%s_%s_%s.model' \
         % (dataset, model, tag))
 
-def deep_update(d:MutableMapping, u:Mapping)->Mapping:
-    for k, v in u.items():
-        if isinstance(v, Mapping):
-            d[k] = deep_update(d.get(k, {}), v)
-        else:
-            d[k] = v
-    return d
 
 

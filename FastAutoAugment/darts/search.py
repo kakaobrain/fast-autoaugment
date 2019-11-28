@@ -16,7 +16,7 @@ from ..common.optimizer import get_scheduler, get_optimizer
 def search(conf:Config)->None:
     logger = get_logger()
 
-    if not conf['bilevel']:
+    if not conf['darts']['bilevel']:
         logger.warn('bilevel arg is NOT true. This is useful only for abalation study for bilevel optimization!')
 
     # select first visible GPU ID
@@ -26,7 +26,7 @@ def search(conf:Config)->None:
     criterion = nn.CrossEntropyLoss().to(device)
 
     # 16 inital channels, num_classes=10, 8 cells (layers)
-    model = Network(conf['init_ch'], conf['num_classes'], conf['layers'], criterion).to(device)
+    model = Network(conf['darts']['init_ch'], conf['num_classes'], conf['darts']['layers'], criterion).to(device)
     logger.info("Total param size = %f MB", utils.count_parameters_in_MB(model))
 
     # this is the optimizer to optimize
@@ -55,7 +55,7 @@ def search(conf:Config)->None:
     scheduler = get_scheduler(conf, optimizer)
 
     # arch is sort of meta model that would update theta and alpha parameters
-    arch = Arch(model, args)
+    arch = Arch(model, conf)
 
     # in this phase we only run 50 epochs
     for epoch in range(conf['epoch']):
@@ -72,8 +72,8 @@ def search(conf:Config)->None:
         # print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
-        train_acc, train_obj = _train(train_dl, valid_dl, model, arch, criterion, optimizer, lr,
-            device, conf['optimizer']['clip'], conf['bilevel'], conf['report_freq'])
+        train_acc, train_obj = _train_epoch(train_dl, valid_dl, model, arch, criterion, optimizer, lr,
+            device, conf['optimizer']['clip'], conf['report_freq'])
         logger.info('train acc: %f', train_acc)
 
         # validation
@@ -83,8 +83,8 @@ def search(conf:Config)->None:
         utils.save(model, os.path.join(conf['logdir'], 'search.pt'))
 
 
-def _train(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterion, optimizer, lr,
-    device, grad_clip, bilevel, report_freq):
+def _train_epoch(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterion, optimizer, lr,
+    device, grad_clip, report_freq):
 
     logger = get_logger()
 
@@ -105,7 +105,7 @@ def _train(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterion, opt
         x_search, target_search = x_search.to(device), target_search.cuda(non_blocking=True)
 
         # 1. update alpha
-        arch.step(x, target, x_search, target_search, lr, optimizer, unrolled=bilevel)
+        arch.step(x, target, x_search, target_search, lr, optimizer)
 
         logits = model(x)
         loss = criterion(logits, target)

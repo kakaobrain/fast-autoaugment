@@ -4,6 +4,7 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
+
         {
             "name": "TrainAug wresnet40x2 cifar10 ",
             "type": "python",
@@ -20,6 +21,14 @@
             "program": "${cwd}/tests/aug_search.py",
             "console": "integratedTerminal",
             "args": ["-c", "confs/wresnet40x2_cifar10_b512.yaml"]
+        },
+        {
+            "name": "SearchDarts cifar10 ",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/tests/darts_search.py",
+            "console": "integratedTerminal",
+            "args": ["-c", "confs/cifar_darts_search.yaml"]
         }
     ]
 }

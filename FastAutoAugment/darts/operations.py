@@ -2,10 +2,6 @@ import  torch
 import  torch.nn as nn
 
 
-
-
-
-
 # OPS is a set of layers with same input/output channel.
 
 OPS = {
@@ -26,7 +22,6 @@ OPS = {
         nn.BatchNorm2d(C, affine=affine)
     ),
 }
-
 
 class ReLUConvBN(nn.Module):
     """

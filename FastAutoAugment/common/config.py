@@ -3,9 +3,18 @@ import argparse
 from collections import UserDict
 from typing import List
 from argparse import ArgumentError
+from collections.abc import Mapping, MutableMapping
 
-from .common import deep_update
+def deep_update(d:MutableMapping, u:Mapping)->Mapping:
+    for k, v in u.items():
+        if isinstance(v, Mapping):
+            d[k] = deep_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
 
+
+# global config instance
 _config:'Config' = None
 
 class Config(UserDict):
@@ -13,8 +22,12 @@ class Config(UserDict):
         defaults_filepath=None, param_args:List[str]=[])->None:
 
         super(Config, self).__init__()
+        # without below Python would let static method override instance method
+        self.get = super(Config, self).get
 
         self.args, self.extra_args = None, []
+
+        # should we lok for program args for config file locations?
         if use_args:
             parser = argparse.ArgumentParser(description=app_desc)
             parser.add_argument('--config-filepath', '-c', type=str, default=None,
@@ -28,31 +41,28 @@ class Config(UserDict):
             defaults_filepath = self.args.defaults_filepath or defaults_filepath
 
         # get defaults
-        self.default_yaml = {}
+        default_yaml = {}
         if defaults_filepath:
             with open(defaults_filepath, 'r') as f:
-                self.default_yaml = yaml.safe_load(f)
+                default_yaml = yaml.safe_load(f)
                 print('defaults config loaded from: ', config_filepath)
+        self.update(default_yaml)
 
         # get main config that would override defaults
-        self.main_yaml = {}
+        main_yaml = {}
         if config_filepath:
             with open(config_filepath, 'r') as f:
-                self.main_yaml = yaml.safe_load(f)
+                main_yaml = yaml.safe_load(f)
                 print('config loaded from: ', config_filepath)
 
         # merge from params
-        Config._update_config_from_args(self.main_yaml, param_args)
+        Config._update_config_from_args(main_yaml, param_args)
         # merge from command line
-        Config._update_config_from_args(self.main_yaml, self.extra_args)
+        Config._update_config_from_args(main_yaml, self.extra_args)
 
-        # load defaults
-        self.deep_update(self.default_yaml)
         # override defaults with main
-        self.deep_update(self.main_yaml)
+        deep_update(self, main_yaml)
 
-        # without below Python would let static method override instance method
-        self.get = super(Config, self).get
 
     @staticmethod
     def _update_config_from_args(conf:dict, extra_args:List[str])->None:

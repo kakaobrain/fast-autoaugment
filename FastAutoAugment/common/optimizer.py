@@ -12,7 +12,7 @@ def get_optimizer(conf:dict, params)->Optimizer:
             nesterov=conf['nesterov']
         )
     elif conf['type'] == 'adam':
-         return optim.Adam(params,
+         return Adam(params,
             lr=conf['lr'],
             betas=conf['betas'],
             weight_decay=conf['decay'])

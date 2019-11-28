@@ -1,6 +1,7 @@
 import  torch
 from    torch import nn
 import  torch.nn.functional as F
+
 from    .operations import OPS, FactorizedReduce, ReLUConvBN
 from    .genotypes import PRIMITIVES, Genotype
 
@@ -62,7 +63,7 @@ class MixedLayer(nn.Module):
 
 
 
-class Cell(nn.Module):init_ch
+class Cell(nn.Module):
 
     def __init__(self, steps, multiplier, cpp, cp, c, reduction, reduction_prev):
         """
