@@ -4,7 +4,7 @@ from    torch import autograd
 from torch.optim import Optimizer
 
 
-from .model_search import Network
+from .model_arch import Network
 from ..common.config import Config
 from ..common.optimizer import get_optimizer
 

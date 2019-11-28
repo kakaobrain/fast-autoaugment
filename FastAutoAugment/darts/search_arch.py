@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 from ..common.config import Config
-from .model_search import Network
+from .model_arch import Network
 from .arch import Arch
 from ..common.common import get_logger
 from ..common import utils
