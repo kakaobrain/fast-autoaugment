@@ -35,7 +35,7 @@ optimizer:
   clip: 5 # grads above this value is clipped
   warmup: null
     # multiplier: 2
-    # epoch: 3
+    # epochs: 3
   betas: [0.9, 0.999] # PyTorch default betas for Adam
 
 lr_schedule:

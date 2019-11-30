@@ -12,7 +12,7 @@ from .arch import Arch
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, create_tb_writers
 from ..common import utils
-from ..common.optimizer import get_scheduler, get_optimizer
+from ..common.optimizer import get_lr_scheduler, get_optimizer
 
 def search_arch(conf:Config)->None:
     logger = get_logger()
@@ -40,13 +40,13 @@ def search_arch(conf:Config)->None:
         conf['dataroot'], conf['aug'], conf['darts']['search_cutout'],
         val_ratio=conf['val_ratio'], val_fold=conf['val_fold'], horovod=conf['horovod'])
 
-    scheduler = get_scheduler(conf, optimizer)
+    scheduler = get_lr_scheduler(conf, optimizer)
 
     # arch is sort of meta model that would update theta and alpha parameters
     arch = Arch(model, conf)
 
     # in this phase we only run 50 epochs
-    for epoch in range(conf['epoch']):
+    for epoch in range(conf['epochs']):
         scheduler.step()
         lr = scheduler.get_lr()[0]
         logger.info('\nEpoch: %d lr: %e', epoch, lr)

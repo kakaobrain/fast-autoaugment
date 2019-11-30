@@ -19,22 +19,23 @@ def get_optimizer(conf:dict, params)->Optimizer:
     else:
         raise ValueError('invalid optimizer type=%s' % conf['type'])
 
-def get_scheduler(conf:Config, optimizer:Optimizer)->lr_scheduler._LRScheduler:
+def get_lr_scheduler(conf:Config, optimizer:Optimizer)->lr_scheduler._LRScheduler:
     lr_scheduler_type = conf['lr_schedule']['type'] # TODO: default should be none?
     scheduler = None
     if lr_scheduler_type == 'cosine':
-        t_max = conf['epoch']
+        epochs = conf['epochs']
         # adjust max epochs for warmup
-        # TODO: shouldn't we be increasing t_max or schedule lr only after warmup?
+        # TODO: shouldn't we be increasing epochs or schedule lr only after warmup?
         if conf['lr_schedule'].get('warmup', None):
-            t_max -= conf['lr_schedule']['warmup']['epoch']
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=t_max, eta_min=conf['lr_schedule']['lr_min'])
+            epochs -= conf['lr_schedule']['warmup']['epoch']
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=conf['lr_schedule']['lr_min'])
     elif lr_scheduler_type == 'resnet':
-        scheduler = _adjust_learning_rate_resnet(optimizer, conf['epoch'])
+        scheduler = _adjust_learning_rate_resnet(optimizer, conf['epochs'])
     elif lr_scheduler_type == 'pyramid':
-        scheduler = _adjust_learning_rate_pyramid(optimizer, conf['epoch'], conf['optimizer']['lr'])
+        scheduler = _adjust_learning_rate_pyramid(optimizer, conf['epochs'], conf['optimizer']['lr'])
     else:
         raise ValueError('invalid lr_schduler=%s' % lr_scheduler_type)
+
     # select warmup for LR schedule
     if conf['lr_schedule'].get('warmup', None):
         scheduler = GradualWarmupScheduler(

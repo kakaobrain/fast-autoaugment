@@ -4,12 +4,12 @@ dataset: cifar10
 aug: fa_reduced_cifar10
 cutout: 16
 batch: 512
-epoch: 200
+epochs: 200
 lr_schedule:
   type: 'cosine'
   warmup:
     multiplier: 4
-    epoch: 5
+    epochs: 5
 optimizer:
   lr: 0.1
   type: sgd

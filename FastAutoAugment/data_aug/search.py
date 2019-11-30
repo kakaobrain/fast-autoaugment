@@ -88,7 +88,7 @@ def _train_no_aug(conf):
     # we now probe saved models for each fold to check the epoch number
     # they are on. When every fold crosses an epoch number, we update
     # the progress.
-    tqdm_epoch = tqdm(range(conf['epoch']))
+    tqdm_epoch = tqdm(range(conf['epochs']))
     is_done = False
     for epoch in tqdm_epoch:
         while True:
@@ -98,7 +98,7 @@ def _train_no_aug(conf):
                     if os.path.exists(save_paths[cv_idx]):
                         latest_ckpt = torch.load(save_paths[cv_idx])
                         if 'epoch' not in latest_ckpt:
-                            epochs_per_cv['cv%d' % (cv_idx + 1)] = conf['epoch']
+                            epochs_per_cv['cv%d' % (cv_idx + 1)] = conf['epochs']
                             continue
                     else:
                         continue
@@ -106,7 +106,7 @@ def _train_no_aug(conf):
                 except Exception as e:
                     continue
             tqdm_epoch.set_postfix(epochs_per_cv)
-            if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= conf['epoch']:
+            if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= conf['epochs']:
                 is_done = True
             if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= epoch:
                 break
@@ -213,7 +213,7 @@ def search(conf):
         [_train_model.remote(copy.deepcopy(copied_c), dataroot, final_policy_set, 0.0, 0, save_path=augment_path[_]) \
             for _ in range(num_experiments)]
 
-    tqdm_epoch = tqdm(range(conf['epoch']))
+    tqdm_epoch = tqdm(range(conf['epochs']))
     is_done = False
     for epoch in tqdm_epoch:
         while True:
@@ -233,7 +233,7 @@ def search(conf):
                     pass
 
             tqdm_epoch.set_postfix(epochs)
-            if len(epochs) == num_experiments*2 and min(epochs.values()) >= conf['epoch']:
+            if len(epochs) == num_experiments*2 and min(epochs.values()) >= conf['epochs']:
                 is_done = True
             if len(epochs) == num_experiments*2 and min(epochs.values()) >= epoch:
                 break

@@ -10,7 +10,7 @@ from torch.nn.parallel.data_parallel import DataParallel
 from tqdm import tqdm
 
 from .common import get_logger, create_tb_writers
-from .optimizer import get_scheduler, get_optimizer
+from .optimizer import get_lr_scheduler, get_optimizer
 from .data import get_dataloaders
 from .metrics import accuracy, Accumulator
 from ..networks import get_model, num_class
@@ -26,7 +26,7 @@ def run_epoch(conf, logger, model, loader, loss_fn, optimizer, desc_default='', 
     tqdm_disable = bool(os.environ.get('TASK_NAME', ''))  #TODO: remove?
     if verbose:
         loader = tqdm(loader, disable=tqdm_disable)
-        loader.set_description('[%s %04d/%04d]' % (desc_default, epoch, conf['epoch']))
+        loader.set_description('[%s %04d/%04d]' % (desc_default, epoch, conf['epochs']))
 
     metrics = Accumulator()
     cnt = 0
@@ -80,10 +80,10 @@ def run_epoch(conf, logger, model, loader, loss_fn, optimizer, desc_default='', 
 
     if tqdm_disable:
         if optimizer:
-            logger.info('[%s %03d/%03d] %s lr=%.6f', desc_default, epoch, conf['epoch'],
+            logger.info('[%s %03d/%03d] %s lr=%.6f', desc_default, epoch, conf['epochs'],
                 metrics / cnt, optimizer.param_groups[0]['lr'])
         else:
-            logger.info('[%s %03d/%03d] %s', desc_default, epoch, conf['epoch'], metrics / cnt)
+            logger.info('[%s %03d/%03d] %s', desc_default, epoch, conf['epochs'], metrics / cnt)
 
     metrics /= cnt
     if optimizer:
@@ -137,7 +137,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval, reporter=Non
     logger.debug('is_master=%s' % is_master)
 
     # select LR schedule
-    scheduler = get_scheduler(conf, optimizer)
+    scheduler = get_lr_scheduler(conf, optimizer)
 
 
     # create tensorboard writers
@@ -167,7 +167,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval, reporter=Non
             optimizer.load_state_dict(data['optimizer'])
 
             # restore epoch count
-            if data['epoch'] < conf['epoch']:
+            if data['epoch'] < conf['epochs']:
                 epoch_start = data['epoch']
             else:
                 # epochs finished, switch to eval mode
@@ -195,7 +195,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval, reporter=Non
 
     # train loop
     best_top1, best_valid_loss = 0, 10.0e10
-    max_epoch = conf['epoch']
+    max_epoch = conf['epochs']
     for epoch in range(epoch_start, max_epoch + 1):
         if horovod:
             trainsampler.set_epoch(epoch)

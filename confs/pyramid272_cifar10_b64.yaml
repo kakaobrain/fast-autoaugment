@@ -7,7 +7,7 @@ dataset: cifar10
 aug: fa_reduced_cifar10
 cutout: 16
 batch: 64
-epoch: 1800
+epochs: 1800
 lr_schedule:
   type: 'cosine'
 optimizer:

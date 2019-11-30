@@ -3,7 +3,7 @@ val_ratio: 0.5 #split portion for test set, 0 to 1
 momentum: 0.9 # momentum for model parameters
 cutout: 0 # cutout length, use cutout augmentation when > 0
 batch: 64
-epoch: 50 # num of training epochs
+epochs: 50 # num of training epochs
 
 optimizer_arch:
   type: 'adam'
