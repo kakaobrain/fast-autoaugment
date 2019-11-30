@@ -12,7 +12,7 @@ if __name__ == '__main__':
     import time
     t = time.time()
     save_path = os.path.join(conf['logdir'], 'model.pth')
-    result = train_and_eval(conf, cv_ratio=conf['cv_ratio'], cv_fold=conf['cv_fold'],
+    result = train_and_eval(conf, val_ratio=conf['val_ratio'], val_fold=conf['val_fold'],
                             save_path=save_path, only_eval=conf['only_eval'], metric='test')
     elapsed = time.time() - t
 

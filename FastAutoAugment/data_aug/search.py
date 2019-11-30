@@ -56,24 +56,24 @@ gorilla.apply(patch)
 
 
 @ray.remote(num_gpus=torch.cuda.device_count(), max_calls=1)
-def _train_model(conf, dataroot, augment, cv_ratio, cv_fold, save_path=None, only_eval=False):
+def _train_model(conf, dataroot, augment, val_ratio, val_fold, save_path=None, only_eval=False):
     Config.set(conf)
     conf['aug'] = augment
 
-    result = train_and_eval(conf, cv_ratio=cv_ratio, cv_fold=cv_fold, save_path=save_path, only_eval=only_eval)
-    return conf['model']['type'], cv_fold, result
+    result = train_and_eval(conf, val_ratio=val_ratio, val_fold=val_fold, save_path=save_path, only_eval=only_eval)
+    return conf['model']['type'], val_fold, result
 
 def _train_no_aug(conf):
     logger = get_logger()
     sw = StopWatch.get()
-    dataroot, logdir, cv_num, cv_ratio = conf['dataroot'], conf['logdir'], conf['cv_num'], conf['cv_ratio']
+    dataroot, logdir, cv_num, val_ratio = conf['dataroot'], conf['logdir'], conf['cv_num'], conf['val_ratio']
 
-    logger.info('----- Train without Augmentations cv=%d ratio(test)=%.1f -----' % (cv_num, cv_ratio))
+    logger.info('----- Train without Augmentations cv=%d ratio(test)=%.1f -----' % (cv_num, val_ratio))
     sw.start(tag='train_no_aug')
 
     # for each fold, we will save model
     save_paths = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_fold%d' \
-                % (cv_ratio, i)) for i in range(cv_num)]
+                % (val_ratio, i)) for i in range(cv_num)]
     #print(save_paths)
 
     # Train model for each fold, save model in specified path, put result in reqs list.
@@ -81,7 +81,7 @@ def _train_no_aug(conf):
     # TODO: configuration will be changed ('aug' key), but do we really need deepcopy everywhere?
     reqs = [
         # TODO: eliminate need for deep copy as only aug key is changed
-        _train_model.remote(copy.deepcopy(copy.deepcopy(conf)), dataroot, conf['aug'], cv_ratio, i,
+        _train_model.remote(copy.deepcopy(copy.deepcopy(conf)), dataroot, conf['aug'], val_ratio, i,
             save_path=save_paths[i], only_eval=True)
         for i in range(cv_num)]
 
@@ -134,17 +134,17 @@ def search(conf):
     sw = StopWatch.get()
 
     # get values from config
-    dataroot, logdir, num_policy, num_op, cv_num, cv_ratio, num_samples, \
+    dataroot, logdir, num_policy, num_op, cv_num, val_ratio, num_samples, \
         num_result_per_cv, resume = \
         conf['dataroot'], conf['logdir'], conf['autoaug']['num_policy'], conf['autoaug']['num_op'], conf['cv_num'], \
-            conf['cv_ratio'], 4 if conf['smoke_test'] else conf['autoaug']['num_search'], \
+            conf['val_ratio'], 4 if conf['smoke_test'] else conf['autoaug']['num_search'], \
             conf['autoaug']['num_result_per_cv'], conf['resume']
 
     logger.info('----- Search Test-Time Augmentation Policies -----')
     sw.start(tag='search')
 
     save_paths = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_fold%d' \
-                % (cv_ratio, i)) for i in range(cv_num)]
+                % (val_ratio, i)) for i in range(cv_num)]
 
     copied_c = copy.deepcopy(conf)
     ops = augment_list(False)
@@ -159,8 +159,8 @@ def search(conf):
     total_computation = 0
     reward_attr = 'top1_valid'      # top1_valid or minus_loss
     for _ in range(1):  # run multiple times.
-        for cv_fold in range(cv_num):
-            name = "search_%s_%s_fold%d_ratio%.1f" % (conf['dataset'], conf['model']['type'], cv_fold, cv_ratio)
+        for val_fold in range(cv_num):
+            name = "search_%s_%s_fold%d_ratio%.1f" % (conf['dataset'], conf['model']['type'], val_fold, val_ratio)
             print(name)
             register_trainable(name, lambda augs, rpt: _eval_tta(copy.deepcopy(copied_c), augs, rpt))
             algo = HyperOptSearch(space, max_concurrent=4*20, reward_attr=reward_attr)
@@ -172,8 +172,8 @@ def search(conf):
                     'resources_per_trial': {'gpu': 1},
                     'stop': {'training_iteration': num_policy},
                     'config': {
-                        'dataroot': dataroot, 'save_path': save_paths[cv_fold],
-                        'cv_ratio': cv_ratio, 'cv_fold': cv_fold,
+                        'dataroot': dataroot, 'save_path': save_paths[val_fold],
+                        'val_ratio': val_ratio, 'val_fold': val_fold,
                         'num_op': num_op, 'num_policy': num_policy
                     },
                 }
@@ -200,14 +200,14 @@ def search(conf):
     logger.info('final_policy=%d' % len(final_policy_set))
     logger.info('processed in %.4f secs, gpu hours=%.4f' % (sw.pause('search'), total_computation / 3600.))
     logger.info('----- Train with Augmentations model=%s dataset=%s aug=%s ratio(test)=%.1f -----' \
-        % (conf['model']['type'], conf['dataset'], conf['aug'], cv_ratio))
+        % (conf['model']['type'], conf['dataset'], conf['aug'], val_ratio))
     sw.start(tag='train_aug')
 
     num_experiments = 5
     default_path = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_default%d'  \
-        % (cv_ratio, _)) for _ in range(num_experiments)]
+        % (val_ratio, _)) for _ in range(num_experiments)]
     augment_path = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_augment%d'  \
-        % (cv_ratio, _)) for _ in range(num_experiments)]
+        % (val_ratio, _)) for _ in range(num_experiments)]
     reqs = [_train_model.remote(copy.deepcopy(copied_c), dataroot, conf['aug'], 0.0, 0, save_path=default_path[_], only_eval=True) \
         for _ in range(num_experiments)] + \
         [_train_model.remote(copy.deepcopy(copied_c), dataroot, final_policy_set, 0.0, 0, save_path=augment_path[_]) \
@@ -259,7 +259,7 @@ def search(conf):
 
 def _eval_tta(conf, augment, reporter):
     Config.set(conf)
-    cv_ratio, cv_fold, save_path = augment['cv_ratio'], augment['cv_fold'], augment['save_path']
+    val_ratio, val_fold, save_path = augment['val_ratio'], augment['val_fold'], augment['save_path']
 
     # setup - provided augmentation rules
     conf['aug'] = policy_decoder(augment, augment['num_policy'], augment['num_op'])
@@ -276,9 +276,9 @@ def _eval_tta(conf, augment, reporter):
     loaders = []
     for _ in range(augment['num_policy']):  # TODO
         _, tl, validloader, tl2 = get_dataloaders(conf['dataset'], conf['batch'], augment['dataroot'],
-            conf['aug'], conf['cutout'], cv_ratio, cv_fold=cv_fold)
+            conf['aug'], conf['cutout'], val_ratio, val_fold=val_fold)
         loaders.append(iter(validloader))
-        del tl, tl2
+        del tl, tl2 # TODO: why exclude validloader?
 
     start_t = time.time()
     metrics = Accumulator()

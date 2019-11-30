@@ -15,8 +15,8 @@ resume: False
 
 dataset: 'cifar10'
 num_classes: 10
-cv_ratio: 0.4 #split portion for test set, 0 to 1
-cv_fold: 0 #Fold number to use (0 to 4)
+val_ratio: 0.4 #split portion for test set, 0 to 1
+val_fold: 0 #Fold number to use (0 to 4)
 cv_num: 5 # total number of folds available
 aug: '' # additional augmentations to use
 cutout: 16 # cutout length, use cutout augmentation when > 0

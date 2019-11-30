@@ -81,7 +81,7 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
 
     # file where logger would log messages
     logfilename = '{}_cv{:.1f}.log'.format(conf['dataset'],
-            conf['cv_ratio'])
+            conf['val_ratio'])
     logfile_path = os.path.join(logdir, logfilename)
     _add_filehandler(logger, logfile_path)
 

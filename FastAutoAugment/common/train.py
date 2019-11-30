@@ -94,7 +94,7 @@ def run_epoch(conf, logger, model, loader, loss_fn, optimizer, desc_default='', 
     return metrics
 
 # metric could be 'last', 'test', 'val', 'train'.
-def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, reporter=None, metric='test'):
+def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval, reporter=None, metric='test'):
 
     logger = get_logger()
 
@@ -115,8 +115,8 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, reporter=None,
         reporter = lambda **kwargs: 0
 
     # get dataloaders with transformations and splits applied
-    trainsampler, trainloader, validloader, testloader_ = get_dataloaders(conf['dataset'], conf['batch'], dataroot,
-        conf['aug'], cv_ratio=cv_ratio, cv_fold=cv_fold, horovod=horovod)
+    trainsampler, train_dl, valid_dl, test_dl = get_dataloaders(conf['dataset'], conf['batch'],
+        dataroot, conf['aug'], conf['cutout'], val_ratio=val_ratio, val_fold=val_fold, horovod=horovod)
 
     # create a model & an optimizer
     model = get_model(conf['model'], num_class(conf['dataset']), data_parallel=(not horovod))
@@ -185,9 +185,9 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, reporter=None,
         logger.info('evaluation only+')
         model.eval()
         rs = dict() # stores metrics for each set
-        rs['train'] = run_epoch(conf, logger, model, trainloader, criterion, None, desc_default='train', epoch=0, writer=writers[0])
-        rs['valid'] = run_epoch(conf, logger, model, validloader, criterion, None, desc_default='valid', epoch=0, writer=writers[1])
-        rs['test'] = run_epoch(conf, logger, model, testloader_, criterion, None, desc_default='*test', epoch=0, writer=writers[2])
+        rs['train'] = run_epoch(conf, logger, model, train_dl, criterion, None, desc_default='train', epoch=0, writer=writers[0])
+        rs['valid'] = run_epoch(conf, logger, model, valid_dl, criterion, None, desc_default='valid', epoch=0, writer=writers[1])
+        rs['test'] = run_epoch(conf, logger, model, test_dl, criterion, None, desc_default='*test', epoch=0, writer=writers[2])
         for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
             result['%s_%s' % (key, setname)] = rs[setname][key]
         result['epoch'] = 0
@@ -203,7 +203,7 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, reporter=None,
         # run train epoch and update the model
         model.train()
         rs = dict()
-        rs['train'] = run_epoch(conf, logger, model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler)
+        rs['train'] = run_epoch(conf, logger, model, train_dl, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler)
         if scheduler:
             scheduler.step()
 
@@ -215,8 +215,8 @@ def train_and_eval(conf, cv_ratio, cv_fold, save_path, only_eval, reporter=None,
 
         # collect metrics on val and test set, checkpoint
         if epoch % checkpoint_freq == 0 or epoch == max_epoch:
-            rs['valid'] = run_epoch(conf, logger, model, validloader, criterion, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
-            rs['test'] = run_epoch(conf, logger, model, testloader_, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
+            rs['valid'] = run_epoch(conf, logger, model, valid_dl, criterion, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
+            rs['test'] = run_epoch(conf, logger, model, test_dl, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
 
             # TODO: is this good enough condition?
             if rs[metric]['loss'] < best_valid_loss or rs[metric]['top1'] > best_top1:

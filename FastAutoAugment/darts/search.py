@@ -9,6 +9,7 @@ import os
 from ..common.config import Config
 from .model_arch import Network
 from .arch import Arch
+from ..common.data import get_dataloaders
 from ..common.common import get_logger, create_tb_writers
 from ..common import utils
 from ..common.optimizer import get_scheduler, get_optimizer
@@ -35,22 +36,9 @@ def search_arch(conf:Config)->None:
     # note that we get only train set here and break it down in 1/2 to get validation set
     # cifar10 has 60K images in 10 classes, 50k in train, 10k in test
     # so ultimately we have 25K train, 25K val, 10k test
-    train_transform, valid_transform = utils._data_transforms_cifar10(conf['darts']['search_cutout'])
-    train_data = tvds.CIFAR10(root=conf['dataroot'], train=True, download=True, transform=train_transform)
-
-    num_train = len(train_data) # 50000
-    indices = list(range(num_train))
-    split = int(np.floor((1-conf['cv_ratio']) * num_train)) # 25000
-
-    # generate random batches of 64 on train/val subsets
-    train_dl = DataLoader(
-        train_data, batch_size=conf['batch'],
-        sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[:split]),
-        pin_memory=True, num_workers=2)
-    valid_dl = DataLoader(
-        train_data, batch_size=conf['batch'],
-        sampler=torch.utils.data.sampler.SubsetRandomSampler(indices[split:]),
-        pin_memory=True, num_workers=2)
+    _, train_dl, valid_dl, _ = get_dataloaders(conf['dataset'], conf['batch'],
+        conf['dataroot'], conf['aug'], conf['darts']['search_cutout'],
+        val_ratio=conf['val_ratio'], val_fold=conf['val_fold'], horovod=conf['horovod'])
 
     scheduler = get_scheduler(conf, optimizer)
 
