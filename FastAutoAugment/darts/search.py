@@ -26,12 +26,12 @@ def search_arch(conf:Config)->None:
     # CIFAR classification task
     criterion = nn.CrossEntropyLoss().to(device)
 
-    # 16 inital channels, num_classes=10, 8 cells (layers)
-    model = Network(conf['darts']['init_ch'], conf['num_classes'], conf['darts']['layers'], criterion).to(device)
+    # 16 inital channels, n_classes=10, 8 cells (layers)
+    model = Network(conf['ch_in'], conf['darts']['ch_out_init'], conf['n_classes'], conf['darts']['layers'], criterion).to(device)
     logger.info("Total param size = %f MB", utils.count_parameters_in_MB(model))
 
-    # this is the optimizer to optimize
-    optimizer = get_optimizer(conf['optimizer'], model.parameters())
+    # optimizer for the model weight
+    w_optim = get_optimizer(conf['optimizer'], model.parameters())
 
     # note that we get only train set here and break it down in 1/2 to get validation set
     # cifar10 has 60K images in 10 classes, 50k in train, 10k in test
@@ -40,15 +40,15 @@ def search_arch(conf:Config)->None:
         conf['dataroot'], conf['aug'], conf['darts']['search_cutout'],
         val_ratio=conf['val_ratio'], val_fold=conf['val_fold'], horovod=conf['horovod'])
 
-    scheduler = get_lr_scheduler(conf, optimizer)
+    lr_scheduler = get_lr_scheduler(conf, w_optim)
 
     # arch is sort of meta model that would update theta and alpha parameters
     arch = Arch(model, conf)
 
     # in this phase we only run 50 epochs
     for epoch in range(conf['epochs']):
-        scheduler.step()
-        lr = scheduler.get_lr()[0]
+        lr_scheduler.step()
+        lr = lr_scheduler.get_lr()[0]
         logger.info('\nEpoch: %d lr: %e', epoch, lr)
 
         # genotype extracts the highest weighted two primitives per node
@@ -60,7 +60,7 @@ def search_arch(conf:Config)->None:
         # print(F.softmax(model.alphas_reduce, dim=-1))
 
         # training
-        train_acc, train_obj = _train_epoch(train_dl, valid_dl, model, arch, criterion, optimizer, lr,
+        train_acc, train_obj = _train_epoch(train_dl, valid_dl, model, arch, criterion, w_optim, lr,
             device, conf['optimizer']['clip'], conf['report_freq'])
         logger.info('train acc: %f', train_acc)
 
@@ -72,7 +72,7 @@ def search_arch(conf:Config)->None:
         utils.save(model, model_filepath)
 
 
-def _train_epoch(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterion, optimizer, lr,
+def _train_epoch(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterion, w_optim, lr,
     device, grad_clip, report_freq):
 
     logger = get_logger()
@@ -94,18 +94,18 @@ def _train_epoch(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterio
         x_search, target_search = x_search.to(device), target_search.cuda(non_blocking=True)
 
         # 1. update alpha
-        arch.step(x, target, x_search, target_search, lr, optimizer)
+        arch.step(x, target, x_search, target_search, lr, w_optim)
 
         logits = model(x)
         loss = criterion(logits, target)
 
         # 2. update weight
-        optimizer.zero_grad()
+        w_optim.zero_grad()
         loss.backward()
         # apparently gradient clipping is important
         nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         # as our arch parameters (i.e. alpha) is kept seperate, they don't get updated
-        optimizer.step()
+        w_optim.step()
 
         prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
         losses.update(loss.item(), batchsz)

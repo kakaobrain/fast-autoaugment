@@ -14,7 +14,8 @@ only_eval: False
 resume: False
 
 dataset: 'cifar10'
-num_classes: 10
+n_classes: 10
+ch_in: 3 # number of channels in image
 val_ratio: 0.4 #split portion for test set, 0 to 1
 val_fold: 0 #Fold number to use (0 to 4)
 cv_num: 5 # total number of folds available
@@ -50,7 +51,7 @@ autoaug:
 
 darts:
   bilevel: True
-  init_ch: 16 # num of init channels
+  ch_out_init: 16 # num of channels for stem outpt node
   layers: 8 # total number of layers
   test_genotype: 'DARTS'
   search_cutout: 0

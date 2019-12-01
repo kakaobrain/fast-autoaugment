@@ -16,7 +16,7 @@ def test_arch(conf):
     # equal to: genotype = genotypes.DARTS_v2
     genotype = eval("genotypes.%s" % conf['darts']['test_genotype'])
     print('Load genotype:', genotype)
-    model = Network(conf['darts']['init_ch'], conf['num_classes'], conf['darts']['layers'],
+    model = Network(conf['darts']['ch_out_init'], conf['n_classes'], conf['darts']['layers'],
         conf['darts']['test_auxtowers'], genotype).cuda()
 
     model_filepath = os.path.join(conf['logdir'], conf['darts']['test_model_filename'])

@@ -119,7 +119,7 @@ class Bottleneck(nn.Module):
 
 class PyramidNet(nn.Module):
 
-    def __init__(self, dataset, depth, alpha, num_classes, bottleneck=True):
+    def __init__(self, dataset, depth, alpha, n_classes, bottleneck=True):
         super(PyramidNet, self).__init__()
         self.dataset = dataset
         if self.dataset.startswith('cifar'):
@@ -147,7 +147,7 @@ class PyramidNet(nn.Module):
             self.bn_final = nn.BatchNorm2d(self.final_featuremap_dim)
             self.relu_final = nn.ReLU(inplace=True)
             self.avgpool = nn.AvgPool2d(8)
-            self.fc = nn.Linear(self.final_featuremap_dim, num_classes)
+            self.fc = nn.Linear(self.final_featuremap_dim, n_classes)
 
         elif dataset == 'imagenet':
             blocks = {18: BasicBlock, 34: BasicBlock, 50: Bottleneck, 101: Bottleneck, 152: Bottleneck, 200: Bottleneck}
@@ -184,7 +184,7 @@ class PyramidNet(nn.Module):
             self.bn_final = nn.BatchNorm2d(self.final_featuremap_dim)
             self.relu_final = nn.ReLU(inplace=True)
             self.avgpool = nn.AvgPool2d(7)
-            self.fc = nn.Linear(self.final_featuremap_dim, num_classes)
+            self.fc = nn.Linear(self.final_featuremap_dim, n_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):

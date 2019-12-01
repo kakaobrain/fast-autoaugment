@@ -1,27 +1,63 @@
-import  torch
-import  torch.nn as nn
+import torch
+import torch.nn as nn
+
+from . import genotypes
 
 
-# OPS is a set of layers with same input/output channel.
-
+# OPS is a set of uninary tensor operators
 OPS = {
-    'none':         lambda C, stride, affine: Zero(stride),
-    'avg_pool_3x3': lambda C, stride, affine: nn.AvgPool2d(3, stride=stride, padding=1, count_include_pad=False),
-    'max_pool_3x3': lambda C, stride, affine: nn.MaxPool2d(3, stride=stride, padding=1),
-    'skip_connect': lambda C, stride, affine: Identity() if stride == 1 else FactorizedReduce(C, C, affine=affine),
-    'sep_conv_3x3': lambda C, stride, affine: SepConv(C, C, 3, stride, 1, affine=affine),
-    'sep_conv_5x5': lambda C, stride, affine: SepConv(C, C, 5, stride, 2, affine=affine),
-    'sep_conv_7x7': lambda C, stride, affine: SepConv(C, C, 7, stride, 3, affine=affine),
-    'dil_conv_3x3': lambda C, stride, affine: DilConv(C, C, 3, stride, 2, 2, affine=affine),
-    'dil_conv_5x5': lambda C, stride, affine: DilConv(C, C, 5, stride, 4, 2, affine=affine),
-
-    'conv_7x1_1x7': lambda C, stride, affine: nn.Sequential(
-        nn.ReLU(inplace=False),
-        nn.Conv2d(C, C, (1, 7), stride=(1, stride), padding=(0, 3), bias=False),
-        nn.Conv2d(C, C, (7, 1), stride=(stride, 1), padding=(3, 0), bias=False),
-        nn.BatchNorm2d(C, affine=affine)
-    ),
+    'none':         lambda ch, stride, affine: Zero(stride),
+    'avg_pool_3x3': lambda ch, stride, affine: PoolBN('avg', ch, 3, stride, 1, affine=affine),
+    'max_pool_3x3': lambda ch, stride, affine: PoolBN('max', ch, 3, stride, 1, affine=affine),
+    'skip_connect': lambda ch, stride, affine: Identity() if stride == 1 else FactorizedReduce(ch, ch, affine=affine),
+    'sep_conv_3x3': lambda ch, stride, affine: SepConv(ch, ch, 3, stride, 1, affine=affine),
+    'sep_conv_5x5': lambda ch, stride, affine: SepConv(ch, ch, 5, stride, 2, affine=affine),
+    'sep_conv_7x7': lambda ch, stride, affine: SepConv(ch, ch, 7, stride, 3, affine=affine),
+    'dil_conv_3x3': lambda ch, stride, affine: DilConv(ch, ch, 3, stride, 2, 2, affine=affine),
+    'dil_conv_5x5': lambda ch, stride, affine: DilConv(ch, ch, 5, stride, 4, 2, affine=affine),
+    'conv_7x1_1x7': lambda C, stride, affine: FacConv(C, C, 7, stride, 3, affine=affine)
 }
+
+class PoolBN(nn.Module):
+    """
+    AvgPool or MaxPool - BN
+    """
+    def __init__(self, pool_type, ch, kernel_size, stride, padding, affine=True):
+        """
+        Args:
+            pool_type: 'max' or 'avg'
+        """
+        super().__init__()
+        if pool_type.lower() == 'max':
+            self.pool = nn.MaxPool2d(kernel_size, stride, padding)
+        elif pool_type.lower() == 'avg':
+            self.pool = nn.AvgPool2d(kernel_size, stride, padding, count_include_pad=False)
+        else:
+            raise ValueError()
+
+        self.bn = nn.BatchNorm2d(ch, affine=affine)
+
+    def forward(self, x):
+        out = self.pool(x)
+        out = self.bn(out)
+        return out
+
+class FacConv(nn.Module):
+    """ Factorized conv
+    ReLU - Conv(Kx1) - Conv(1xK) - BN
+    """
+    def __init__(self, C_in, C_out, kernel_length, stride, padding, affine=True):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv2d(C_in, C_in, (kernel_length, 1), stride, padding, bias=False),
+            nn.Conv2d(C_in, C_out, (1, kernel_length), stride, padding, bias=False),
+            nn.BatchNorm2d(C_out, affine=affine)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
 
 class ReLUConvBN(nn.Module):
     """
@@ -40,7 +76,7 @@ class ReLUConvBN(nn.Module):
         super(ReLUConvBN, self).__init__()
 
         self.op = nn.Sequential(
-            nn.ReLU(inplace=False),
+            nn.ReLU(),
             nn.Conv2d(C_in, C_out, kernel_size, stride=stride, padding=padding, bias=False),
             nn.BatchNorm2d(C_out, affine=affine)
         )
@@ -50,24 +86,17 @@ class ReLUConvBN(nn.Module):
 
 
 class DilConv(nn.Module):
-    """
-    relu-dilated conv-bn
+    """ (Dilated) depthwise separable conv
+    ReLU - (Dilated) depthwise separable - Pointwise - BN
+
+    If dilation == 2, 3x3 conv => 5x5 receptive field
+                      5x5 conv => 9x9 receptive field
     """
     def __init__(self, C_in, C_out, kernel_size, stride, padding, dilation, affine=True):
-        """
-
-        :param C_in:
-        :param C_out:
-        :param kernel_size:
-        :param stride:
-        :param padding: 2/4
-        :param dilation: 2
-        :param affine:
-        """
         super(DilConv, self).__init__()
 
         self.op = nn.Sequential(
-            nn.ReLU(inplace=False),
+            nn.ReLU(),
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=stride, padding=padding,
                       dilation=dilation,
                       groups=C_in, bias=False),
@@ -80,28 +109,22 @@ class DilConv(nn.Module):
 
 
 class SepConv(nn.Module):
-    """
-    implemented separate convolution via pytorch groups parameters
+    """ Depthwise separable conv
+    DilConv(dilation=1) * 2
+
+    This is same as two DilConv stacked with dilation=1
     """
     def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
-        """
-
-        :param C_in:
-        :param C_out:
-        :param kernel_size:
-        :param stride:
-        :param padding: 1/2
-        :param affine:
-        """
         super(SepConv, self).__init__()
 
         self.op = nn.Sequential(
-            nn.ReLU(inplace=False),
+            nn.ReLU(),
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=stride, padding=padding,
                       groups=C_in, bias=False),
             nn.Conv2d(C_in, C_in, kernel_size=1, padding=0, bias=False),
             nn.BatchNorm2d(C_in, affine=affine),
-            nn.ReLU(inplace=False),
+            # repeat above
+            nn.ReLU(),
             nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=1, padding=padding,
                       groups=C_in, bias=False),
             nn.Conv2d(C_in, C_out, kernel_size=1, padding=0, bias=False),
@@ -138,21 +161,15 @@ class Zero(nn.Module):
 
 class FactorizedReduce(nn.Module):
     """
-    reduce feature maps height/width by half while keeping channel same
+    reduce feature maps height/width by half while keeping channel same using stride=2
     """
 
     def __init__(self, C_in, C_out, affine=True):
-        """
-
-        :param C_in:
-        :param C_out:
-        :param affine:
-        """
         super(FactorizedReduce, self).__init__()
 
         assert C_out % 2 == 0
 
-        self.relu = nn.ReLU(inplace=False)
+        self.relu = nn.ReLU()
         # this conv layer operates on even pixels to produce half width, half channels
         self.conv_1 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False)
         # this conv layer operates on odd pixels (because of code in forward()) to produce half width, half channels
@@ -171,3 +188,21 @@ class FactorizedReduce(nn.Module):
         out = torch.cat([self.conv_1(x), self.conv_2(x[:, :, 1:, 1:])], dim=1)
         out = self.bn(out)
         return out
+
+
+class MixedOp(nn.Module):
+    """
+    The output of MixedOp is weighted output of all allowed primitives.
+    """
+    def __init__(self, ch, stride):
+        super(MixedOp, self).__init__()
+
+        self._ops = nn.ModuleList()
+        for primitive in genotypes.PRIMITIVES:
+            # create corresponding layer
+            op = OPS[primitive](ch, stride, affine=False)
+            self._ops.append(op)
+
+    def forward(self, x, arch_weights):
+        return sum(w * op(x) for w, op in zip(arch_weights, self._ops))
+

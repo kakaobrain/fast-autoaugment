@@ -101,7 +101,7 @@ class Cell(nn.Module):
 
 class AuxiliaryHeadCIFAR(nn.Module):
     # Auxiliary head is just hard coded good known network
-    def __init__(self, C, num_classes):
+    def __init__(self, C, n_classes):
         """assuming input size 8x8"""
         super(AuxiliaryHeadCIFAR, self).__init__()
 
@@ -115,7 +115,7 @@ class AuxiliaryHeadCIFAR(nn.Module):
             nn.BatchNorm2d(768),
             nn.ReLU(inplace=True)
         )
-        self.classifier = nn.Linear(768, num_classes)
+        self.classifier = nn.Linear(768, n_classes)
 
     def forward(self, x):
         x = self.features(x)
@@ -125,7 +125,7 @@ class AuxiliaryHeadCIFAR(nn.Module):
 
 class AuxiliaryHeadImageNet(nn.Module):
 
-    def __init__(self, C, num_classes):
+    def __init__(self, C, n_classes):
         """assuming input size 14x14"""
         super(AuxiliaryHeadImageNet, self).__init__()
         self.features = nn.Sequential(
@@ -140,7 +140,7 @@ class AuxiliaryHeadImageNet(nn.Module):
             # nn.BatchNorm2d(768),
             nn.ReLU(inplace=True)
         )
-        self.classifier = nn.Linear(768, num_classes)
+        self.classifier = nn.Linear(768, n_classes)
 
     def forward(self, x):
         x = self.features(x)
@@ -150,7 +150,7 @@ class AuxiliaryHeadImageNet(nn.Module):
 
 class NetworkCIFAR(nn.Module):
 
-    def __init__(self, C, num_classes, layers, auxiliary, genotype):
+    def __init__(self, C, n_classes, layers, auxiliary, genotype):
         super(NetworkCIFAR, self).__init__()
 
         self._layers = layers
@@ -180,9 +180,9 @@ class NetworkCIFAR(nn.Module):
                 C_to_auxiliary = C_prev
 
         if auxiliary:
-            self.auxiliary_head = AuxiliaryHeadCIFAR(C_to_auxiliary, num_classes)
+            self.auxiliary_head = AuxiliaryHeadCIFAR(C_to_auxiliary, n_classes)
         self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(C_prev, num_classes)
+        self.classifier = nn.Linear(C_prev, n_classes)
 
     def forward(self, input):
         logits_aux = None
@@ -200,7 +200,7 @@ class NetworkCIFAR(nn.Module):
 
 class NetworkImageNet(nn.Module):
 
-    def __init__(self, C, num_classes, layers, auxiliary, genotype):
+    def __init__(self, C, n_classes, layers, auxiliary, genotype):
         super(NetworkImageNet, self).__init__()
         self._layers = layers
         self._auxiliary = auxiliary
@@ -237,9 +237,9 @@ class NetworkImageNet(nn.Module):
                 C_to_auxiliary = C_prev
 
         if auxiliary:
-            self.auxiliary_head = AuxiliaryHeadImageNet(C_to_auxiliary, num_classes)
+            self.auxiliary_head = AuxiliaryHeadImageNet(C_to_auxiliary, n_classes)
         self.global_pooling = nn.AvgPool2d(7)
-        self.classifier = nn.Linear(C_prev, num_classes)
+        self.classifier = nn.Linear(C_prev, n_classes)
 
     def forward(self, input):
         logits_aux = None
