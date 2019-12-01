@@ -188,7 +188,16 @@ def parse(alpha, k):
         [('node2_ops_1', node_idx), ..., ('node2_ops_k', node_idx)],
         ...
     ]
-    each node has two edges (k=2) in CNN.
+
+    For CNNs:
+    We have 4 nodes, each can have edge with previous nodes + 2 inputs.
+    Total edges = 2 + 3 + 4 + 5 = 14
+    We will have total 8 primitives for each of the 14 edges within each cell.
+    For each of the edges for a node, we want to find out top 2 strongest prmitives
+    and make them as "final" for that node. As we don't consider none edge,
+    this guerentees that each node will exactly end up with 2 edges, one final non-none
+    primitive attached to each.
+
     """
 
     gene = []

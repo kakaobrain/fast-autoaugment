@@ -46,13 +46,13 @@ class FacConv(nn.Module):
     """ Factorized conv
     ReLU - Conv(Kx1) - Conv(1xK) - BN
     """
-    def __init__(self, C_in, C_out, kernel_length, stride, padding, affine=True):
+    def __init__(self, ch_in, ch_out, kernel_length, stride, padding, affine=True):
         super().__init__()
         self.net = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(C_in, C_in, (kernel_length, 1), stride, padding, bias=False),
-            nn.Conv2d(C_in, C_out, (1, kernel_length), stride, padding, bias=False),
-            nn.BatchNorm2d(C_out, affine=affine)
+            nn.Conv2d(ch_in, ch_in, (kernel_length, 1), stride, padding, bias=False),
+            nn.Conv2d(ch_in, ch_out, (1, kernel_length), stride, padding, bias=False),
+            nn.BatchNorm2d(ch_out, affine=affine)
         )
 
     def forward(self, x):
@@ -63,11 +63,11 @@ class ReLUConvBN(nn.Module):
     """
     Stack of relu-conv-bn
     """
-    def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
+    def __init__(self, ch_in, ch_out, kernel_size, stride, padding, affine=True):
         """
 
-        :param C_in:
-        :param C_out:
+        :param ch_in:
+        :param ch_out:
         :param kernel_size:
         :param stride:
         :param padding:
@@ -77,8 +77,8 @@ class ReLUConvBN(nn.Module):
 
         self.op = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(C_in, C_out, kernel_size, stride=stride, padding=padding, bias=False),
-            nn.BatchNorm2d(C_out, affine=affine)
+            nn.Conv2d(ch_in, ch_out, kernel_size, stride=stride, padding=padding, bias=False),
+            nn.BatchNorm2d(ch_out, affine=affine)
         )
 
     def forward(self, x):
@@ -92,16 +92,16 @@ class DilConv(nn.Module):
     If dilation == 2, 3x3 conv => 5x5 receptive field
                       5x5 conv => 9x9 receptive field
     """
-    def __init__(self, C_in, C_out, kernel_size, stride, padding, dilation, affine=True):
+    def __init__(self, ch_in, ch_out, kernel_size, stride, padding, dilation, affine=True):
         super(DilConv, self).__init__()
 
         self.op = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=stride, padding=padding,
+            nn.Conv2d(ch_in, ch_in, kernel_size=kernel_size, stride=stride, padding=padding,
                       dilation=dilation,
-                      groups=C_in, bias=False),
-            nn.Conv2d(C_in, C_out, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(C_out, affine=affine),
+                      groups=ch_in, bias=False),
+            nn.Conv2d(ch_in, ch_out, kernel_size=1, padding=0, bias=False),
+            nn.BatchNorm2d(ch_out, affine=affine),
         )
 
     def forward(self, x):
@@ -114,21 +114,22 @@ class SepConv(nn.Module):
 
     This is same as two DilConv stacked with dilation=1
     """
-    def __init__(self, C_in, C_out, kernel_size, stride, padding, affine=True):
+    def __init__(self, ch_in, ch_out, kernel_size, stride, padding, affine=True):
         super(SepConv, self).__init__()
 
         self.op = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=stride, padding=padding,
-                      groups=C_in, bias=False),
-            nn.Conv2d(C_in, C_in, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(C_in, affine=affine),
-            # repeat above
+            nn.Conv2d(ch_in, ch_in, kernel_size=kernel_size, stride=stride, padding=padding,
+                      groups=ch_in, bias=False),
+            nn.Conv2d(ch_in, ch_in, kernel_size=1, padding=0, bias=False),
+            nn.BatchNorm2d(ch_in, affine=affine),
+
+            # repeat above but with stride 1
             nn.ReLU(),
-            nn.Conv2d(C_in, C_in, kernel_size=kernel_size, stride=1, padding=padding,
-                      groups=C_in, bias=False),
-            nn.Conv2d(C_in, C_out, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(C_out, affine=affine),
+            nn.Conv2d(ch_in, ch_in, kernel_size=kernel_size, stride=1, padding=padding,
+                      groups=ch_in, bias=False),
+            nn.Conv2d(ch_in, ch_out, kernel_size=1, padding=0, bias=False),
+            nn.BatchNorm2d(ch_out, affine=affine),
         )
 
     def forward(self, x):
@@ -161,20 +162,20 @@ class Zero(nn.Module):
 
 class FactorizedReduce(nn.Module):
     """
-    reduce feature maps height/width by half while keeping channel same using stride=2
+    reduce feature maps height/width by 4X while keeping channel same using two 1x1 convs, each with stride=2.
     """
-
-    def __init__(self, C_in, C_out, affine=True):
+    # TODO: modify to take number of nodes in reduction cells where stride 2 was applied (currently only first two input nodes)
+    def __init__(self, ch_in, ch_out, affine=True):
         super(FactorizedReduce, self).__init__()
 
-        assert C_out % 2 == 0
+        assert ch_out % 2 == 0
 
         self.relu = nn.ReLU()
         # this conv layer operates on even pixels to produce half width, half channels
-        self.conv_1 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False)
+        self.conv_1 = nn.Conv2d(ch_in, ch_out // 2, 1, stride=2, padding=0, bias=False)
         # this conv layer operates on odd pixels (because of code in forward()) to produce half width, half channels
-        self.conv_2 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False)
-        self.bn = nn.BatchNorm2d(C_out, affine=affine)
+        self.conv_2 = nn.Conv2d(ch_in, ch_out // 2, 1, stride=2, padding=0, bias=False)
+        self.bn = nn.BatchNorm2d(ch_out, affine=affine)
 
     def forward(self, x):
         x = self.relu(x)
@@ -203,6 +204,6 @@ class MixedOp(nn.Module):
             op = OPS[primitive](ch, stride, affine=False)
             self._ops.append(op)
 
-    def forward(self, x, arch_weights):
-        return sum(w * op(x) for w, op in zip(arch_weights, self._ops))
+    def forward(self, x, alpha):
+        return sum(w * op(x) for w, op in zip(alpha, self._ops))
 

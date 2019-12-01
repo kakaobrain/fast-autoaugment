@@ -5,11 +5,11 @@ from .operations import *
 from ..common.utils import drop_path
 
 
-class Cell(nn.Module):
+class _Cell(nn.Module):
 
     def __init__(self, genotype, C_prev_prev, C_prev, C, reduction, reduction_prev):
         """
-        This class is different then model_search.Cell. Here we recieve genotype and build a cell
+        This class is different then model_search._Cell. Here we recieve genotype and build a cell
         that has 4 nodes, each with exactly two edges and only one primitive attached to this edge.
         This cell then would be "compiled" to produce PyTorch module.
 
@@ -20,7 +20,7 @@ class Cell(nn.Module):
         :param reduction:
         :param reduction_prev:
         """
-        super(Cell, self).__init__()
+        super().__init__()
 
         print(C_prev_prev, C_prev, C)
 
@@ -172,7 +172,7 @@ class NetworkCIFAR(nn.Module):
                 reduction = True
             else:
                 reduction = False
-            cell = Cell(genotype, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
+            cell = _Cell(genotype, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
             reduction_prev = reduction
             self.cells += [cell]
             C_prev_prev, C_prev = C_prev, cell.multiplier * C_curr
@@ -229,7 +229,7 @@ class NetworkImageNet(nn.Module):
                 reduction = True
             else:
                 reduction = False
-            cell = Cell(genotype, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
+            cell = _Cell(genotype, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
             reduction_prev = reduction
             self.cells += [cell]
             C_prev_prev, C_prev = C_prev, cell.multiplier * C_curr
