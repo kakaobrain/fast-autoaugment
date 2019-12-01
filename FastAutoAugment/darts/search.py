@@ -13,6 +13,7 @@ from ..common.data import get_dataloaders
 from ..common.common import get_logger, create_tb_writers
 from ..common import utils
 from ..common.optimizer import get_lr_scheduler, get_optimizer
+from .vis_genotype import draw_genotype
 
 def search_arch(conf:Config)->None:
     logger = get_logger()

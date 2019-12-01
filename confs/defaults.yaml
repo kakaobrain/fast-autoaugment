@@ -58,3 +58,13 @@ darts:
   test_auxtowers: True
   drop_path_prob: 0.2 # drop path probability
   test_model_filename: 'cifar10_model.pt'
+
+  optimizer_arch:
+    type: 'adam'
+    lr: 3.0e-4
+    decay: 1e-3
+    betas: [0.5, 0.999]
+    # momentum: 0.9 # pytorch default is 0
+    # nesterov: False
+    # clip: 5 # grads above this value is clipped
+    # warmup: null

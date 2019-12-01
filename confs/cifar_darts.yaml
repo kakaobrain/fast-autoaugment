@@ -5,16 +5,6 @@ cutout: 0 # cutout length, use cutout augmentation when > 0
 batch: 64
 epochs: 50 # num of training epochs
 
-optimizer_arch:
-  type: 'adam'
-  lr: 3.0e-4
-  decay: 1e-3
-  betas: [0.5, 0.999]
-  # momentum: 0.9 # pytorch default is 0
-  # nesterov: False
-  # clip: 5 # grads above this value is clipped
-  # warmup: null
-
 optimizer:
   type: 'sgd'
   lr: 0.025 # init learning rate

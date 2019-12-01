@@ -207,3 +207,29 @@ class MixedOp(nn.Module):
     def forward(self, x, alpha):
         return sum(w * op(x) for w, op in zip(alpha, self._ops))
 
+def drop_path_(x, drop_prob, training):
+    if training and drop_prob > 0.:
+        keep_prob = 1. - drop_prob
+        # per data point mask; assuming x in cuda.
+        mask = torch.cuda.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob)
+        x.div_(keep_prob).mul_(mask)
+
+    return x
+
+
+class DropPath_(nn.Module):
+    def __init__(self, p=0.):
+        """ [!] DropPath is inplace module
+        Args:
+            p: probability of an path to be zeroed.
+        """
+        super().__init__()
+        self.p = p
+
+    def extra_repr(self):
+        return 'p={}, inplace'.format(self.p)
+
+    def forward(self, x):
+        drop_path_(x, self.p, self.training)
+
+        return x

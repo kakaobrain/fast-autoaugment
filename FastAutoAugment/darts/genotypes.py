@@ -7,6 +7,10 @@
 from collections import namedtuple
 import torch
 import torch.nn as nn
+from typing List
+
+# TODO: remove circular reference
+from . import operations as ops
 
 Genotype = namedtuple('Genotype', 'normal normal_concat reduce reduce_concat')
 
@@ -103,35 +107,7 @@ MyDARTS = Genotype(normal=[('max_pool_3x3', 0), ('max_pool_3x3', 1), ('max_pool_
 DARTS = DARTS_V1
 
 
-def drop_path_(x, drop_prob, training):
-    if training and drop_prob > 0.:
-        keep_prob = 1. - drop_prob
-        # per data point mask; assuming x in cuda.
-        mask = torch.cuda.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob)
-        x.div_(keep_prob).mul_(mask)
-
-    return x
-
-
-class DropPath_(nn.Module):
-    def __init__(self, p=0.):
-        """ [!] DropPath is inplace module
-        Args:
-            p: probability of an path to be zeroed.
-        """
-        super().__init__()
-        self.p = p
-
-    def extra_repr(self):
-        return 'p={}, inplace'.format(self.p)
-
-    def forward(self, x):
-        drop_path_(x, self.p, self.training)
-
-        return x
-
-
-def to_dag(C_in, gene, reduction):
+def to_dag(ch_in, gene, reduction):
     """ generate discrete ops from gene """
     dag = nn.ModuleList()
     for edges in gene:
@@ -139,7 +115,7 @@ def to_dag(C_in, gene, reduction):
         for op_name, s_idx in edges:
             # reduction cell & from input nodes => stride = 2
             stride = 2 if reduction and s_idx < 2 else 1
-            op = ops.OPS[op_name](C_in, stride, True)
+            op = ops.OPS[op_name](ch_in, stride, True)
             if not isinstance(op, ops.Identity): # Identity does not use drop path
                 op = nn.Sequential(
                     op,
@@ -152,7 +128,7 @@ def to_dag(C_in, gene, reduction):
     return dag
 
 
-def from_str(s):
+def from_str(s)->Genotype:
     """ generate genotype from string
     e.g. "Genotype(
             normal=[[('sep_conv_3x3', 0), ('sep_conv_3x3', 1)],
@@ -172,7 +148,7 @@ def from_str(s):
     return genotype
 
 
-def parse(alpha, k):
+def parse(alpha, k)->List(tuple):
     """
     parse continuous alpha to discrete gene.
     alpha is ParameterList:

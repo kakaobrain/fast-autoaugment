@@ -5,19 +5,10 @@ from torch.optim import Optimizer
 import copy
 
 
-from .model_arch import Network
+from .arch_cnn_model import ArchCnnModel
 from ..common.config import Config
 from ..common.optimizer import get_optimizer
 
-
-def concat(xs):
-    """
-    flatten all tensor from [d1,d2,...dn] to [d]
-    and then concat all [d_1] to [d_1+d_2+d_3+...]
-
-    :param xs:
-    :return:
-    """
 
     # t.view(-1) reshapes tensor to 1 row N columnsstairs
 #   w - model parameters
@@ -25,221 +16,154 @@ def concat(xs):
 #   w' - updated w using grads from the loss
 class Arch:
 
-    def __init__(self, model:Network, conf:Config)->None:
-        self.momentum = conf['optimizer']['momentum'] # momentum for optimizer of w
-        self.wd =conf['optimizer']['decay'] # weight decay for optimizer of w
-        self.model = model # main model with respect to w and alpha
-        self.bilevel:bool = conf['darts']['bilevel']
+    def __init__(self, model:ArchCnnModel, conf:Config)->None:
+        self._w_momentum = conf['optimizer']['momentum'] # momentum for optimizer of w
+        self._w_weight_decay =conf['optimizer']['decay'] # weight decay for optimizer of w
+        self._model = model # main model with respect to w and alpha
+        self._bilevel:bool = conf['darts']['bilevel']
 
         # create a copy of model which we will use
         # to compute grads for alpha without disturbing
         # original weights
         # TODO: see if there are any issues in deepcopy for pytorch
-        self._tmodel = copy.deepcopy(model)
+        self._vmodel = copy.deepcopy(model)
 
         # this is the optimizer to optimize alpha parameter
-        self.arch_optimizer = get_optimizer(conf['optimizer_arch'], model.parameters())
+        self._arch_optimizer = get_optimizer(conf['darts']['optimizer_arch'], model.parameters())
 
-    def _comp_unrolled_model(self, x, target, eta, w_optim:Optimizer):
-        """
-        loss on train set and then update w_pi, not-in-place
-        :param x:
-        :param target:
-        :param eta:
-        :param w_optim: optimizer of w, not optimizer of alpha
-        :return:
-        """
-        # forward to get loss
-        # pass training input through cells and FCs, compute loss with label
-        loss = self.model.loss(x, target)
+    def _update_vmodel(self, x, y, lr:float, w_optim:Optimizer)->None:
+        """ Update vmodel with w' (main model has w) """
 
-        # we couldn't do sgd on loss because that will affect arch parameters as well.
-        # We want to sgd only on model paramters. To do this, we do manual sgd here by
-        # getting model parameters, detaching them and computing grads only on them.
-        # We then have updated parameters from which we construct new duplicate model object.
-        # This is our "unrolled" model. It is essentially the updated model m' from m if we
-        # had frozen the arch parameters.
+        # TODO: should this loss be stored for later use?
+        loss = self._model.loss(x, y)
+        gradients = autograd.grad(loss, self._model.weights())
 
-        # flatten current weights
-        # these are not the arch parameters (weights for the ops), but actual model params
-        # model parameters are simply list of tensors with different shapes. Because of different shapes
-        # they must be looped through to apply manual SGD however that would be very slow. To circumvent that
-        # we flatten them here and then reshape later
-        w = concat(self.model.parameters()).detach()
-        # w: torch.Size([1930618])
-        # print('w:', w.shape)
-        try:
-            # fetch momentum data from w optimizer
-            moment = concat(w_optim.state[v]['momentum_buffer'] for v in self.model.parameters())
-            moment.mul_(self.momentum) # TODO: is this correct?
-        except:
-            moment = torch.zeros_like(w)
+        # update weights in vmodel so we leave main model undisturbed
+        # The main technical difficulty computing w' without affecting alpha is that you can't simply
+        # do backward() and step() on loss because loss tracks alpha as well as w. So, we compute
+        # gradients using autograd and do manual sgd update.
+        # TODO: other alternative may be to (1) copy model (2) set require_grads = False on alpha
+        #   (3) loss and step on vmodel (4) set back require_grades = True
+        with torch.no_grad(): # no need to track gradient for these operations
+            for w, vw, g in zip(self._model.weights(), self._vmodel.weights(), gradients):
+                # simulate mometum update on model but put this update in vmodel
+                m = w_optim.state[w].get('momentum_buffer', 0.) * self._w_momentum
+                vw.copy_(w - lr * (m + g + self._w_weight_decay*w))
 
-        # flatten all gradients
-        dtheta = concat(autograd.grad(loss, self.model.parameters())).data
-        # indeed, here we implement a simple SGD with momentum and weight decay
-        # w = w - eta * (moment + weight decay + dtheta)
-        w = w.sub(eta, moment + dtheta + self.wd * w)
-        # construct a new model
-        unrolled_model = self._construct_model_from_theta(w)
+            # synchronize alphas
+            for a, va in zip(self._model.alphas(), self._vmodel.alphas()):
+                va.copy_(a)
 
-        return unrolled_model
 
-    def step(self, x_train, target_train, x_valid, target_valid, eta:float, w_optim:Optimizer):
-        """
-        compute gradients of alpha parameters and update them using alpha optimizer
 
-        :param x_train: training input
-        :param target_train: training labels
-        :param x_valid: validation input
-        :param target_valid: validation labels
-        :param eta:
-        :param w_optim: w optimizer
-        :param unrolled:
-        :return:
-        """
+    def step(self, x_train, y_train, x_valid, y_valid, lr:float, w_optim:Optimizer):
+        """compute gradients of alpha parameters and update them using alpha optimizer"""
+
         # alpha optimizer
-        self.arch_optimizer.zero_grad()
+        self._arch_optimizer.zero_grad()
 
         # compute the gradient and write it into tensor.grad
         # instead of generated by loss.backward()
-        if self.bilevel: # this should be True unless we need to do abalation study of bilevel vs naive optimization
-            self._backward_bilevel(x_train, target_train, x_valid, target_valid, eta, w_optim)
+        if self._bilevel: # this should be True unless we need to do abalation study of bilevel vs naive optimization
+            self._backward_bilevel(x_train, y_train, x_valid, y_valid, lr, w_optim)
         else:
             # directly optimize alpha on w, instead of w_pi
-            self._backward_classic(x_valid, target_valid)
+            self._backward_classic(x_valid, y_valid)
 
         # at this point we should have model with updated grades for w and alpha
-        self.arch_optimizer.step()
+        self._arch_optimizer.step()
 
-    def _backward_classic(self, x_valid, target_valid):
+    def _backward_classic(self, x_valid, y_valid):
         """
         This function is used only for experimentation to see how much better
         is bilevel optimization vs simply doing it naively
         simply train on validate set and backward
         :param x_valid:
-        :param target_valid:
+        :param y_valid:
         :return:
         """
-        loss = self.model.loss(x_valid, target_valid)
+        loss = self._model.loss(x_valid, y_valid)
         # both alpha and w require grad but only alpha optimizer will
         # step in current phase.
         loss.backward()
 
-    def _backward_bilevel(self, x_train, target_train, x_valid, target_valid, eta, w_optim):
-        """
-        Compute unrolled loss and backward its gradients
+    def _backward_bilevel(self, x_train, y_train, x_valid, y_valid, lr, w_optim):
+        """ Compute unrolled loss and backward its gradients """
 
-        :param x_train:
-        :param target_train:
-        :param x_valid:
-        :param target_valid:
-        :param eta: 0.01, according to author's comments
-        :param w_optim: w optimizer
-        :return:
-        """
-
-        # get a model with updated w, but leave alpha as-is
+        # update vmodel with w', but leave alpha as-is
         # w' = w - lr * grad
-        unrolled_model = self._comp_unrolled_model(x_train, target_train, eta, w_optim)
+        self._update_vmodel(x_train, y_train, lr, w_optim)
 
-        # compute loss on validation set
-        # calculate loss on model with w'
-        unrolled_loss = unrolled_model.loss(x_valid, target_valid)
-
-        # this will update model with w' model, but not model with w
-        # also notice that this will generate grads on w as well as alpha parameters
-        unrolled_loss.backward()
+        # compute loss on validation set for model with w'
+        # wrt alphas. The autograd.grad is used instead of backward()
+        # to avoid having to loop through params
+        vloss = self._vmodel.loss(x_valid, y_valid)
+        v_alphas = tuple(self._vmodel.alphas())
+        v_weights = tuple(self._vmodel.weights())
+        v_grads = autograd.grad(vloss, v_alphas + v_weights)
 
         # grad(L(w', a), a), part of Eq. 6
-        # get grades for alpha parameters
-        dalpha = [v.grad for v in unrolled_model.arch_parameters()]
+        dalpha = v_grads[:len(v_alphas)]
         # get grades for w' params which we will use it to compute w+ and w-
-        # w+ = w + epsilon * grad(w')
-        theta2_grad = [v.grad.data for v in unrolled_model.parameters()]
-        hessian = self._hessian_vector_product(theta2_grad, x_train, target_train)
+        dw = v_grads[len(v_alphas):]
 
-        # subtract hessian from grad of alpa (Eq 7)
-        for da, h in zip(dalpha, hessian):
-            da.data.sub_(eta, h.data)
+        hessian = self._hessian_vector_product(dw, x_train, y_train)
 
         # dalpha we have is from the unrolled model so we need to
         # transfer those grades back to our main model
-        for a, d in zip(self.model.arch_parameters(), dalpha):
-            if a.grad is None: # this would be the case first time?
-                a.grad = d.data
-            else:
-                a.grad.data.copy_(d.data)
+        # update final gradient = dalpha - xi*hessian
+        with torch.no_grad():
+            for alpha, da, h in zip(self._model.alphas(), dalpha, hessian):
+                alpha.grad = da - lr*h
         # now that model has both w and alpha grads,
         # we can run w_optim.step() to update the param values
 
-    def _construct_model_from_theta(self, w):
-        """
-        construct a new model with initialized weight from w
-        it use .state_dict() and load_state_dict() instead of
-        .parameters() + fill_()
-        :param w: flatten weights, need to reshape to original shape
-        :return:
-        """
-
-        # first clone the model such as alpha params have same state as current model
-        # but w params would still be set to initial values
-        model_new = self.model.new()
-        model_dict = self.model.state_dict()
-
-        # note that w are flattened so before we put them back in model,
-        # we need to reshape them
-        params, offset = {}, 0
-        for k, v in self.model.named_parameters():
-            v_length = v.numel()
-            # restore w[] value to original shape
-            params[k] = w[offset: offset + v_length].view(v.size())
-            offset += v_length
-
-        # put w back in our new model so its now same as clone of
-        # current model but with updated w
-        assert offset == len(w)
-        model_dict.update(params)
-        model_new.load_state_dict(model_dict)
-        return model_new.cuda()
-
-    def _hessian_vector_product(self, theta2_grad, x, target, epsilon_unit=1e-2):
+    def _hessian_vector_product(self, dw, x, y, epsilon_unit=1e-2):
         """
         Implements equation 8
-        :param theta2_grad: gradient.data of parameters w
-        :param x:
-        :param target:
-        :param epsilon_unit:
-        :return:
+
+        dw = dw` { L_val(w`, alpha) }
+        w+ = w + eps * dw
+        w- = w - eps * dw
+        hessian = (dalpha { L_trn(w+, alpha) } - dalpha { L_trn(w-, alpha) }) / (2*eps)
+        eps = 0.01 / ||dw||
         """
 
-        # scale epsilon with grad magnitude. Notice that theta2_grad
-        # is a multiplier on RHS of eq 8. So this scalling is essential in maing sure
+        # scale epsilon with grad magnitude. The dw
+        # is a multiplier on RHS of eq 8. So this scalling is essential in making sure
         # that finite differences approximation is not way off
-        epsilon = epsilon_unit / concat(theta2_grad).norm()
+        # Below, we flatten each w, concate all and then take norm
+        dw_norm = torch.cat([w.view(-1) for w in dw]).norm()
+        epsilon = epsilon_unit / dw_norm
 
         # w+ = w + epsilon * grad(w')
-        for p, v in zip(self.model.parameters(), theta2_grad):
-            p.data.add_(epsilon, v)
+        with torch.no_grad():
+            for p, v in zip(self._model.weights(), dw):
+                p += epsilon * v
 
         # Now that we have model with w+, we need to compute grads wrt alpha
-        # note that this loss needs to be on train set, not validation set
-        loss = self.model.loss(x, target)
-        grads_p = autograd.grad(loss, self.model.arch_parameters())
+        # This loss needs to be on train set, not validation set
+        loss = self._model.loss(x, y)
+        dalpha_plus = autograd.grad(loss, self._model.alphas()) # dalpha { L_trn(w+) }
 
         # get model with w- and then compute grads wrt alpha
-        for p, v in zip(self.model.parameters(), theta2_grad):
-            # we had already added theta2_grad above so sutracting twice gives w-
-            p.data.sub_(2 * epsilon, v)
-        loss = self.model.loss(x, target)
-        grads_n = autograd.grad(loss, self.model.arch_parameters())
+        # w- = w - eps*dw`
+        with torch.no_grad():
+            for p, v in zip(self._model.weights(), dw):
+                # we had already added dw above so sutracting twice gives w-
+                p -= 2. * epsilon * v
 
-        # reset back params to original values by adding theta2_grad
-        for p, v in zip(self.model.parameters(), theta2_grad):
-            p.data.add_(epsilon, v)
+        # similarly get dalpha_minus
+        loss = self._model.loss(x, y)
+        dalpha_minus = autograd.grad(loss, self._model.alphas())
+
+        # reset back params to original values by adding dw
+        with torch.no_grad():
+            for p, v in zip(self._model.weights(), dw):
+                p += epsilon * v
 
         # apply eq 8, final difference to compute hessian
-        h= [(x - y).div_(2 * epsilon) for x, y in zip(grads_p, grads_n)]
+        h= [(p - m) / (2. * epsilon) for p, m in zip(dalpha_plus, dalpha_minus)]
         # h len: 2 h0 torch.Size([14, 8])
         # print('h len:', len(h), 'h0', h[0].shape)
         return h
