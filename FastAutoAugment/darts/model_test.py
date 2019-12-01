@@ -9,7 +9,7 @@ class _Cell(nn.Module):
 
     def __init__(self, genotype, C_prev_prev, C_prev, C, reduction, reduction_prev):
         """
-        This class is different then model_search._Cell. Here we recieve genotype and build a cell
+        This class is different then arch_cnn_model._Cell. Here we recieve genotype and build a cell
         that has 4 nodes, each with exactly two edges and only one primitive attached to this edge.
         This cell then would be "compiled" to produce PyTorch module.
 

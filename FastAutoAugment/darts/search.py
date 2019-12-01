@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 from ..common.config import Config
-from .model_arch import Network
+from .arch_cnn_model import ArchCnnModel
 from .arch import Arch
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, create_tb_writers
@@ -27,7 +27,7 @@ def search_arch(conf:Config)->None:
     criterion = nn.CrossEntropyLoss().to(device)
 
     # 16 inital channels, n_classes=10, 8 cells (layers)
-    model = Network(conf['ch_in'], conf['darts']['ch_out_init'], conf['n_classes'], conf['darts']['layers'], criterion).to(device)
+    model = ArchCnnModel(conf['ch_in'], conf['darts']['ch_out_init'], conf['n_classes'], conf['darts']['layers'], criterion).to(device)
     logger.info("Total param size = %f MB", utils.count_parameters_in_MB(model))
 
     # optimizer for the model weight
