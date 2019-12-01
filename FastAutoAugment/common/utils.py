@@ -100,11 +100,11 @@ def count_parameters_in_MB(model):
     return np.sum(v.numel() for name, v in model.named_parameters() if "auxiliary" not in name) / 1e6
 
 
-def save_checkpoint(state, is_best, save):
-    filename = os.path.join(save, 'checkpoint.pth.tar')
+def save_checkpoint(state, is_best, ckpt_dir):
+    filename = os.path.join(ckpt_dir, 'checkpoint.pth.tar')
     torch.save(state, filename)
     if is_best:
-        best_filename = os.path.join(save, 'model_best.pth.tar')
+        best_filename = os.path.join(ckpt_dir, 'model_best.pth.tar')
         shutil.copyfile(filename, best_filename)
 
 

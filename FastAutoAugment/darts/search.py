@@ -1,3 +1,4 @@
+from typing import Tuple
 import  torch.nn as nn
 import torch
 from torch import optim
@@ -24,57 +25,62 @@ def search_arch(conf:Config)->None:
     device = torch.device('cuda')
     writer = create_tb_writers(conf)[0]
 
-    # CIFAR classification task
-    criterion = nn.CrossEntropyLoss().to(device)
-
-    # 16 inital channels, n_classes=10, 8 cells (layers)
-    model = ArchCnnModel(conf['ch_in'], conf['darts']['ch_out_init'], conf['n_classes'], conf['darts']['layers'], criterion).to(device)
-    logger.info("Total param size = %f MB", utils.count_parameters_in_MB(model))
-
-    # optimizer for the model weight
-    w_optim = get_optimizer(conf['optimizer'], model.parameters())
-
-    # note that we get only train set here and break it down in 1/2 to get validation set
-    # cifar10 has 60K images in 10 classes, 50k in train, 10k in test
-    # so ultimately we have 25K train, 25K val, 10k test
-    _, train_dl, valid_dl, _ = get_dataloaders(conf['dataset'], conf['batch'],
+    # breakdown train to train + val split, usually 50-50%
+    _, train_dl, val_dl, _ = get_dataloaders(conf['dataset'], conf['batch'],
         conf['dataroot'], conf['aug'], conf['darts']['search_cutout'],
         val_ratio=conf['val_ratio'], val_fold=conf['val_fold'], horovod=conf['horovod'])
 
-    lr_scheduler = get_lr_scheduler(conf, w_optim)
+    # CIFAR classification task
+    criterion = nn.CrossEntropyLoss().to(device)
 
-    # arch is sort of meta model that would update theta and alpha parameters
+    model = ArchCnnModel(conf['ch_in'], conf['darts']['ch_out_init'], conf['n_classes'], conf['darts']['layers'], criterion).to(device)
+    logger.info("Total param size = %f MB", utils.count_parameters_in_MB(model))
+
+    # trainer for alphas
     arch = Arch(model, conf)
 
-    # in this phase we only run 50 epochs
+    # optimizer for the model weight
+    w_optim = get_optimizer(conf['optimizer'], model.parameters())
+    lr_scheduler = get_lr_scheduler(conf, w_optim)
+
+    # in search phase we typically only run 50 epochs
+    best_top1, best_genotype = 0., None
     for epoch in range(conf['epochs']):
         lr_scheduler.step()
         lr = lr_scheduler.get_lr()[0]
-        logger.info('\nEpoch: %d lr: %e', epoch, lr)
 
-        # genotype extracts the highest weighted two primitives per node
-        # this is for information dump only
+        logger.info('\nEpoch: %d lr: %e', epoch, lr)
+        model.print_alphas(logger)
+
+        global_step = epoch * len(train_dl)
+
+        # training
+        _train_epoch(train_dl, val_dl, model, arch, criterion, w_optim, lr,
+            device, conf['optimizer']['clip'], conf['report_freq'],
+            epoch, conf['epochs'], global_step, writer)
+
+        # validation
+        val_top1 = _validate_epoch(val_dl, model, criterion, device, conf['report_freq'],
+            epoch, conf['epochs'], global_step, writer)
+
         genotype = model.genotype()
         logger.info('Genotype: %s', genotype)
 
-        # print(F.softmax(model.alphas_normal, dim=-1))
-        # print(F.softmax(model.alphas_reduce, dim=-1))
+        # save
+        if best_top1 < val_top1:
+            best_top1 = val_top1
+            best_genotype = genotype
+            is_best = True
+        else:
+            is_best = False
+        utils.save_checkpoint(model, is_best, conf['logdir'])
 
-        # training
-        train_acc, train_obj = _train_epoch(train_dl, valid_dl, model, arch, criterion, w_optim, lr,
-            device, conf['optimizer']['clip'], conf['report_freq'])
-        logger.info('train acc: %f', train_acc)
-
-        # validation
-        valid_acc, valid_obj = _infer(valid_dl, model, criterion, device, conf['report_freq'])
-        logger.info('valid acc: %f', valid_acc)
-
-        model_filepath = os.path.join(conf['logdir'], conf['darts']['test_model_filename'])
-        utils.save(model, model_filepath)
+    logger.info("Final best Prec@1 = {:.4%}".format(best_top1))
+    logger.info("Best Genotype = {}".format(best_genotype))
 
 
-def _train_epoch(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterion, w_optim, lr,
-    device, grad_clip, report_freq):
+def _train_epoch(train_dl:DataLoader, val_dl:DataLoader, model:ArchCnnModel, arch:Arch, criterion, w_optim, lr:float,
+    device, grad_clip:float, report_freq, epoch:int, epochs:int, global_step:int, writer)->Tuple[float, float]:
 
     logger = get_logger()
 
@@ -82,77 +88,99 @@ def _train_epoch(train_dl:DataLoader, valid_dl:DataLoader, model, arch, criterio
     top1 = utils.AverageMeter()
     top5 = utils.AverageMeter()
 
-    valid_iter = iter(valid_dl)
+    train_size = len(train_dl)
+    writer.add_scalar('train/lr', lr, global_step)
 
-    for step, (x, target) in enumerate(train_dl):
+    valid_iter = iter(val_dl)
 
-        batchsz = x.size(0)
-        model.train() # put model into train mode
+    for step, (x_train, y_train) in enumerate(train_dl):
+        model.train() # make sure model is in train mode
 
         # [b, 3, 32, 32], [40]
-        x, target = x.to(device), target.cuda(non_blocking=True)
-        x_search, target_search = next(valid_iter) # [b, 3, 32, 32], [b]
-        x_search, target_search = x_search.to(device), target_search.cuda(non_blocking=True)
+        # one blocking and another non blocking
+        x_train, y_train = x_train.to(device), y_train.to(device, non_blocking=True)
+
+        try:
+            x_val, y_val = next(valid_iter) # [b, 3, 32, 32], [b]
+        except StopIteration:
+            # reinit iterator
+            valid_iter = iter(val_dl)
+            x_val, y_val = next(valid_iter) # [b, 3,
+
+        x_val, y_val = x_val.to(device), y_val.to(device, non_blocking=True)
 
         # 1. update alpha
-        arch.step(x, target, x_search, target_search, lr, w_optim)
+        arch.step(x_train, y_train, x_val, y_val, lr, w_optim)
 
-        logits = model(x)
-        loss = criterion(logits, target)
-
-        # 2. update weight
         w_optim.zero_grad()
+        logits = model(x_train)
+        loss = criterion(logits, y_train)
         loss.backward()
-        # apparently gradient clipping is important
-        nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+
+        # clip all w grades (original darts clips alphas as well)
+        nn.utils.clip_grad_norm_(model.weights(), grad_clip)
         # as our arch parameters (i.e. alpha) is kept seperate, they don't get updated
         w_optim.step()
 
-        prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-        losses.update(loss.item(), batchsz)
-        top1.update(prec1.item(), batchsz)
-        top5.update(prec5.item(), batchsz)
+        prec1, prec5 = utils.accuracy(logits, y_train, topk=(1, 5))
+        losses.update(loss.item(), x_train.size(0))
+        top1.update(prec1.item(), x_train.size(0))
+        top5.update(prec5.item(), x_train.size(0))
 
-        if step % report_freq == 0:
-            logger.info('Step:%03d loss:%f acc1:%f acc5:%f', step, losses.avg, top1.avg, top5.avg)
+        if step % report_freq == 0 or step == train_size-1:
+            logger.info(
+                "Train: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
+                "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
+                    epoch+1, epochs, step, train_size-1, losses=losses,
+                    top1=top1, top5=top5))
+
+        writer.add_scalar('train/loss', loss.item(), global_step)
+        writer.add_scalar('train/top1', prec1.item(), global_step)
+        writer.add_scalar('train/top5', prec5.item(), global_step)
+        global_step += 1
+
+    logger.info("Train: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, epochs, top1.avg))
 
     return top1.avg, losses.avg
 
 
-def _infer(valid_dl, model, criterion, device, report_freq):
-    """
-    For a given model we just evaluate metrics on validation set.
-    Note that this model is not final, i.e., each node i has i+2 edges
-    and each edge with 8 primitives and associated wieghts.
-
-    :param valid_dl:
-    :param model:
-    :param criterion:
-    :return:
-    """
+def _validate_epoch(val_dl, model, criterion, device, report_freq,
+    epoch, epochs, global_step, writer)->Tuple[float, float]:
+    """ Evaluate model on validation set """
 
     logger = get_logger()
     losses = utils.AverageMeter()
     top1 = utils.AverageMeter()
     top5 = utils.AverageMeter()
+    val_size = len(val_dl)
 
     model.eval()
 
     with torch.no_grad():
-        for step, (x, target) in enumerate(valid_dl):
+        for step, (x_val, y_val) in enumerate(val_dl):
+            # one blocking, another non-blocking
+            x_val, y_val = x_val.to(device), y_val.cuda(non_blocking=True)
+            batch_size = x_val.size(0)
 
-            x, target = x.to(device), target.cuda(non_blocking=True)
-            batchsz = x.size(0)
+            logits = model(x_val)
+            loss = criterion(logits, y_val)
 
-            logits = model(x)
-            loss = criterion(logits, target)
+            prec1, prec5 = utils.accuracy(logits, y_val, topk=(1, 5))
+            losses.update(loss.item(), batch_size)
+            top1.update(prec1.item(), batch_size)
+            top5.update(prec5.item(), batch_size)
 
-            prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-            losses.update(loss.item(), batchsz)
-            top1.update(prec1.item(), batchsz)
-            top5.update(prec5.item(), batchsz)
+            if step % report_freq == 0 or step == val_size-1:
+                logger.info(
+                    "Valid: [{:2d}/{}] Step {:03d}/{:03d} Loss {losses.avg:.3f} "
+                    "Prec@(1,5) ({top1.avg:.1%}, {top5.avg:.1%})".format(
+                        epoch+1, epochs, step, val_size-1, losses=losses,
+                        top1=top1, top5=top5))
 
-            if step % report_freq == 0:
-                logger.info('>> Validation: %3d %e %f %f', step, losses.avg, top1.avg, top5.avg)
+    writer.add_scalar('val/loss', losses.avg, global_step)
+    writer.add_scalar('val/top1', top1.avg, global_step)
+    writer.add_scalar('val/top5', top5.avg, global_step)
+
+    logger.info("Valid: [{:2d}/{}] Final Prec@1 {:.4%}".format(epoch+1, epochs, top1.avg))
 
     return top1.avg, losses.avg
