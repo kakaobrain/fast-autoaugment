@@ -56,33 +56,39 @@ gorilla.apply(patch)
 
 
 @ray.remote(num_gpus=torch.cuda.device_count(), max_calls=1)
-def _train_model(conf, dataroot, augment, val_ratio, val_fold, save_path=None, only_eval=False):
+def _train_model(conf, dataroot, augment, val_ratio, val_fold, save_path=None,
+        only_eval=False):
     Config.set(conf)
     conf['aug'] = augment
 
-    result = train_and_eval(conf, val_ratio=val_ratio, val_fold=val_fold, save_path=save_path, only_eval=only_eval)
+    result = train_and_eval(conf, val_ratio=val_ratio, val_fold=val_fold,
+        save_path=save_path, only_eval=only_eval)
     return conf['model']['type'], val_fold, result
 
 def _train_no_aug(conf):
     logger = get_logger()
     sw = StopWatch.get()
-    dataroot, logdir, cv_num, val_ratio = conf['dataroot'], conf['logdir'], conf['cv_num'], conf['val_ratio']
+    dataroot, logdir, cv_num, val_ratio = conf['dataroot'], conf['logdir'], \
+        conf['cv_num'], conf['val_ratio']
 
-    logger.info('----- Train without Augmentations cv=%d ratio(test)=%.1f -----' % (cv_num, val_ratio))
+    logger.info('----- Train without Augmentations cv=%d ratio(test)=%.1f -----'\
+         % (cv_num, val_ratio))
     sw.start(tag='train_no_aug')
 
     # for each fold, we will save model
-    save_paths = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_fold%d' \
-                % (val_ratio, i)) for i in range(cv_num)]
+    save_paths = [get_model_savepath(logdir, conf['dataset'],
+        conf['model']['type'], 'ratio%.1f_fold%d' % (val_ratio, i)) \
+            for i in range(cv_num)]
     #print(save_paths)
 
     # Train model for each fold, save model in specified path, put result in reqs list.
     # These models are trained with aug specified in config.
-    # TODO: configuration will be changed ('aug' key), but do we really need deepcopy everywhere?
+    # TODO: configuration will be changed ('aug' key),
+    # but do we really need deepcopy everywhere?
     reqs = [
         # TODO: eliminate need for deep copy as only aug key is changed
-        _train_model.remote(copy.deepcopy(copy.deepcopy(conf)), dataroot, conf['aug'], val_ratio, i,
-            save_path=save_paths[i], only_eval=True)
+        _train_model.remote(copy.deepcopy(copy.deepcopy(conf)), dataroot,
+            conf['aug'], val_ratio, i,save_path=save_paths[i], only_eval=True)
         for i in range(cv_num)]
 
     # we now probe saved models for each fold to check the epoch number
@@ -117,7 +123,8 @@ def _train_no_aug(conf):
     logger.info('getting results...')
     pretrain_results = ray.get(reqs)
     for r_model, r_cv, r_dict in pretrain_results:
-        logger.info('model=%s cv=%d top1_train=%.4f top1_valid=%.4f' % (r_model, r_cv+1, r_dict['top1_train'], r_dict['top1_valid']))
+        logger.info('model=%s cv=%d top1_train=%.4f top1_valid=%.4f' %
+            (r_model, r_cv+1, r_dict['top1_train'], r_dict['top1_valid']))
     logger.info('processed in %.4f secs' % sw.pause('train_no_aug'))
 
 def search(conf):
@@ -126,7 +133,8 @@ def search(conf):
     ray.init(redis_address=conf['redis'],
         # allocate all GPUs on local node if cluster is not specified
         num_gpus=torch.cuda.device_count() if not conf['redis'] else None)
-    logger.info('search augmentation policies, dataset=%s model=%s' % (conf['dataset'], conf['model']['type']))
+    logger.info('search augmentation policies, dataset=%s model=%s' %
+        (conf['dataset'], conf['model']['type']))
 
     # first train with no aug
     _train_no_aug(conf)
@@ -136,34 +144,42 @@ def search(conf):
     # get values from config
     dataroot, logdir, num_policy, num_op, cv_num, val_ratio, num_samples, \
         num_result_per_cv, resume = \
-        conf['dataroot'], conf['logdir'], conf['autoaug']['num_policy'], conf['autoaug']['num_op'], conf['cv_num'], \
-            conf['val_ratio'], 4 if conf['smoke_test'] else conf['autoaug']['num_search'], \
+        conf['dataroot'], conf['logdir'], conf['autoaug']['num_policy'],  \
+            conf['autoaug']['num_op'], conf['cv_num'], conf['val_ratio'], \
+            4 if conf['smoke_test'] else conf['autoaug']['num_search'],   \
             conf['autoaug']['num_result_per_cv'], conf['resume']
 
     logger.info('----- Search Test-Time Augmentation Policies -----')
     sw.start(tag='search')
 
-    save_paths = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_fold%d' \
-                % (val_ratio, i)) for i in range(cv_num)]
+    save_paths = [get_model_savepath(logdir, conf['dataset'],
+        conf['model']['type'], 'ratio%.1f_fold%d' %
+            (val_ratio, i)) for i in range(cv_num)]
 
     copied_c = copy.deepcopy(conf)
     ops = augment_list(False)
     space = {}
     for i in range(num_policy):
         for j in range(num_op):
-            space['policy_%d_%d' % (i, j)] = hp.choice('policy_%d_%d' % (i, j), list(range(0, len(ops))))
-            space['prob_%d_%d' % (i, j)] = hp.uniform('prob_%d_ %d' % (i, j), 0.0, 1.0)
-            space['level_%d_%d' % (i, j)] = hp.uniform('level_%d_ %d' % (i, j), 0.0, 1.0)
+            space['policy_%d_%d' % (i, j)] = hp.choice('policy_%d_%d' %
+                (i, j), list(range(0, len(ops))))
+            space['prob_%d_%d' % (i, j)] = hp.uniform('prob_%d_ %d' %
+                (i, j), 0.0, 1.0)
+            space['level_%d_%d' % (i, j)] = hp.uniform('level_%d_ %d' %
+                (i, j), 0.0, 1.0)
 
     final_policy_set = []
     total_computation = 0
     reward_attr = 'top1_valid'      # top1_valid or minus_loss
     for _ in range(1):  # run multiple times.
         for val_fold in range(cv_num):
-            name = "search_%s_%s_fold%d_ratio%.1f" % (conf['dataset'], conf['model']['type'], val_fold, val_ratio)
+            name = "search_%s_%s_fold%d_ratio%.1f" % (conf['dataset'],
+                conf['model']['type'], val_fold, val_ratio)
             print(name)
-            register_trainable(name, lambda augs, rpt: _eval_tta(copy.deepcopy(copied_c), augs, rpt))
-            algo = HyperOptSearch(space, max_concurrent=4*20, reward_attr=reward_attr)
+            register_trainable(name, lambda augs,
+                rpt: _eval_tta(copy.deepcopy(copied_c), augs, rpt))
+            algo = HyperOptSearch(space, max_concurrent=4*20,
+                reward_attr=reward_attr)
 
             exp_config = {
                 name: {
@@ -178,11 +194,13 @@ def search(conf):
                     },
                 }
             }
-            results = run_experiments(exp_config, search_alg=algo, scheduler=None, verbose=0, queue_trials=True,
+            results = run_experiments(exp_config, search_alg=algo,
+                scheduler=None, verbose=0, queue_trials=True,
                 resume=resume, raise_on_failed_trial=False)
             print()
             results = [x for x in results if x.last_result is not None]
-            results = sorted(results, key=lambda x: x.last_result[reward_attr], reverse=True)
+            results = sorted(results, key=lambda x: x.last_result[reward_attr],
+                reverse=True)
 
             # calculate computation usage
             for result in results:
@@ -190,8 +208,9 @@ def search(conf):
 
             for result in results[:num_result_per_cv]:
                 final_policy = policy_decoder(result.config, num_policy, num_op)
-                logger.info('loss=%.12f top1_valid=%.4f %s' % (result.last_result['minus_loss'],
-                    result.last_result['top1_valid'], final_policy))
+                logger.info('loss=%.12f top1_valid=%.4f %s' %
+                    (result.last_result['minus_loss'],
+                        result.last_result['top1_valid'], final_policy))
 
                 final_policy = remove_deplicates(final_policy)
                 final_policy_set.extend(final_policy)

@@ -6,12 +6,13 @@ from typing import Union, List
 from . import genotypes as gt
 
 
-def draw_genotype(genotype:Union[List[tuple], str], cell_type:str='normal', file_path:str=None, caption:str=None, render=True)->Digraph:
+def draw_genotype(genotype:Union[List[tuple], str], file_path:str=None,
+        caption:str=None, render=True, genotype_attr:str=None)->Digraph:
     """ make DAG plot and optionally save to file_path as .png """
 
     if isinstance(genotype,str):
         genotype_parsed = gt.from_str(genotype)
-        genotype = getattr(genotype_parsed, cell_type)
+        genotype = getattr(genotype_parsed, genotype_attr)
 
     edge_attr = {
         'fontsize': '20',

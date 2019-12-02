@@ -1,25 +1,34 @@
 import logging
 import numpy as np
 import os
-from typing import List, Iterable
+from typing import List, Iterable, Union
 
 from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import yaml
 
 import torch
 import torch.backends.cudnn as cudnn
+from torch.utils.tensorboard import SummaryWriter
 
 from .config import Config
 from .stopwatch import StopWatch
+from .metrics import SummaryWriterDummy
 
+SummaryWriterAny = Union[SummaryWriterDummy, SummaryWriter]
 
 _app_name = 'DefaultApp'
+_tb_writer:SummaryWriterAny = None
 
-def _get_formatter():
-    return logging.Formatter('[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
+def _get_formatter()->logging.Formatter:
+    return logging.Formatter(
+        '[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
 
 def get_logger(experiment_name=None)->logging.Logger:
     return logging.getLogger(experiment_name or _app_name)
+
+def get_tb_writer()->SummaryWriterAny:
+    global _tb_writer
+    return _tb_writer
 
 def _setup_logger(experiment_name, level=logging.DEBUG)->logging.Logger:
     logger = logging.getLogger(experiment_name)
@@ -39,8 +48,9 @@ def _add_filehandler(logger, filepath):
     logger.addHandler(fh)
 
 # initializes random number gen, debugging etc
-def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]=[],
-        experiment_name='', seed=42, detect_anomaly=True, log_level=logging.DEBUG) \
+def common_init(config_filepath:str, defaults_filepath:str,
+        param_args:List[str]=[], experiment_name='', seed=42, detect_anomaly=True,
+        log_level=logging.DEBUG, is_master=True, tb_names:Iterable[str]=['0']) \
         -> Config:
 
     global _app_name
@@ -68,12 +78,17 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
         # TODO: enable below only in debug mode
         torch.autograd.set_detect_anomaly(True)
 
-    logdir, dataroot = os.path.expanduser(conf['logdir']), os.path.expanduser(conf['dataroot'])
+    logdir = os.path.expanduser(conf['logdir'])
+    dataroot = os.path.expanduser(conf['dataroot'])
+    plotsdir = os.path.expanduser(conf['plotsdir'])
     if experiment_name:
         logdir = os.path.join(logdir, experiment_name)
+        plotsdir = os.path.join(plotsdir, experiment_name)
     os.makedirs(logdir, exist_ok=True)
     os.makedirs(dataroot, exist_ok=True)
+    os.makedirs(plotsdir, exist_ok=True)
     conf['logdir'], conf['dataroot'] = logdir, dataroot
+    conf['plotsdir'] = plotsdir
 
     # copy net config to experiment folder for reference
     with open(os.path.join(logdir, 'full_config.yaml'), 'w') as f:
@@ -96,12 +111,15 @@ def common_init(config_filepath:str, defaults_filepath:str, param_args:List[str]
         # alternative: torch.cuda.set_device(config.gpus[0])
 
     gpu_usage = os.popen(
-            'nvidia-smi --query-gpu=memory.total,memory.used --format=csv,nounits,noheader'
-                ).read().split('\n')
+        'nvidia-smi --query-gpu=memory.total,memory.used --format=csv,nounits,noheader'
+            ).read().split('\n')
     for i, line in enumerate(gpu_usage):
         vals = line.split(',')
         if len(vals) == 2:
             logger.info('GPU {} mem: {}, used: {}'.format(i, vals[0], vals[1]))
+
+    global _tb_writer
+    _tb_writer = _create_tb_writer(conf, is_master, tb_names)
 
     return conf
 
@@ -109,13 +127,12 @@ def get_model_savepath(logdir, dataset, model, tag):
     return os.path.join(logdir, '%s_%s_%s.model' \
         % (dataset, model, tag))
 
-def create_tb_writers(conf:Config, is_master=True, sub_folders:Iterable[str]=['0']):
-    if not conf['enable_tb'] or not is_master:
-        # create dummy writer that will ignore all writes
-        from .metrics import SummaryWriterDummy as SummaryWriter
-    else:
-        from torch.utils.tensorboard import SummaryWriter
-    return [SummaryWriter(log_dir=f'{log_dir}/tb/{x}') for x in sub_folders]
+def _create_tb_writer(conf:Config, is_master=True,
+        tb_names:Iterable[str]=['0'])->SummaryWriterAny:
+    WriterClass = SummaryWriterDummy if not conf['enable_tb'] or not is_master \
+            else SummaryWriter
+
+    return WriterClass(log_dir='{}/tb/{}'.format(conf['logdir']))
 
 
 
