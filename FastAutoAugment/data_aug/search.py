@@ -28,11 +28,13 @@ from ..common.stopwatch import StopWatch
 
 # this method is overriden version of ray.tune.trial_runner.TrialRunner.step using monkey patching
 def _step_w_log(self):
-    original = gorilla.get_original_attribute(ray.tune.trial_runner.TrialRunner, 'step')
+    original = gorilla.get_original_attribute(ray.tune.trial_runner.TrialRunner,
+        'step')
 
     # collect counts by status for all trials
     cnts = OrderedDict()
-    for status in [Trial.RUNNING, Trial.TERMINATED, Trial.PENDING, Trial.PAUSED, Trial.ERROR]:
+    for status in [Trial.RUNNING, Trial.TERMINATED, Trial.PENDING, Trial.PAUSED,
+            Trial.ERROR]:
         cnt = len(list(filter(lambda x: x.status == status, self._trials)))
         cnts[status] = cnt
 
@@ -50,7 +52,8 @@ def _step_w_log(self):
     return original(self)
 
 # override ray.tune.trial_runner.TrialRunner.step method so we can print best accuracy at each step
-patch = gorilla.Patch(ray.tune.trial_runner.TrialRunner, 'step', _step_w_log, settings=gorilla.Settings(allow_hit=True))
+patch = gorilla.Patch(ray.tune.trial_runner.TrialRunner, 'step', _step_w_log,
+    settings=gorilla.Settings(allow_hit=True))
 gorilla.apply(patch)
 
 
@@ -59,42 +62,58 @@ gorilla.apply(patch)
 def _train_model(conf, dataroot, augment, val_ratio, val_fold, save_path=None,
         only_eval=False):
     Config.set(conf)
-    conf['aug'] = augment
+    conf['autoaug']['loader']['aug'] = augment
+    model_type = conf['autoaug']['model']['type']
 
     result = train_and_eval(conf, val_ratio=val_ratio, val_fold=val_fold,
         save_path=save_path, only_eval=only_eval)
-    return conf['model']['type'], val_fold, result
+    return model_type, val_fold, result
 
 def _train_no_aug(conf):
-    logger = get_logger()
-    sw = StopWatch.get()
-    dataroot, logdir, cv_num, val_ratio = conf['dataroot'], conf['logdir'], \
-        conf['cv_num'], conf['val_ratio']
+    logger, sw = get_logger(), StopWatch.get()
+
+    # region conf vars
+    conf_ds     = conf['dataset']
+    dataroot    = conf['dataroot']
+    logdir      = conf['logdir']
+    redis_ip    = conf['redis']
+    conf_loader = conf['autoaug']['loader']
+    conf_model  = conf['autoaug']['model']
+    model_type  = conf_model['type']
+    ds_name     = conf_ds['name']
+    aug         = conf_loader['aug']
+    cutout      = conf_loader['cutout']
+    val_ratio   = conf_loader['val_ratio']
+    batch_size  = conf_loader['batch']
+    epochs      = conf_loader['epochs']
+    val_fold    = conf_loader['val_fold']
+    cv_num      = conf_loader['cv_num']
+    # endregion
+
+    dataroot, logdir, cv_num, val_ratio = dataroot, logdir, cv_num, val_fold
 
     logger.info('----- Train without Augmentations cv=%d ratio(test)=%.1f -----'\
          % (cv_num, val_ratio))
     sw.start(tag='train_no_aug')
 
     # for each fold, we will save model
-    save_paths = [get_model_savepath(logdir, conf['dataset'],
-        conf['model']['type'], 'ratio%.1f_fold%d' % (val_ratio, i)) \
-            for i in range(cv_num)]
-    #print(save_paths)
+    save_paths = [get_model_savepath(logdir, ds_name, model_type,
+        'ratio%.1f_fold%d' % (val_ratio, i)) for i in range(cv_num)]
 
-    # Train model for each fold, save model in specified path, put result in reqs list.
-    # These models are trained with aug specified in config.
+    # Train model for each fold, save model in specified path, put result
+    # in reqs list. These models are trained with aug specified in config.
     # TODO: configuration will be changed ('aug' key),
-    # but do we really need deepcopy everywhere?
+    #   but do we really need deepcopy everywhere?
     reqs = [
         # TODO: eliminate need for deep copy as only aug key is changed
         _train_model.remote(copy.deepcopy(copy.deepcopy(conf)), dataroot,
-            conf['aug'], val_ratio, i,save_path=save_paths[i], only_eval=True)
+            aug, val_ratio, i,save_path=save_paths[i], only_eval=True)
         for i in range(cv_num)]
 
     # we now probe saved models for each fold to check the epoch number
     # they are on. When every fold crosses an epoch number, we update
     # the progress.
-    tqdm_epoch = tqdm(range(conf['epochs']))
+    tqdm_epoch = tqdm(range(epochs))
     is_done = False
     for epoch in tqdm_epoch:
         while True:
@@ -104,7 +123,7 @@ def _train_no_aug(conf):
                     if os.path.exists(save_paths[cv_idx]):
                         latest_ckpt = torch.load(save_paths[cv_idx])
                         if 'epoch' not in latest_ckpt:
-                            epochs_per_cv['cv%d' % (cv_idx + 1)] = conf['epochs']
+                            epochs_per_cv['cv%d' % (cv_idx + 1)] = epochs
                             continue
                     else:
                         continue
@@ -112,7 +131,7 @@ def _train_no_aug(conf):
                 except Exception as e:
                     continue
             tqdm_epoch.set_postfix(epochs_per_cv)
-            if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= conf['epochs']:
+            if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= epochs:
                 is_done = True
             if len(epochs_per_cv) == cv_num and min(epochs_per_cv.values()) >= epoch:
                 break
@@ -128,32 +147,45 @@ def _train_no_aug(conf):
     logger.info('processed in %.4f secs' % sw.pause('train_no_aug'))
 
 def search(conf):
-    logger = get_logger()
-    logger.info('initialize ray...')
-    ray.init(redis_address=conf['redis'],
+    logger, sw = get_logger(), StopWatch.get()
+
+    # region conf vars
+    conf_ds     = conf['dataset']
+    dataroot    = conf['dataroot']
+    logdir      = conf['logdir']
+    redis_ip    = conf['redis']
+    conf_loader = conf['autoaug']['loader']
+    conf_model  = conf['autoaug']['model']
+    model_type  = conf_model['type']
+    ds_name     = conf_ds['name']
+    aug         = conf_loader['aug']
+    val_ratio   = conf_loader['val_ratio']
+    epochs      = conf_loader['epochs']
+    val_fold    = conf_loader['val_fold']
+    cv_num      = conf_loader['cv_num']
+    num_policy = conf['autoaug']['num_policy']
+    num_op = conf['autoaug']['num_op']
+    num_search = conf['autoaug']['num_search']
+    num_result_per_cv = conf['autoaug']['num_result_per_cv']
+    smoke_test = conf['smoke_test']
+    resume = conf['resume']
+    # endregion
+
+    ray.init(redis_address=redis_ip,
         # allocate all GPUs on local node if cluster is not specified
-        num_gpus=torch.cuda.device_count() if not conf['redis'] else None)
-    logger.info('search augmentation policies, dataset=%s model=%s' %
-        (conf['dataset'], conf['model']['type']))
+        num_gpus=torch.cuda.device_count() if not redis_ip else None)
 
     # first train with no aug
     _train_no_aug(conf)
 
-    sw = StopWatch.get()
-
     # get values from config
-    dataroot, logdir, num_policy, num_op, cv_num, val_ratio, num_samples, \
-        num_result_per_cv, resume = \
-        conf['dataroot'], conf['logdir'], conf['autoaug']['num_policy'],  \
-            conf['autoaug']['num_op'], conf['cv_num'], conf['val_ratio'], \
-            4 if conf['smoke_test'] else conf['autoaug']['num_search'],   \
-            conf['autoaug']['num_result_per_cv'], conf['resume']
+    num_samples = 4 if smoke_test else num_search
 
     logger.info('----- Search Test-Time Augmentation Policies -----')
     sw.start(tag='search')
 
-    save_paths = [get_model_savepath(logdir, conf['dataset'],
-        conf['model']['type'], 'ratio%.1f_fold%d' %
+    save_paths = [get_model_savepath(logdir, ds_name,
+        model_type, 'ratio%.1f_fold%d' %
             (val_ratio, i)) for i in range(cv_num)]
 
     copied_c = copy.deepcopy(conf)
@@ -173,11 +205,11 @@ def search(conf):
     reward_attr = 'top1_valid'      # top1_valid or minus_loss
     for _ in range(1):  # run multiple times.
         for val_fold in range(cv_num):
-            name = "search_%s_%s_fold%d_ratio%.1f" % (conf['dataset'],
-                conf['model']['type'], val_fold, val_ratio)
+            name = "search_%s_%s_fold%d_ratio%.1f" % (ds_name,
+                model_type, val_fold, val_ratio)
             print(name)
-            register_trainable(name, lambda augs,
-                rpt: _eval_tta(copy.deepcopy(copied_c), augs, rpt))
+            register_trainable(name, (lambda augs,
+                rpt: _eval_tta(copy.deepcopy(copied_c), augs, rpt)))
             algo = HyperOptSearch(space, max_concurrent=4*20,
                 reward_attr=reward_attr)
 
@@ -219,20 +251,20 @@ def search(conf):
     logger.info('final_policy=%d' % len(final_policy_set))
     logger.info('processed in %.4f secs, gpu hours=%.4f' % (sw.pause('search'), total_computation / 3600.))
     logger.info('----- Train with Augmentations model=%s dataset=%s aug=%s ratio(test)=%.1f -----' \
-        % (conf['model']['type'], conf['dataset'], conf['aug'], val_ratio))
+        % (model_type, ds_name, aug, val_ratio))
     sw.start(tag='train_aug')
 
     num_experiments = 5
-    default_path = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_default%d'  \
+    default_path = [get_model_savepath(logdir, ds_name, model_type, 'ratio%.1f_default%d'  \
         % (val_ratio, _)) for _ in range(num_experiments)]
-    augment_path = [get_model_savepath(logdir, conf['dataset'], conf['model']['type'], 'ratio%.1f_augment%d'  \
+    augment_path = [get_model_savepath(logdir, ds_name, model_type, 'ratio%.1f_augment%d'  \
         % (val_ratio, _)) for _ in range(num_experiments)]
-    reqs = [_train_model.remote(copy.deepcopy(copied_c), dataroot, conf['aug'], 0.0, 0, save_path=default_path[_], only_eval=True) \
+    reqs = [_train_model.remote(copy.deepcopy(copied_c), dataroot, aug, 0.0, 0, save_path=default_path[_], only_eval=True) \
         for _ in range(num_experiments)] + \
         [_train_model.remote(copy.deepcopy(copied_c), dataroot, final_policy_set, 0.0, 0, save_path=augment_path[_]) \
             for _ in range(num_experiments)]
 
-    tqdm_epoch = tqdm(range(conf['epochs']))
+    tqdm_epoch = tqdm(range(epochs))
     is_done = False
     for epoch in tqdm_epoch:
         while True:
@@ -252,7 +284,7 @@ def search(conf):
                     pass
 
             tqdm_epoch.set_postfix(epochs)
-            if len(epochs) == num_experiments*2 and min(epochs.values()) >= conf['epochs']:
+            if len(epochs) == num_experiments*2 and min(epochs.values()) >= epochs:
                 is_done = True
             if len(epochs) == num_experiments*2 and min(epochs.values()) >= epoch:
                 break
@@ -278,13 +310,24 @@ def search(conf):
 
 def _eval_tta(conf, augment, reporter):
     Config.set(conf)
-    val_ratio, val_fold, save_path = augment['val_ratio'], augment['val_fold'], augment['save_path']
+
+    # region conf vars
+    conf_ds     = conf['dataset']
+    conf_loader = conf['autoaug']['loader']
+    conf_model  = conf['autoaug']['model']
+    ds_name     = conf_ds['name']
+    cutout   = conf_loader['cutout']
+    batch_size   = conf_loader['batch_size']
+    # endregion
+
+    val_ratio, val_fold, save_path = \
+        augment['val_ratio'], augment['val_fold'], augment['save_path']
 
     # setup - provided augmentation rules
-    conf['aug'] = policy_decoder(augment, augment['num_policy'], augment['num_op'])
+    aug = policy_decoder(augment, augment['num_policy'], augment['num_op'])
 
     # eval
-    model = get_model(conf['model'], num_class(conf['dataset']))
+    model = get_model(conf_model, num_class(ds_name))
     ckpt = torch.load(save_path)
     if 'model' in ckpt:
         model.load_state_dict(ckpt['model'])
@@ -294,8 +337,8 @@ def _eval_tta(conf, augment, reporter):
 
     loaders = []
     for _ in range(augment['num_policy']):
-        tl, validloader, tl2, _ = get_dataloaders(conf['dataset'], conf['batch'],
-            augment['dataroot'], conf['aug'], conf['cutout'],
+        tl, validloader, tl2, _ = get_dataloaders(ds_name, batch_size,
+            augment['dataroot'], aug, cutout,
             load_train=True, load_test=True,
             val_ratio=val_ratio, val_fold=val_fold)
         loaders.append(iter(validloader))
@@ -341,6 +384,7 @@ def _eval_tta(conf, augment, reporter):
     del model
     metrics = metrics / 'cnt'
     gpu_secs = (time.time() - start_t) * torch.cuda.device_count()
-    reporter(minus_loss=metrics['minus_loss'], top1_valid=metrics['correct'], elapsed_time=gpu_secs, done=True)
+    reporter(minus_loss=metrics['minus_loss'], top1_valid=metrics['correct'],
+        elapsed_time=gpu_secs, done=True)
     return metrics['correct']
 

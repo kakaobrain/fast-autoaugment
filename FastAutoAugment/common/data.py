@@ -383,7 +383,7 @@ def get_dataloaders(dataset:str, batch, dataroot:str, aug, cutout:int,
     return trainloader, validloader, testloader, train_sampler
 
 
-class CutoutDefault(object):
+class CutoutDefault:
     """
     Reference : https://github.com/quark0/darts/blob/master/cnn/utils.py
     """
@@ -408,7 +408,7 @@ class CutoutDefault(object):
         return img
 
 
-class Augmentation(object):
+class Augmentation:
     def __init__(self, policies):
         self.policies = policies
 

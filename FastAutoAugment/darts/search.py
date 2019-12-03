@@ -20,30 +20,54 @@ from .vis_genotype import draw_genotype
 def search_arch(conf:Config)->None:
     logger = get_logger()
 
+    # region conf vars
+    conf_search   = conf['darts']['search']
+    conf_loader   = conf['darts']['search']['loader']
+    conf_ds       = conf['dataset']
+    conf_w_opt    = conf_search['weights']['optimizer']
+    conf_w_sched  = conf_search['weights']['lr_schedule']
+    ds_name       = conf_ds['name']
+    dataroot      = conf['dataroot']
+    aug           = conf_loader['aug']
+    cutout        = conf_loader['cutout']
+    val_ratio     = conf_loader['val_ratio']
+    batch_size    = conf_loader['batch']
+    epochs        = conf_loader['epochs']
+    val_fold      = conf_loader['val_fold']
+    horovod       = conf['horovod']
+    ch_in         = conf_ds['ch_in']
+    ch_out_init   = conf_search['ch_out_init']
+    n_classes     = conf_ds['n_classes']
+    n_layers      = conf_search['layers']
+    report_freq   = conf['report_freq']
+    grad_clip     = conf_w_opt['clip']
+    plotsdir      = conf['plotsdir']
+    logdir        = conf['logdir']
+    # endregion
+
     # breakdown train to train + val split
     train_dl, val_dl, *_ = get_dataloaders(
-        conf['dataset'], conf['batch'], conf['dataroot'], conf['aug'],
-        conf['darts']['search_cutout'], load_train=True, load_test=False,
-        val_ratio=conf['val_ratio'], val_fold=conf['val_fold'],
-        horovod=conf['horovod'])
+        ds_name, batch_size, dataroot,
+        aug=aug, cutout=cutout, load_train=True, load_test=False,
+        val_ratio=val_ratio, val_fold=val_fold, horovod=horovod)
 
     # CIFAR classification task
     device = torch.device('cuda')
     criterion = nn.CrossEntropyLoss().to(device)
-    model = ArchCnnModel(conf['ch_in'], conf['darts']['ch_out_init'],
-                conf['n_classes'], conf['darts']['layers'], criterion).to(device)
+    model = ArchCnnModel(ch_in, ch_out_init, n_classes, n_layers,
+                        criterion).to(device)
     logger.info("Total param size = %f MB", utils.count_parameters_in_MB(model))
 
     # trainer for alphas
-    arch = Arch(model, conf)
+    arch = Arch(conf, model)
 
     # optimizer for w
-    w_optim = get_optimizer(conf['optimizer'], model.weights())
-    lr_scheduler = get_lr_scheduler(conf, w_optim)
+    w_optim = get_optimizer(conf_w_opt, model.weights())
+    lr_scheduler = get_lr_scheduler(conf_w_sched, epochs, w_optim)
 
     # in search phase we typically only run 50 epochs
     best_top1, best_genotype = 0., None
-    for epoch in range(conf['epochs']):
+    for epoch in range(epochs):
         lr = lr_scheduler.get_lr()[0]
 
         logger.info('\nEpoch: %d lr: %e', epoch, lr)
@@ -53,12 +77,12 @@ def search_arch(conf:Config)->None:
 
         # training
         _train_epoch(train_dl, val_dl, model, arch, w_optim, lr,
-            device, conf['optimizer']['clip'], conf['report_freq'],
-            epoch, conf['epochs'], global_step)
+            device, grad_clip, report_freq,
+            epoch, epochs, global_step)
 
         # validation
         val_top1, _ = _validate_epoch(val_dl, model, device,
-            conf['report_freq'], epoch, conf['epochs'], global_step)
+            report_freq, epoch, epochs, global_step)
 
         lr_scheduler.step()
 
@@ -66,7 +90,7 @@ def search_arch(conf:Config)->None:
         genotype = model.genotype()
         logger.info("genotype = {}".format(genotype))
         # genotype as a image
-        plot_filepath = os.path.join(conf['plotsdir'], "EP{:03d}".format(epoch+1))
+        plot_filepath = os.path.join(plotsdir, "EP{:03d}".format(epoch+1))
         caption = "Epoch {}".format(epoch+1)
         draw_genotype(genotype.normal, plot_filepath+"-normal", caption=caption)
         draw_genotype(genotype.reduce, plot_filepath+"-reduce", caption=caption)
@@ -76,7 +100,7 @@ def search_arch(conf:Config)->None:
             best_top1, best_genotype, is_best = val_top1, genotype, True
         else:
             is_best = False
-        utils.save_checkpoint(model, is_best, conf['logdir'])
+        utils.save_checkpoint(model, is_best, logdir)
 
     logger.info("Final best Prec@1 = {:.4%}".format(best_top1))
     logger.info("Best Genotype = {}".format(best_genotype))

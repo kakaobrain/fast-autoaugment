@@ -17,18 +17,26 @@ from ..networks import get_model, num_class
 
 
 # TODO: remove scheduler parameter?
-def run_epoch(conf, logger, model:nn.Module, loader, loss_fn, optimizer, split_type:str,
-    epoch=0, verbose=1, scheduler=None):
-    """Runs epoch for given dataloader and model. If optimizer is supplied then backprop and model
-    update is done as well. This can be called from test to train modes.
+def run_epoch(conf, logger, model:nn.Module, loader, loss_fn, optimizer,
+        split_type:str, epoch=0, verbose=1, scheduler=None):
+    """Runs epoch for given dataloader and model. If optimizer is supplied
+    then backprop and model update is done as well. This can be called from
+    test to train modes.
     """
 
     writer = get_tb_writer()
 
+    # region conf vars
+    conf_loader = conf['autoaug']['loader']
+    epochs      = conf_loader['epochs']
+    conf_opt    = conf['autoaug']['optimizer']
+    grad_clip   = conf_opt['clip']
+    # endregion
+
     tqdm_disable = bool(os.environ.get('TASK_NAME', ''))  #TODO: remove?
     if verbose:
         loader = tqdm(loader, disable=tqdm_disable)
-        loader.set_description('[%s %04d/%04d]' % (split_type, epoch, conf['epochs']))
+        loader.set_description('[%s %04d/%04d]' % (split_type, epoch, epochs))
 
     metrics = Accumulator()
     cnt = 0
@@ -56,9 +64,9 @@ def run_epoch(conf, logger, model:nn.Module, loader, loss_fn, optimizer, split_t
             if getattr(optimizer, "synchronize", None):
                 optimizer.synchronize()     # for horovod
             # grad clipping defaults to 5 (same as Darts)
-            if conf['optimizer']['clip'] > 0:
+            if grad_clip > 0:
                 nn.utils.clip_grad_norm_(model.parameters(),
-                    conf['optimizer']['clip'])
+                    grad_clip)
             optimizer.step()
 
         top1, top5 = accuracy(preds, label, (1, 5))
@@ -84,10 +92,10 @@ def run_epoch(conf, logger, model:nn.Module, loader, loss_fn, optimizer, split_t
     if tqdm_disable:
         if optimizer:
             logger.info('[%s %03d/%03d] %s lr=%.6f', split_type, epoch,
-                conf['epochs'],metrics / cnt, optimizer.param_groups[0]['lr'])
+                epochs,metrics / cnt, optimizer.param_groups[0]['lr'])
         else:
             logger.info('[%s %03d/%03d] %s', split_type, epoch,
-                conf['epochs'], metrics / cnt)
+                epochs, metrics / cnt)
 
     metrics /= cnt
     if optimizer:
@@ -99,11 +107,27 @@ def run_epoch(conf, logger, model:nn.Module, loader, loss_fn, optimizer, split_t
 
 # metric could be 'last', 'test', 'val', 'train'.
 def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
-    reporter=None, metric='test'):
+        reporter=None, metric='test'):
 
     logger, writer = get_logger(), get_tb_writer()
-    dataroot = conf['dataroot']
-    checkpoint_freq, horovod = conf['checkpoint_freq'], conf['horovod']
+
+    # region conf vars
+    conf_ds         = conf['dataset']
+    dataroot        = conf['dataroot']
+    horovod         = conf['horovod']
+    checkpoint_freq = conf['checkpoint_freq']
+    conf_loader     = conf['autoaug']['loader']
+    conf_model      = conf['autoaug']['model']
+    ds_name         = conf_ds['name']
+    aug             = conf_loader['aug']
+    cutout          = conf_loader['cutout']
+    batch_size      = conf_loader['batch']
+    epochs          = conf_loader['epochs']
+    conf_model      = conf['autoaug']['model']
+    conf_opt        = conf['autoaug']['optimizer']
+    conf_lr_sched   = conf['autoaug']['lr_schedule']
+    # endregion
+
 
     # initialize horovod
     # TODO: move to common init
@@ -117,18 +141,18 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
         reporter = lambda **kwargs: 0
 
     # get dataloaders with transformations and splits applied
-    train_dl, valid_dl, test_dl, trainsampler = get_dataloaders(conf['dataset'],
-        conf['batch'], dataroot, conf['aug'], conf['cutout'],
+    train_dl, valid_dl, test_dl, trainsampler = get_dataloaders(ds_name,
+        batch_size, dataroot, aug, cutout,
         load_train=True, load_test=True,
         val_ratio=val_ratio, val_fold=val_fold, horovod=horovod)
 
     # create a model & an optimizer
-    model = get_model(conf['model'], num_class(conf['dataset']),
+    model = get_model(conf_model, num_class(ds_name),
         data_parallel=(not horovod))
 
     # select loss function and optimizer
     criterion = nn.CrossEntropyLoss()
-    optimizer = get_optimizer(conf['optimizer'], model.parameters())
+    optimizer = get_optimizer(conf_opt, model.parameters())
 
     # distributed optimizer if horovod is used
     is_master = True
@@ -144,7 +168,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
     logger.debug('is_master=%s' % is_master)
 
     # select LR schedule
-    scheduler = get_lr_scheduler(conf, optimizer)
+    scheduler = get_lr_scheduler(conf_lr_sched, epochs, optimizer)
 
     result = OrderedDict()
     epoch_start = 1
@@ -172,7 +196,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
             optimizer.load_state_dict(data['optimizer'])
 
             # restore epoch count
-            if data['epoch'] < conf['epochs']:
+            if data['epoch'] < epochs:
                 epoch_start = data['epoch']
             else:
                 # epochs finished, switch to eval mode
@@ -207,7 +231,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
 
     # train loop
     best_top1, best_valid_loss = 0, 10.0e10
-    max_epoch = conf['epochs']
+    max_epoch = epochs
     for epoch in range(epoch_start, max_epoch + 1):
         if horovod:
             trainsampler.set_epoch(epoch)

@@ -1,6 +1,3 @@
-# DO NOT use directly for an experiment, create new experiment specific file
-# this file is loaded first followed by experiment specific file
-
 dataroot: '~/torchvision_data_dir' #torchvision data folder
 logdir: '~/logdir'
 plotsdir: '~/logdir/plots'
@@ -9,19 +6,7 @@ enable_tb: True # if False then TensorBoard logging is ignored
 horovod: False
 checkpoint_freq: 10
 report_freq: 50 # after every N updates dump loss and other metrics in logger
-
-smoke_test: False
-only_eval: False
-resume: False
-
-dataset: 'cifar10'
-n_classes: 10
-ch_in: 3 # number of channels in image
-val_ratio: 0.4 #split portion for test set, 0 to 1
-val_fold: 0 #Fold number to use (0 to 4)
-cv_num: 5 # total number of folds available
-aug: '' # additional augmentations to use
-cutout: 16 # cutout length, use cutout augmentation when > 0
+# TODO: workers setting
 
 # reddis address of Ray cluster. Use None for single node run
 # otherwise it should something like host:6379. Make sure to run on head node:
@@ -29,43 +14,97 @@ cutout: 16 # cutout length, use cutout augmentation when > 0
 redis: null
 gpus: null # use GPU IDs specified here (comma separated), if null then use all GPUs
 
-optimizer:
-  type: 'sgd'
-  decay: 0
-  momentum: 0.9 # pytorch default is 0
-  nesterov: False
-  clip: 5 # grads above this value is clipped
-  warmup: null
-    # multiplier: 2
-    # epochs: 3
-  betas: [0.9, 0.999] # PyTorch default betas for Adam
+smoke_test: False
+only_eval: False
+resume: False
 
-lr_schedule:
-  type: 'cosine'
-  lr_min: 0.0 # min learning rate, this will be used in eta_min param of scheduler
+dataset:
+  name: 'cifar10'
+  n_classes: 10
+  ch_in: 3 # number of channels in image
 
 autoaug:
   num_op: 2
   num_policy: 5
   num_search: 200
   num_result_per_cv: 10 # after conducting N trials, we will chose the results of top num_result_per_cv
+  loader:
+    aug: '' # additional augmentations to use
+    cutout: 16 # cutout length, use cutout augmentation when > 0
+    batch: 64
+    epochs: 50
+    val_ratio: 0.4 #split portion for test set, 0 to 1
+    val_fold: 0 #Fold number to use (0 to 4)
+    cv_num: 5 # total number of folds available
+  optimizer:
+    type: 'sgd'
+    decay: 0
+    momentum: 0.9 # pytorch default is 0
+    nesterov: False
+    clip: 5 # grads above this value is clipped
+    warmup: null
+      # multiplier: 2
+      # epochs: 3
+    #betas: [0.9, 0.999] # PyTorch default betas for Adam
+  lr_schedule:
+    type: 'cosine'
+    lr_min: 0.0 # min learning rate, this will be used in eta_min param of scheduler
 
 darts:
-  bilevel: True
-  ch_out_init: 16 # num of channels for stem outpt node
-  layers: 8 # total number of layers
-  test_genotype: 'DARTS'
-  search_cutout: 0
-  test_auxtowers: True
-  drop_path_prob: 0.2 # drop path probability
-  test_model_filename: 'cifar10_model.pt'
-
-  optimizer_arch:
-    type: 'adam'
-    lr: 3.0e-4
-    decay: 1e-3
-    betas: [0.5, 0.999]
-    # momentum: 0.9 # pytorch default is 0
-    # nesterov: False
-    # clip: 5 # grads above this value is clipped
-    # warmup: null
+  test:
+    genotype: 'DARTS'
+    auxtowers: True
+    drop_path_prob: 0.2 # drop path probability
+    model_filename: 'cifar10_model.pt'
+    ch_out_init: 36 # num of channels for stem outpt node
+    layers: 20 # total number of layers
+    loader:
+      aug: '' # additional augmentations to use
+      cutout: 16 # cutout length, use cutout augmentation when > 0
+      batch: 96
+      epochs: 600
+      val_ratio: 0.4 #split portion for test set, 0 to 1
+      val_fold: 0 #Fold number to use (0 to 4)
+      cv_num: 5 # total number of folds available
+    optimizer:
+      type: 'sgd'
+      lr: 0.025 # init learning rate
+      decay: 3.0e-4
+      momentum: 0.9 # pytorch default is 0
+      nesterov: False
+      clip: 5 # grads above this value is clipped
+      warmup: null
+    lr_schedule:
+      type: 'cosine'
+      lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler
+  search:
+    bilevel: True
+    ch_out_init: 16 # num of channels for stem outpt node
+    layers: 8 # total number of layers
+    loader:
+      aug: '' # additional augmentations to use
+      cutout: 0 # cutout length, use cutout augmentation when > 0
+      batch: 64
+      epochs: 50
+      val_ratio: 0.5 #split portion for test set, 0 to 1
+      val_fold: 0 #Fold number to use (0 to 4)
+      cv_num: 5 # total number of folds available
+    alphas:
+      optimizer:
+        type: 'adam'
+        lr: 3.0e-4
+        decay: 1e-3
+        betas: [0.5, 0.999]
+      lr_schedule: null
+    weights:
+      optimizer:
+        type: 'sgd'
+        lr: 0.025 # init learning rate
+        decay: 3.0e-4
+        momentum: 0.9 # pytorch default is 0
+        nesterov: False
+        clip: 5 # grads above this value is clipped
+        warmup: null
+      lr_schedule:
+        type: 'cosine'
+        lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler

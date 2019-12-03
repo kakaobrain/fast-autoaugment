@@ -16,11 +16,21 @@ from ..common.optimizer import get_optimizer
 #   w' - updated w using grads from the loss
 class Arch:
 
-    def __init__(self, model:ArchCnnModel, conf:Config)->None:
-        self._w_momentum = conf['optimizer']['momentum'] # momentum for w
-        self._w_weight_decay =conf['optimizer']['decay'] # weight decay for w
+    def __init__(self, conf:Config, model:ArchCnnModel)->None:
+
+        # region conf vars
+        conf_search = conf['darts']['search']
+        conf_w_opt  = conf_search['weights']['optimizer']
+        conf_a_opt  = conf_search['alphas']['optimizer']
+        w_momentum  = conf_w_opt['momentum']
+        w_decay     = conf_w_opt['decay']
+        bilevel     = conf_search['bilevel']
+        # endregion
+
+        self._w_momentum = w_momentum # momentum for w
+        self._w_weight_decay = w_decay # weight decay for w
         self._model = model # main model with respect to w and alpha
-        self._bilevel:bool = conf['darts']['bilevel']
+        self._bilevel:bool = bilevel
 
         # create a copy of model which we will use
         # to compute grads for alphas without disturbing
@@ -29,8 +39,7 @@ class Arch:
         self._vmodel = copy.deepcopy(model)
 
         # this is the optimizer to optimize alphas parameter
-        self._alpha_optim = get_optimizer(conf['darts']['optimizer_arch'],
-            model.alphas())
+        self._alpha_optim = get_optimizer(conf_a_opt, model.alphas())
 
     def _update_vmodel(self, x, y, lr:float, w_optim:Optimizer)->None:
         """ Update vmodel with w' (main model has w) """

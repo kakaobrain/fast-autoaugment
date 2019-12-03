@@ -1,7 +1,7 @@
 import json
 import os
 from FastAutoAugment.common.common import get_logger, common_init
-from FastAutoAugment.common.train import train_and_eval
+from FastAutoAugment.data_aug.train import train_and_eval
 
 
 if __name__ == '__main__':

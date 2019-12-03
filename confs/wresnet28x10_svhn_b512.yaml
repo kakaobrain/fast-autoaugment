@@ -1,17 +1,21 @@
-model:
-  type: wresnet28_10
-dataset: svhn
-aug: fa_reduced_svhn
-cutout: 20
-batch: 512
-epochs: 200
-lr_schedule:
-  type: 'cosine'
-  warmup:
-    multiplier: 4
-    epochs: 5
-optimizer:
-  type: sgd
-  lr: 0.01
-  nesterov: True
-  decay: 0.0005
+dataset:
+  name: svhn
+
+autoaug:
+  model:
+    type: wresnet28_10
+  loader:
+    aug: fa_reduced_svhn
+    cutout: 20
+    batch: 512
+    epochs: 200
+  lr_schedule:
+    type: 'cosine'
+    warmup:
+      multiplier: 4
+      epochs: 5
+  optimizer:
+    type: sgd
+    lr: 0.01
+    nesterov: True
+    decay: 0.0005

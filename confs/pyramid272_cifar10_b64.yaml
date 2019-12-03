@@ -1,17 +1,18 @@
-model:
-  type: pyramid
-  depth: 272
-  alpha: 200
-  bottleneck: True
-dataset: cifar10
-aug: fa_reduced_cifar10
-cutout: 16
-batch: 64
-epochs: 1800
-lr_schedule:
-  type: 'cosine'
-optimizer:
-  type: sgd
-  lr: 0.05
-  nesterov: True
-  decay: 0.00005
+autoaug:
+  model:
+    type: pyramid
+    depth: 272
+    alpha: 200
+    bottleneck: True
+  loader:
+    aug: fa_reduced_cifar10
+    cutout: 16
+    batch: 64
+    epochs: 1800
+  lr_schedule:
+    type: 'cosine'
+  optimizer:
+    type: sgd
+    lr: 0.05
+    nesterov: True
+    decay: 0.00005

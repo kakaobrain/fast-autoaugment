@@ -8,34 +8,56 @@ from ..common import utils
 from ..common.common import get_logger, get_tb_writer
 from ..common.data import get_dataloaders
 from .model_test import NetworkCIFAR as Network
+from ..common.optimizer import get_lr_scheduler, get_optimizer
 
 def test_arch(conf):
     logger, writer = get_logger(), get_tb_writer()
+
+    # region conf vars
+    conf_test   = conf['darts']['test']
+    conf_loader   = conf['darts']['test']['loader']
+    conf_ds       = conf['dataset']
+    conf_opt    = conf_test['optimizer']
+    conf_lr_sched = conf_test['lr_schedule']
+    ds_name       = conf_ds['name']
+    batch_size    = conf_loader['batch']
+    dataroot      = conf['dataroot']
+    aug           = conf_loader['aug']
+    cutout        = conf_loader['cutout']
+    test_genotype     = conf_test['test_genotype']
+    ch_out_init   = conf_test['ch_out_init']
+    use_auxtowers = conf_test['auxtowers']
+    drop_path_prob = conf_test['drop_path_prob']
+    n_classes     = conf_ds['n_classes']
+    # endregion
+
     device = torch.device("cuda")
 
-    _, _, test_dl, *_ = get_dataloaders(
-        conf['dataset'], conf['batch'], conf['dataroot'], conf['aug'],
-        conf['cutout'], load_train=False, load_test=True,
-        val_ratio=conf['val_ratio'], val_fold=conf['val_fold'],
+    train_dl, _, test_dl, _ = get_dataloaders(
+        ds_name, batch_size, dataroot, aug, cutout,
+        load_train=True, load_test=True,
+        val_ratio=0., val_fold=0, # no validation set
         horovod=conf['horovod'])
 
-    # equal to: genotype = genotypes.DARTS_v2
-    genotype = eval("genotypes.%s" % conf['darts']['test_genotype'])
+    # load genotype we want to test
+    genotype = eval("genotypes.%s" % test_genotype)
     logger.info('test genotype: {}'.format(genotype))
 
-    model = Network(conf['darts']['ch_out_init'], conf['n_classes'],
-        conf['darts']['layers'], conf['darts']['test_auxtowers'],
-        genotype).to(device)
     criterion = nn.CrossEntropyLoss().to(device)
-    model.drop_path_prob = conf['drop_path_prob']
 
-    model_filepath = os.path.join(conf['logdir'], conf['darts']['test_model_filename'])
-    utils.load(model, model_filepath)
-    logger.info("param size = %fMB", utils.count_parameters_in_MB(model))
+    # create model
+    model = Network(ch_out_init, n_classes, n_layers, use_auxtowers, genotype)
+    model.drop_path_prob = drop_path_prob
+    mb_params = utils.param_size(model)
+    logger.info("Model size = {:.3f} MB".format(mb_params))
+    # TODO: model = nn.DataParallel(model, device_ids=config.gpus).to(device)
+    model = model.to(device)
+
+    optim = get_optimizer(conf_opt, model.parameters())
+    lr_scheduler = get_lr_scheduler(conf_lr_sched, optim)
 
     test_acc, test_obj = _infer(test_dl, model, criterion, conf['report_freq'])
     logger.info('test_acc %f', test_acc)
-
 
 def _infer(test_dl, model, criterion, report_freq):
     logger = get_logger()

@@ -194,7 +194,7 @@ def apply_augment(img, name, level):
     return augment_fn(img.copy(), level * (high - low) + low)
 
 
-class Lighting(object):
+class Lighting:
     """Lighting noise(AlexNet - style PCA - based noise)"""
 
     def __init__(self, alphastd, eigval, eigvec):

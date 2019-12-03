@@ -2,6 +2,8 @@ from torch.optim import lr_scheduler, SGD, Adam, Optimizer
 from warmup_scheduler import GradualWarmupScheduler
 from .common import Config
 
+PtLRScheduler = lr_scheduler._LRScheduler
+
 def get_optimizer(conf:dict, params)->Optimizer:
     if conf['type'] == 'sgd':
         return SGD(
@@ -19,29 +21,38 @@ def get_optimizer(conf:dict, params)->Optimizer:
     else:
         raise ValueError('invalid optimizer type=%s' % conf['type'])
 
-def get_lr_scheduler(conf:Config, optimizer:Optimizer)->lr_scheduler._LRScheduler:
-    lr_scheduler_type = conf['lr_schedule']['type'] # TODO: default should be none?
-    scheduler = None
+def get_optim_lr(optimizer:Optimizer)->float:
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
+
+def get_lr_scheduler(conf_lrs:dict, epochs:int, optimizer:Optimizer)-> \
+        PtLRScheduler:
+
+    scheduler:PtLRScheduler = None
+    lr_scheduler_type = conf_lrs['type'] # TODO: default should be none?
     if lr_scheduler_type == 'cosine':
-        epochs = conf['epochs']
         # adjust max epochs for warmup
         # TODO: shouldn't we be increasing epochs or schedule lr only after warmup?
-        if conf['lr_schedule'].get('warmup', None):
-            epochs -= conf['lr_schedule']['warmup']['epoch']
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=conf['lr_schedule']['lr_min'])
+        if conf_lrs.get('warmup', None):
+            epochs -= conf_lrs['warmup']['epoch']
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs,
+            eta_min=conf_lrs['lr_min'])
     elif lr_scheduler_type == 'resnet':
-        scheduler = _adjust_learning_rate_resnet(optimizer, conf['epochs'])
+        scheduler = _adjust_learning_rate_resnet(optimizer, epochs)
     elif lr_scheduler_type == 'pyramid':
-        scheduler = _adjust_learning_rate_pyramid(optimizer, conf['epochs'], conf['optimizer']['lr'])
+        scheduler = _adjust_learning_rate_pyramid(optimizer, epochs,
+            get_optim_lr(optimizer))
+    elif not lr_scheduler_type:
+            scheduler = None
     else:
         raise ValueError('invalid lr_schduler=%s' % lr_scheduler_type)
 
     # select warmup for LR schedule
-    if conf['lr_schedule'].get('warmup', None):
+    if conf_lrs.get('warmup', None):
         scheduler = GradualWarmupScheduler(
             optimizer,
-            multiplier=conf['lr_schedule']['warmup']['multiplier'],
-            total_epoch=conf['lr_schedule']['warmup']['epoch'],
+            multiplier=conf_lrs['warmup']['multiplier'],
+            total_epoch=conf_lrs['warmup']['epoch'],
             after_scheduler=scheduler
         )
     return scheduler

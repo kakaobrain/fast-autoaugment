@@ -1,17 +1,18 @@
-model:
-  type: shakeshake26_2x112d
-dataset: cifar10
-aug: fa_reduced_cifar10
-cutout: 16
-batch: 512
-epochs: 1800
-lr_schedule:
-  type: 'cosine'
-  warmup:
-    multiplier: 4
-    epochs: 5
-optimizer:
-  type: sgd
-  lr: 0.01
-  nesterov: True
-  decay: 0.002
+autoaug:
+  model:
+    type: shakeshake26_2x112d
+  loader:
+    aug: fa_reduced_cifar10
+    cutout: 16
+    batch: 512
+    epochs: 1800
+  lr_schedule:
+    type: 'cosine'
+    warmup:
+      multiplier: 4
+      epochs: 5
+  optimizer:
+    type: sgd
+    lr: 0.01
+    nesterov: True
+    decay: 0.002
