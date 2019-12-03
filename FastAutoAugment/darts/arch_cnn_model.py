@@ -3,6 +3,7 @@ from torch import nn
 from torch.nn import modules
 import torch.nn.functional as F
 from torch.nn.modules.module import Module
+import logging
 
 from .operations import OPS, FactorizedReduce, ReLUConvBN, MixedOp
 from . import genotypes as gt
@@ -69,12 +70,12 @@ class _Cell(nn.Module):
                 op = MixedOp(ch_out, stride)
                 self.dag[i].append(op)
 
-    def forward(self, s0, s1, alpha_sm):
+    def forward(self, s0, s1, alphas_sm):
         """
 
         :param s0: output of cell k-1
         :param s1: output of cell k-2
-        :param alpha_sm: List of alphas for each cell with softmax applied
+        :param alphas_sm: List of alphas for each cell with softmax applied
         """
 
         # print('s0:', s0.shape,end='=>')
@@ -84,13 +85,13 @@ class _Cell(nn.Module):
         node_outs = [s0, s1]
 
         # for each node, receive input from all previous nodes and s0, s1
-        node_alpha:nn.Parameter # shape (i+2, n_ops)
+        node_alphas:nn.Parameter # shape (i+2, n_ops)
         node_ops:nn.ModuleList # list of MixedOp operating on previous nodes
 
-        for node_ops, node_alpha in zip(self.dag, alpha_sm):
-            # take each previous ouput and column of node_alpha param
+        for node_ops, node_alphas in zip(self.dag, alphas_sm):
+            # take each previous ouput and column of node_alphas param
             # (each column has n_ops trainable params)
-            out_alpha = zip(node_outs, node_alpha)
+            out_alpha = zip(node_outs, node_alphas)
 
             # why do we do sum? Hope is that some weight will win and others
             # would lose masking their outputs
@@ -119,7 +120,7 @@ class _CnnModel(nn.Module):
         :param n_layers: number of cells of current network
         :param n_nodes: nodes inside cell
         :param n_node_outs: output channel of cell = n_node_outs * ch
-        :param stem_multiplier: output channel of stem net = stem_multiplier * ch
+        :param stem_multiplier: output channel of stem net = stem_multiplier*ch
         """
         super().__init__()
 
@@ -171,7 +172,7 @@ class _CnnModel(nn.Module):
         # it indicates the input channel number
         self.linear = nn.Linear(ch_p, n_classes)
 
-    def forward(self, x, alpha_sm_normal, alpha_sm_reduce):
+    def forward(self, x, alphas_sm_normal, alphas_sm_reduce):
         """
         Runs x through cells with alphas, applies final pooling, send through
             FCs and returns logits.
@@ -195,8 +196,8 @@ class _CnnModel(nn.Module):
         # macro structure: each cell consumes output of
         # previous two cells
         for cell in self._cells:
-            alpha_sm = alpha_sm_reduce if cell.reduction else alpha_sm_normal
-            s0, s1 = s1, cell(s0, s1, alpha_sm) # [40, 64, 32, 32]
+            alphas_sm = alphas_sm_reduce if cell.reduction else alphas_sm_normal
+            s0, s1 = s1, cell(s0, s1, alphas_sm) # [40, 64, 32, 32]
 
         # s1 is now the last cell's output
         out = self.final_pooling(s1)
@@ -223,29 +224,31 @@ class ArchCnnModel(nn.Module):
 
         n_ops = len(gt.PRIMITIVES)
 
-        self.alpha_normal = nn.ParameterList()
-        self.alpha_reduce = nn.ParameterList()
+        self._alphas_normal = nn.ParameterList()
+        self._alphas_reduce = nn.ParameterList()
         self._alphas = [] # all alpha params for faster access
 
         # TODO: is unofrm rand init good idea?
         for i in range(self.n_nodes):
-            self.alpha_normal.append(nn.Parameter(1e-3*torch.randn(i+2, n_ops)))
-            self.alpha_reduce.append(nn.Parameter(1e-3*torch.randn(i+2, n_ops)))
+            self._alphas_normal.append(
+                nn.Parameter(1e-3*torch.randn(i+2, n_ops)))
+            self._alphas_reduce.append(
+                nn.Parameter(1e-3*torch.randn(i+2, n_ops)))
 
         # setup alphas list
         self._alphas = []
         for n, p in self.named_parameters():
-            if 'alpha' in n:
+            if 'alpha' in n: # TODO: may be directly add above params?
                 self._alphas.append((n, p))
 
     def forward(self, x):
         # pass weights through softmax, squashing them between 0 to 1
-        alpha_sm_normal = [F.softmax(alpha, dim=-1)
-            for alpha in self.alpha_normal]
-        alpha_sm_reduce = [F.softmax(alpha, dim=-1)
-            for alpha in self.alpha_reduce]
+        alphas_sm_normal = [F.softmax(alpha, dim=-1)
+            for alpha in self._alphas_normal]
+        alphas_sm_reduce = [F.softmax(alpha, dim=-1)
+            for alpha in self._alphas_reduce]
 
-        return self._model(x, alpha_sm_normal, alpha_sm_reduce)
+        return self._model(x, alphas_sm_normal, alphas_sm_reduce)
 
     def loss(self, x, target):
         logits = self(x)
@@ -260,11 +263,11 @@ class ArchCnnModel(nn.Module):
 
         logger.info("####### ALPHA #######")
         logger.info("# Alpha - normal")
-        for alpha in self.alpha_normal:
+        for alpha in self._alphas_normal:
             logger.info(F.softmax(alpha, dim=-1))
 
         logger.info("\n# Alpha - reduce")
-        for alpha in self.alpha_reduce:
+        for alpha in self._alphas_reduce:
             logger.info(F.softmax(alpha, dim=-1))
         logger.info("#####################")
 
@@ -273,8 +276,8 @@ class ArchCnnModel(nn.Module):
             handler.setFormatter(formatter)
 
     def genotype(self):
-        gene_normal = gt.parse(self.alpha_normal, k=2)
-        gene_reduce = gt.parse(self.alpha_reduce, k=2)
+        gene_normal = gt.parse(self._alphas_normal, k=2)
+        gene_reduce = gt.parse(self._alphas_reduce, k=2)
         concat = range(2, 2+self.n_nodes) # concat all intermediate nodes
 
         return gt.Genotype(normal=gene_normal, normal_concat=concat,
