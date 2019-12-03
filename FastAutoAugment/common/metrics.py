@@ -23,8 +23,8 @@ def accuracy(output, target, topk=(1,)):
     return res
 
 
-def cross_entropy_smooth(input, target, size_average=True, label_smoothing=0.1):
-    y = torch.eye(10).cuda()
+def cross_entropy_smooth(input:torch.Tensor, target, size_average=True, label_smoothing=0.1):
+    y = torch.eye(10).to(input.device)
     lb_oh = y[target]
 
     target = lb_oh * (1 - label_smoothing) + 0.5 * label_smoothing

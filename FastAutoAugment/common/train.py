@@ -17,7 +17,7 @@ from ..networks import get_model, num_class
 
 
 # TODO: remove scheduler parameter?
-def run_epoch(conf, logger, model, loader, loss_fn, optimizer, split_type:str,
+def run_epoch(conf, logger, model:nn.Module, loader, loss_fn, optimizer, split_type:str,
     epoch=0, verbose=1, scheduler=None):
     """Runs epoch for given dataloader and model. If optimizer is supplied then backprop and model
     update is done as well. This can be called from test to train modes.
@@ -117,8 +117,9 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
         reporter = lambda **kwargs: 0
 
     # get dataloaders with transformations and splits applied
-    trainsampler, train_dl, valid_dl, test_dl = get_dataloaders(conf['dataset'],
+    train_dl, valid_dl, test_dl, trainsampler = get_dataloaders(conf['dataset'],
         conf['batch'], dataroot, conf['aug'], conf['cutout'],
+        load_train=True, load_test=True,
         val_ratio=val_ratio, val_fold=val_fold, horovod=horovod)
 
     # create a model & an optimizer

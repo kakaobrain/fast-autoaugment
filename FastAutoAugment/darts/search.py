@@ -21,10 +21,11 @@ def search_arch(conf:Config)->None:
     logger = get_logger()
 
     # breakdown train to train + val split
-    _, train_dl, val_dl, _ = get_dataloaders(
+    train_dl, val_dl, *_ = get_dataloaders(
         conf['dataset'], conf['batch'], conf['dataroot'], conf['aug'],
-        conf['darts']['search_cutout'], val_ratio=conf['val_ratio'],
-        val_fold=conf['val_fold'], horovod=conf['horovod'])
+        conf['darts']['search_cutout'], load_train=True, load_test=False,
+        val_ratio=conf['val_ratio'], val_fold=conf['val_fold'],
+        horovod=conf['horovod'])
 
     # CIFAR classification task
     device = torch.device('cuda')

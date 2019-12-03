@@ -41,7 +41,7 @@ def get_model(conf, num_class=10, data_parallel=True):
         raise NameError('no model named, %s' % name)
 
     if data_parallel:
-        model = model.cuda()
+        model = model.to(device)
         model = DataParallel(model)
     else:
         import horovod.torch as hvd

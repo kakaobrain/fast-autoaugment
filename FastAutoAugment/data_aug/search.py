@@ -293,9 +293,11 @@ def _eval_tta(conf, augment, reporter):
     model.eval()
 
     loaders = []
-    for _ in range(augment['num_policy']):  # TODO
-        _, tl, validloader, tl2 = get_dataloaders(conf['dataset'], conf['batch'], augment['dataroot'],
-            conf['aug'], conf['cutout'], val_ratio, val_fold=val_fold)
+    for _ in range(augment['num_policy']):
+        tl, validloader, tl2, _ = get_dataloaders(conf['dataset'], conf['batch'],
+            augment['dataroot'], conf['aug'], conf['cutout'],
+            load_train=True, load_test=True,
+            val_ratio=val_ratio, val_fold=val_fold)
         loaders.append(iter(validloader))
         del tl, tl2 # TODO: why exclude validloader?
 
@@ -308,8 +310,7 @@ def _eval_tta(conf, augment, reporter):
             corrects = []
             for loader in loaders:
                 data, label = next(loader)
-                data = data.cuda()
-                label = label.cuda()
+                data, label = data.cuda(), label.cuda()
 
                 pred = model(data)
 
@@ -318,7 +319,8 @@ def _eval_tta(conf, augment, reporter):
 
                 _, pred = pred.topk(1, 1, True, True)
                 pred = pred.t()
-                correct = pred.eq(label.view(1, -1).expand_as(pred)).detach().cpu().numpy()
+                correct = pred.eq(label.view(1, -1).expand_as(pred)) \
+                    .detach().cpu().numpy()
                 corrects.append(correct)
                 del loss, correct, pred, data, label
 
