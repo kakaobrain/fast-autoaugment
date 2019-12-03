@@ -9,34 +9,40 @@ from . import genotypes as gt
 
 class _Cell(nn.Module):
 
-    def __init__(self, n_nodes:int, n_node_outs:int, ch_pp:int, ch_p:int, ch_out:int, reduction:bool, reduction_prev:bool):
+    def __init__(self, n_nodes:int, n_node_outs:int, ch_pp:int, ch_p:int,
+        ch_out:int, reduction:bool, reduction_prev:bool):
         """
-        Each cell k takes input from last two cells k-2, k-1. The cell consists of `n_nodes` so that on each node i,
-        we take output of all previous i nodes + 2 cell inputs, apply op on each of these outputs and produce their
-        sum as output of i-th node.
-        Each op output has ch_out channels. The output of the cell produced by forward() is concatenation of last
-        `n_node_outs` number of nodes. _Cell could be a reduction cell or it could be a normal cell. The
-        diference between two is that reduction cell uses stride=2 for the ops that connects to cell inputs.
+        Each cell k takes input from last two cells k-2, k-1. The cell consists
+        of `n_nodes` so that on each node i, we take output of all previous i
+        nodes + 2 cell inputs, apply op on each of these outputs and produce
+        their sum as output of i-th node. Each op output has ch_out channels.
+        The output of the cell produced by forward() is concatenation of last
+        `n_node_outs` number of nodes. _Cell could be a reduction cell or it
+        could be a normal cell. The diference between two is that reduction
+        cell uses stride=2 for the ops that connects to cell inputs.
 
         :param n_nodes: 4, number of nodes inside a cell
-        :param n_node_outs: 4, number of last nodes to concatenate as output, this will multiply number of channels in node
+        :param n_node_outs: 4, number of last nodes to concatenate as output,
+            this will multiply number of channels in node
         :param ch_pp: 48, channels from cell k-2
         :param ch_p: 48, channels from cell k-1
         :param ch_out: 16, output channels for each node
         :param reduction: Is this reduction cell? If so reduce output size
-        :param reduction_prev: Was previous cell reduction? Is so we should resize
-        reduce the s0 width by half.
+        :param reduction_prev: Was previous cell reduction? Is so we should
+            resize reduce the s0 width by half.
         """
         super(_Cell, self).__init__()
 
         # indicating current cell is reduction or not
         self.reduction = reduction
 
-        # We get output from cells i-1 and i-2.
-        # If i-1 was reduction cell then output shapes of i-1 and i-2 don't match.
-        # In tha case we reduce i-1 output by 4X as well.
-        # If i-2 was reduction cell then i-1 and i-2 output will match.
-        # TODO: reduction cell might have output reduced by 2^1=2X due to stride 2 through input nodes however FactorizedReduce does only 4X reduction. Is this correct?
+        """We get output from cells i-1 and i-2.
+        If i-1 was reduction cell then output shapes of i-1 and i-2 don't match.
+        In tha case we reduce i-1 output by 4X as well.
+        If i-2 was reduction cell then i-1 and i-2 output will match."""
+        # TODO: reduction cell might have output reduced by 2^1=2X due to
+        #   stride 2 through input nodes however FactorizedReduce does only
+        #   4X reduction. Is this correct?
         if reduction_prev:
             self.preprocess0 = FactorizedReduce(ch_pp, ch_out, affine=False)
         else: # use 1x1 conv to get desired channels
@@ -78,31 +84,37 @@ class _Cell(nn.Module):
         node_outs = [s0, s1]
 
         # for each node, receive input from all previous nodes and s0, s1
-        node_alpha:nn.Parameter # alpha for each node is nn.Parameter of shape (i+2, n_ops)
-        node_ops:nn.ModuleList # ops for each node is list of MixedOp operating on previous node
+        node_alpha:nn.Parameter # shape (i+2, n_ops)
+        node_ops:nn.ModuleList # list of MixedOp operating on previous nodes
 
         for node_ops, node_alpha in zip(self.dag, alpha_sm):
-            # take each previous ouput and column of node_alpha param (each column has n_ops trainable params)
+            # take each previous ouput and column of node_alpha param
+            # (each column has n_ops trainable params)
             out_alpha = zip(node_outs, node_alpha)
 
-            # why do we do sum? Hope is that some weight will win and others would lose masking their outputs
-            # TODO: we should probably do average here otherwise output will blow up as number of primitives grows
+            # why do we do sum? Hope is that some weight will win and others
+            # would lose masking their outputs
+            # TODO: we should probably do average here otherwise output will
+            #   blow up as number of primitives grows
             o = sum(node_ops[i](o, w) for i, (o, w) in enumerate(out_alpha))
             # append one state since s is the elem-wise addition of all output
             node_outs.append(o)
 
         # concat along dim=channel
-        # TODO: Below assumes same shape except for channels but this won't happen for max pool etc shapes?
-        return torch.cat(node_outs[-self.n_node_outs:], dim=1) # 6 of [40, 16, 32, 32]
+        # TODO: Below assumes same shape except for channels but this won't
+        #   happen for max pool etc shapes?
+        return torch.cat(node_outs[-self.n_node_outs:], dim=1) # 6x[40,16,32,32]
 
 class _CnnModel(nn.Module):
     """ Search CNN model """
 
-    def __init__(self, ch_in:int, ch_out_init:int, n_classes:int, n_layers:int, n_nodes=4, n_node_outs=4, stem_multiplier=3):
+    def __init__(self, ch_in:int, ch_out_init:int, n_classes:int, n_layers:int,
+        n_nodes=4, n_node_outs=4, stem_multiplier=3):
         """
 
-        :param ch_in: 3 (number of channels in input image)
-        :param ch_out_init: 16 (number of output channels from the first layer) / stem_multiplier
+        :param ch_in: number of channels in input image (3)
+        :param ch_out_init: number of output channels from the first layer) /
+            stem_multiplier (16)
         :param n_classes: number of classes
         :param n_layers: number of cells of current network
         :param n_nodes: nodes inside cell
@@ -122,7 +134,8 @@ class _CnnModel(nn.Module):
         # TODO: why do we need stem_multiplier?
         ch_cur = stem_multiplier * ch_out_init # 3*16
         self.stem = nn.Sequential( # 3 => 48
-            # batchnorm is added after each layer. Bias is turned off due to BN in conv layer.
+            # batchnorm is added after each layer. Bias is turned off due to
+            # BN in conv layer.
             nn.Conv2d(ch_in, ch_cur, 3, padding=1, bias=False),
             nn.BatchNorm2d(ch_cur)
         )
@@ -143,7 +156,8 @@ class _CnnModel(nn.Module):
 
             # [ch_p, h, h] => [n_node_outs*ch_cur, h/h//2, h/h//2]
             # the output channels = n_node_outs * ch_cur
-            cell = _Cell(n_nodes, n_node_outs, ch_pp, ch_p, ch_cur, reduction, reduction_prev)
+            cell = _Cell(n_nodes, n_node_outs, ch_pp, ch_p, ch_cur, reduction,
+                reduction_prev)
             # update reduction_prev
             reduction_prev = reduction
 
@@ -159,7 +173,8 @@ class _CnnModel(nn.Module):
 
     def forward(self, x, alpha_sm_normal, alpha_sm_reduce):
         """
-        Runs x through cells with alphas, applies final pooling, send through FCs and returns logits.
+        Runs x through cells with alphas, applies final pooling, send through
+            FCs and returns logits.
 
         in: torch.Size([3, 3, 32, 32])
         stem: torch.Size([3, 48, 32, 32])
@@ -190,7 +205,8 @@ class _CnnModel(nn.Module):
         return logits
 
 class ArchCnnModel(nn.Module):
-    def __init__(self, ch_in, ch_out_init, n_classes, n_layers, criterion, n_nodes=4, n_node_outs=4, stem_multiplier=3):
+    def __init__(self, ch_in, ch_out_init, n_classes, n_layers, criterion,
+            n_nodes=4, n_node_outs=4, stem_multiplier=3):
         super().__init__()
         self.n_nodes = n_nodes
         self.criterion = criterion
@@ -198,7 +214,8 @@ class ArchCnnModel(nn.Module):
         # alphas must be created before we create inner model
         self._create_alpahs()
 
-        self._model = _CnnModel(ch_in, ch_out_init, n_classes, n_layers, n_nodes, n_node_outs, stem_multiplier)
+        self._model = _CnnModel(ch_in, ch_out_init, n_classes, n_layers,
+            n_nodes, n_node_outs, stem_multiplier)
 
     def _create_alpahs(self):
         # create alpha parameters for each node.
@@ -223,8 +240,10 @@ class ArchCnnModel(nn.Module):
 
     def forward(self, x):
         # pass weights through softmax, squashing them between 0 to 1
-        alpha_sm_normal = [F.softmax(alpha, dim=-1) for alpha in self.alpha_normal]
-        alpha_sm_reduce = [F.softmax(alpha, dim=-1) for alpha in self.alpha_reduce]
+        alpha_sm_normal = [F.softmax(alpha, dim=-1)
+            for alpha in self.alpha_normal]
+        alpha_sm_reduce = [F.softmax(alpha, dim=-1)
+            for alpha in self.alpha_reduce]
 
         return self._model(x, alpha_sm_normal, alpha_sm_reduce)
 
