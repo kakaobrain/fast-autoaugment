@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from . import genotypes
-
+from . import utils
 
 # OPS is a set of uninary tensor operators
 OPS = {
@@ -137,7 +137,6 @@ class SepConv(nn.Module):
 
 
 class Identity(nn.Module):
-
     def __init__(self):
         super(Identity, self).__init__()
 
@@ -207,17 +206,8 @@ class MixedOp(nn.Module):
     def forward(self, x, alpha):
         return sum(w * op(x) for w, op in zip(alpha, self._ops))
 
-def drop_path_(x, drop_prob, training):
-    if training and drop_prob > 0.:
-        keep_prob = 1. - drop_prob
-        # per data point mask; assuming x in cuda.
-        mask = torch.cuda.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob)
-        x.div_(keep_prob).mul_(mask)
-
-    return x
-
-
 class DropPath_(nn.Module):
+    """Replace values in tensor by 0. with probability p"""
     def __init__(self, p=0.):
         """ [!] DropPath is inplace module
         Args:
@@ -230,6 +220,5 @@ class DropPath_(nn.Module):
         return 'p={}, inplace'.format(self.p)
 
     def forward(self, x):
-        drop_path_(x, self.p, self.training)
+        return utils.drop_path_(x, self.p, self.training)
 
-        return x

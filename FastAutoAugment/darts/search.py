@@ -1,11 +1,8 @@
 from typing import Tuple
 import  torch.nn as nn
 import torch
-from torch import optim
 from torch.optim.optimizer import Optimizer
-import  torchvision.datasets as tvds
 from  torch.utils.data import DataLoader
-import numpy as np
 import os
 
 from ..common.config import Config
@@ -56,7 +53,7 @@ def search_arch(conf:Config)->None:
     criterion = nn.CrossEntropyLoss().to(device)
     model = ArchCnnModel(ch_in, ch_out_init, n_classes, n_layers,
                         criterion).to(device)
-    logger.info("Total param size = %f MB", utils.count_parameters_in_MB(model))
+    logger.info("Total param size = %f MB", utils.param_size(model))
 
     # trainer for alphas
     arch = Arch(conf, model)
@@ -81,7 +78,7 @@ def search_arch(conf:Config)->None:
             epoch, epochs, global_step)
 
         # validation
-        val_top1, _ = _validate_epoch(val_dl, model, device,
+        val_top1 = utils.test_epoch(val_dl, model, device, model.criterion,
             report_freq, epoch, epochs, global_step)
 
         lr_scheduler.step()
@@ -106,7 +103,7 @@ def search_arch(conf:Config)->None:
     logger.info("Best Genotype = {}".format(best_genotype))
 
 
-def _train_epoch(train_dl:DataLoader, val_dl:DataLoader, model:ArchCnnModel,
+def train_epoch(train_dl:DataLoader, val_dl:DataLoader, model:ArchCnnModel,
     arch:Arch, w_optim:Optimizer, lr:float, device, grad_clip:float,
     report_freq, epoch:int, epochs:int, global_step:int) \
         ->Tuple[float, float]:

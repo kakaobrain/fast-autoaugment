@@ -53,7 +53,7 @@ autoaug:
 darts:
   test:
     genotype: 'DARTS'
-    auxtowers: True
+    aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
     drop_path_prob: 0.2 # drop path probability
     model_filename: 'cifar10_model.pt'
     ch_out_init: 36 # num of channels for stem outpt node
@@ -76,7 +76,7 @@ darts:
       warmup: null
     lr_schedule:
       type: 'cosine'
-      lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler
+      lr_min: 0.001 # min learning rate to se bet in eta_min param of scheduler
   search:
     bilevel: True
     ch_out_init: 16 # num of channels for stem outpt node

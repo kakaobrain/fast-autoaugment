@@ -11,8 +11,8 @@ class AverageMeter:
         self.reset()
 
     def reset(self):
-        self.avg = 0
-        self.sum = 0
+        self.avg = 0.
+        self.sum = 0.
         self.cnt = 0
 
     def update(self, val, n=1):
@@ -22,24 +22,23 @@ class AverageMeter:
 
 
 def accuracy(output, target, topk=(1,)):
-    """
+    """Computes the precision@k for the specified values of k"""
 
-    :param output: logits, [b, classes]
-    :param target: [b]
-    :param topk:
-    :return:
-    """
     maxk = max(topk)
     batch_size = target.size(0)
 
     _, pred = output.topk(maxk, 1, True, True)
     pred = pred.t()
+    # one-hot case
+    if target.ndimension() > 1:
+        target = target.max(1)[1]
+
     correct = pred.eq(target.view(1, -1).expand_as(pred))
 
     res = []
     for k in topk:
         correct_k = correct[:k].view(-1).float().sum(0)
-        res.append(correct_k.mul_(100.0 / batch_size))
+        res.append(correct_k.mul_(1.0 / batch_size))
 
     return res
 
@@ -66,38 +65,10 @@ class Cutout:
         return img
 
 
-def _data_transforms_cifar10(cutout_length):
-    """
-
-    :param args:
-    :return:
-    """
-    CIFAR_MEAN = [0.49139968, 0.48215827, 0.44653124]
-    CIFAR_STD = [0.24703233, 0.24348505, 0.26158768]
-
-    train_transform = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-    ])
-    if cutout_length:
-        train_transform.transforms.append(Cutout(cutout_length))
-
-    valid_transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(CIFAR_MEAN, CIFAR_STD),
-    ])
-    return train_transform, valid_transform
-
-
-def count_parameters_in_MB(model):
-    """
-    count all parameters excluding auxiliary
-    :param model:
-    :return:
-    """
-    return np.sum(v.numel() for name, v in model.named_parameters() if "auxiliary" not in name) / 1e6
+def param_size(model):
+    """count all parameters excluding auxiliary"""
+    return np.sum(v.numel() for name, v in model.named_parameters() \
+        if "auxiliary" not in name) / 1e6
 
 
 def save_checkpoint(state, is_best, ckpt_dir):
@@ -118,23 +89,16 @@ def load(model, model_path):
     model.load_state_dict(torch.load(model_path))
 
 
-def drop_path(x, drop_prob):
+def drop_path_(x, drop_prob):
     if drop_prob > 0.:
         keep_prob = 1. - drop_prob
+        # Bernoulli returns 1 with pobability p and 0 with 1-p.
+        # Below generates tensor of shape (batch,1,1,1) filled with 1s and 0s
+        #   as per keep_prob.
         mask = torch.cuda.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob)
+        # scale tensor by 1/p as we will be losing other values
         x.div_(keep_prob)
+        # for each tensor in batch, zero out values with probability p
         x.mul_(mask)
     return x
 
-
-def create_exp_dir(path, scripts_to_save=None):
-    if not os.path.exists(path):
-        os.mkdir(path)
-    print('Experiment dir : {}'.format(path))
-
-    if scripts_to_save is not None:
-        if not os.path.exists(os.path.join(path, 'scripts')):
-            os.mkdir(os.path.join(path, 'scripts'))
-        for script in scripts_to_save:
-            dst_file = os.path.join(path, 'scripts', os.path.basename(script))
-            shutil.copyfile(script, dst_file)

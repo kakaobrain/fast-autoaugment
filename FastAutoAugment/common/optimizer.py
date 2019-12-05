@@ -1,8 +1,6 @@
 from torch.optim import lr_scheduler, SGD, Adam, Optimizer
 from warmup_scheduler import GradualWarmupScheduler
-from .common import Config
-
-PtLRScheduler = lr_scheduler._LRScheduler
+from torch.optim.lr_scheduler import _LRScheduler
 
 def get_optimizer(conf:dict, params)->Optimizer:
     if conf['type'] == 'sgd':
@@ -26,9 +24,9 @@ def get_optim_lr(optimizer:Optimizer)->float:
         return param_group['lr']
 
 def get_lr_scheduler(conf_lrs:dict, epochs:int, optimizer:Optimizer)-> \
-        PtLRScheduler:
+        _LRScheduler:
 
-    scheduler:PtLRScheduler = None
+    scheduler:_LRScheduler = None
     lr_scheduler_type = conf_lrs['type'] # TODO: default should be none?
     if lr_scheduler_type == 'cosine':
         # adjust max epochs for warmup
