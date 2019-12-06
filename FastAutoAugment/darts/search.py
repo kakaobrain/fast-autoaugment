@@ -6,7 +6,7 @@ from  torch.utils.data import DataLoader
 import os
 
 from ..common.config import Config
-from .arch_cnn_model import ArchCnnModel
+from .cnn_arch_model import CnnArchModel
 from .arch import Arch
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, get_tb_writer
@@ -51,7 +51,7 @@ def search_arch(conf:Config)->None:
     # CIFAR classification task
     device = torch.device('cuda')
     criterion = nn.CrossEntropyLoss().to(device)
-    model = ArchCnnModel(ch_in, ch_out_init, n_classes, n_layers,
+    model = CnnArchModel(ch_in, ch_out_init, n_classes, n_layers,
                         criterion).to(device)
     logger.info("Total param size = %f MB", utils.param_size(model))
 
@@ -103,7 +103,7 @@ def search_arch(conf:Config)->None:
     logger.info("Best Genotype = {}".format(best_genotype))
 
 
-def train_epoch(train_dl:DataLoader, val_dl:DataLoader, model:ArchCnnModel,
+def train_epoch(train_dl:DataLoader, val_dl:DataLoader, model:CnnArchModel,
     arch:Arch, w_optim:Optimizer, lr:float, device, grad_clip:float,
     report_freq, epoch:int, epochs:int, global_step:int) \
         ->Tuple[float, float]:
@@ -169,7 +169,7 @@ def train_epoch(train_dl:DataLoader, val_dl:DataLoader, model:ArchCnnModel,
     return top1.avg, losses.avg
 
 
-def _validate_epoch(val_dl:DataLoader, model:ArchCnnModel, device,
+def _validate_epoch(val_dl:DataLoader, model:CnnArchModel, device,
     report_freq:int, epoch:int, epochs:int, global_step:int)->Tuple[float, float]:
     """ Evaluate model on validation set """
 

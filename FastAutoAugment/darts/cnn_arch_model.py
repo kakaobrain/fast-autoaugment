@@ -204,7 +204,7 @@ class _CnnModel(nn.Module):
 
         return logits
 
-class ArchCnnModel(nn.Module):
+class CnnArchModel(nn.Module):
     def __init__(self, ch_in, ch_out_init, n_classes, n_layers, criterion,
             n_nodes=4, n_node_outs=4, stem_multiplier=3):
         super().__init__()

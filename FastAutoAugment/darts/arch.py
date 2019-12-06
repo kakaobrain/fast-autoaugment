@@ -5,7 +5,7 @@ from torch.optim import Optimizer
 import copy
 
 
-from .arch_cnn_model import ArchCnnModel
+from .cnn_arch_model import CnnArchModel
 from ..common.config import Config
 from ..common.optimizer import get_optimizer
 
@@ -16,7 +16,7 @@ from ..common.optimizer import get_optimizer
 #   w' - updated w using grads from the loss
 class Arch:
 
-    def __init__(self, conf:Config, model:ArchCnnModel)->None:
+    def __init__(self, conf:Config, model:CnnArchModel)->None:
 
         # region conf vars
         conf_search = conf['darts']['search']
