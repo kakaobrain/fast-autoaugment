@@ -1,262 +1,198 @@
+from typing import Tuple
+from abc import ABC, abstractmethod
+
 import torch
 import torch.nn as nn
 
 from .operations import *
 from ..common.utils import drop_path_
-
+from . import genotypes as gt
 
 class _Cell(nn.Module):
-
-    def __init__(self, genotype, C_prev_prev, C_prev, ch_out_init, reduction, reduction_prev):
+    def __init__(self, genotype, ch_pp, ch_p, ch_out_init, reduction, reduction_prev):
         """
-        This class is different then arch_cnn_model._Cell. Here we recieve genotype and build a cell
-        that has 4 nodes, each with exactly two edges and only one primitive attached to this edge.
-        This cell then would be "compiled" to produce PyTorch module.
-
-        :param genotype:
-        :param C_prev_prev:
-        :param C_prev:
-        :param ch_out_init:
-        :param reduction:
-        :param reduction_prev:
+        We recieve genotype and build a cell that has 4 nodes, each with
+        exactly two edges and only one primitive attached to this edge.
+        This genotype then would be "compiled" to produce PyTorch module.
         """
         super().__init__()
 
-        print(C_prev_prev, C_prev, ch_out_init)
-
-        # if previous layer was reduction layer
-        if reduction_prev:
-            self.preprocess0 = FactorizedReduce(C_prev_prev, ch_out_init)
+        if reduction_prev: # if previous layer was reduction layer
+            self._preprocess0 = FactorizedReduce(ch_pp, ch_out_init)
         else:
-            self.preprocess0 = ReLUConvBN(C_prev_prev, ch_out_init, 1, 1, 0)
-        self.preprocess1 = ReLUConvBN(C_prev, ch_out_init, 1, 1, 0)
+            self.preprocess0 = ReLUConvBN(ch_pp, ch_out_init, 1, 1, 0)
+        self._preprocess1 = ReLUConvBN(ch_p, ch_out_init, 1, 1, 0)
 
         if reduction:
-            op_names, indices = zip(*genotype.reduce)
-            concat = genotype.reduce_concat
+            gene, self._concat = genotype.reduce, genotype.reduce_concat
         else:
-            op_names, indices = zip(*genotype.normal)
-            concat = genotype.normal_concat
-        self._compile(ch_out_init, op_names, indices, concat, reduction)
+            gene, self._concat = genotype.normal, genotype.normal_concat
 
-    def _compile(self, ch_out_init, op_names, indices, concat, reduction):
-        """
-
-        :param ch_out_init:
-        :param op_names:
-        :param indices:
-        :param concat:
-        :param reduction:
-        :return:
-        """
-        assert len(op_names) == len(indices)
-
-        self._steps = len(op_names) // 2
-        self._concat = concat
-        self.multiplier = len(concat)
-
-        self._ops = nn.ModuleList()
-        for name, index in zip(op_names, indices):
-            stride = 2 if reduction and index < 2 else 1
-            op = OPS[name](ch_out_init, stride, True)
-            self._ops += [op]
-        self._indices = indices
+        self._dag = gt.to_dag(ch_out_init, gene, reduction)
 
     def forward(self, s0, s1, drop_prob):
-        """
-
-        :param s0:
-        :param s1:
-        :param drop_prob:
-        :return:
-        """
-        s0 = self.preprocess0(s0)
-        s1 = self.preprocess1(s1)
+        s0 = self._preprocess0(s0)
+        s1 = self._preprocess1(s1)
 
         states = [s0, s1]
-        for i in range(self._steps):
+        for edges in self._dag:
             # for each noce i, find which previous two node we
             # connect to and corresponding ops for them
-            h1 = states[self._indices[2 * i]]
-            h2 = states[self._indices[2 * i + 1]]
-            op1 = self._ops[2 * i]
-            op2 = self._ops[2 * i + 1]
-            h1 = op1(h1)
-            h2 = op2(h2)
-
-            if self.training and drop_prob > 0.:
-                if not isinstance(op1, Identity):
-                    h1 = drop_path_(h1, drop_prob)
-                if not isinstance(op2, Identity):
-                    h2 = drop_path_(h2, drop_prob)
-
             # aggregation of ops result is arithmatic sum
-            s = h1 + h2
-            states += [s]
+            s_cur = sum(op(states[op.s_idx]) for op in edges)
+            states.append(s_cur)
 
         # concatenate outputs of all node which becomes the result of the cell
         # this makes it necessory that wxh is same for all outputs
-        return torch.cat([states[i] for i in self._concat], dim=1)
+        s_out = torch.cat([states[i] for i in self._concat], dim=1)
 
+        return s_out
 
-class AuxiliaryHeadCIFAR(nn.Module):
-    # Auxiliary head is just hard coded good known network
-    def __init__(self, ch_out_init, n_classes):
-        """assuming input size 8x8"""
-        super(AuxiliaryHeadCIFAR, self).__init__()
-
+class AuxTower(nn.Module):
+    def __init__(self, ch_out_init:int, n_classes:int, pool_stride:int):
+        """assuming input size 14x14"""
+        # TODO: assert input size
+        super().__init__()
         self.features = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.AvgPool2d(5, stride=3, padding=0, count_include_pad=False),  # image size = 2 x 2
+            nn.AvgPool2d(5, stride=pool_stride, padding=0, count_include_pad=False),
             nn.Conv2d(ch_out_init, 128, 1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
             nn.Conv2d(128, 768, 2, bias=False),
+            # TODO: This batchnorm was omitted in orginal implementation due to a typo.
             nn.BatchNorm2d(768),
             nn.ReLU(inplace=True)
         )
-        self.classifier = nn.Linear(768, n_classes)
+        self.linear = nn.Linear(768, n_classes)
 
     def forward(self, x):
         x = self.features(x)
-        x = self.classifier(x.view(x.size(0), -1))
+        x = self.linear(x.view(x.size(0), -1))
         return x
 
+class CnnTestModel(nn.Module, ABC):
+    def __init__(self, input_size:int, ch_in:int, ch_out_init:int,
+            n_classes:int, n_layers:int, use_auxtowers:bool, genotype,
+            stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
+            ):
+        super().__init__()
 
-class AuxiliaryHeadImageNet(nn.Module):
+        self._n_layers = n_layers
+        self.aux_tower, self.aux_pos = None, 2*n_layers//3
+        self.genotype = genotype # will be used by derived classes
 
-    def __init__(self, ch_out_init, n_classes):
-        """assuming input size 14x14"""
-        super(AuxiliaryHeadImageNet, self).__init__()
-        self.features = nn.Sequential(
-            nn.ReLU(inplace=True),
-            nn.AvgPool2d(5, stride=2, padding=0, count_include_pad=False),
-            nn.Conv2d(ch_out_init, 128, 1, bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 768, 2, bias=False),
-            # NOTE: This batchnorm was omitted in my earlier implementation due to a typo.
-            # Commenting it out for consistency with the experiments in the paper.
-            # nn.BatchNorm2d(768),
-            nn.ReLU(inplace=True)
-        )
-        self.classifier = nn.Linear(768, n_classes)
+        ch_cur = stem_multiplier * ch_out_init
+        self.stem0, self.stem1 = self._get_stems(ch_in, ch_cur)
 
-    def forward(self, x):
-        x = self.features(x)
-        x = self.classifier(x.view(x.size(0), -1))
-        return x
-
-
-class NetworkCIFAR(nn.Module):
-
-    def __init__(self, ch_in:int, ch_out_init:int, n_classes:int, layers:int,
-        auxiliary, genotype, stem_multiplier=3):
-        super(NetworkCIFAR, self).__init__()
-
-        self._layers = layers
-        self._auxiliary = auxiliary
-
-        stem_multiplier = 3
-        C_curr = stem_multiplier * ch_out_init
-        self.stem = nn.Sequential(
-            nn.Conv2d(3, C_curr, 3, padding=1, bias=False),
-            nn.BatchNorm2d(C_curr)
-        )
-
-        C_prev_prev, C_prev, C_curr = C_curr, C_curr, ch_out_init
-        self.cells = nn.ModuleList()
+        # ch_cur: output channels for cell i
+        # ch_p: output channels for cell i-1
+        # ch_pp: output channels for cell i-2
+        ch_pp, ch_p, ch_cur = ch_cur, ch_cur, ch_out_init
+        self._cells = nn.ModuleList()
         reduction_prev = False
-        for i in range(layers):
-            if i in [layers // 3, 2 * layers // 3]:
-                C_curr *= 2
-                reduction = True
+        for i in range(n_layers):
+            if i in [n_layers // 3, 2 * n_layers // 3]:
+                ch_cur, reduction = ch_cur * 2, True
             else:
                 reduction = False
-            cell = _Cell(genotype, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
+
+            cell = self._get_cell(ch_pp, ch_p, ch_cur, reduction, reduction_prev)
+
             reduction_prev = reduction
-            self.cells += [cell]
-            C_prev_prev, C_prev = C_prev, cell.multiplier * C_curr
-            if i == 2 * layers // 3:
-                C_to_auxiliary = C_prev
+            self._cells += [cell]
+            ch_pp, ch_p = ch_p, cell.n_node_outs * ch_cur
+            if use_auxtowers and i==self.aux_pos:
+                self.aux_tower = self._get_aux_tower(input_size, ch_p, n_classes)
 
-        if auxiliary:
-            self.auxiliary_head = AuxiliaryHeadCIFAR(C_to_auxiliary, n_classes)
-        self.global_pooling = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(C_prev, n_classes)
+        self.final_pooling = self._get_final_pooling()
+        self.linear = nn.Linear(ch_p, n_classes)
 
-    def forward(self, input):
-        logits_aux = None
-        s0 = s1 = self.stem(input)
-        for i, cell in enumerate(self.cells):
+    def forward(self, input:torch.Tensor):
+        logits_aux:torch.Tensor = None
+
+        # TODO: this is bit weired logic in original paper
+        s0 = self.stem0(input)
+        if self.stem0 == self.stem1:
+            s1 = s0
+        else:
+            s1 = self.stem1(s0)
+
+        for i, cell in enumerate(self._cells):
             s0, s1 = s1, cell(s0, s1)
-            if i == 2 * self._layers // 3:
-                # if asked, also provide logits of good known hand coded model
-                if self._auxiliary and self.training:
-                    logits_aux = self.auxiliary_head(s1)
-        out = self.global_pooling(s1)
-        logits = self.classifier(out.view(out.size(0), -1))
+            if self.training and self.aux_tower and i==self.aux_pos:
+                logits_aux = self.aux_tower(s1)
+        out = self.final_pooling(s1)
+        logits = self.linear(out.view(out.size(0), -1))
         return logits, logits_aux
 
     def drop_path_prob(self, p):
-        """ Set drop path probability """
+        """ Set drop path probability
+        This will be called exteranlly so any DropPath_ modules get
+        new probability. Typically, every epoch we will reduce this probability.
+        """
         for module in self.modules():
             if isinstance(module, DropPath_):
                 module.p = p
 
+    # Abstract methods
+    @abstractmethod
+    def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
+        pass
+    @abstractmethod
+    def _get_aux_tower(self, input_size:int, ch_aux:int, n_classes:int)->nn.Module:
+        pass
+    @abstractmethod
+    def _get_final_pooling(self)->nn.Module:
+      pass
+    @abstractmethod
+    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int,
+            reduction:bool, reduction_prev:bool)->nn.Module:
+      pass
 
-class NetworkImageNet(nn.Module):
+class Cifar10TestModel(CnnTestModel):
+    def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
+        stem = nn.Sequential(
+            nn.Conv2d(ch_in, ch_out, 3, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out)
+        )
+        return stem, stem
 
-    def __init__(self, ch_out_init, n_classes, layers, auxiliary, genotype):
-        super(NetworkImageNet, self).__init__()
-        self._layers = layers
-        self._auxiliary = auxiliary
+    def _get_aux_tower(self, input_size:int, ch_aux:int, n_classes:int)->nn.Module:
+        return AuxTower(ch_aux, n_classes, pool_stride=3)
 
-        self.stem0 = nn.Sequential(
-            nn.Conv2d(3, ch_out_init // 2, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_out_init // 2),
+    def _get_final_pooling(self)->nn.Module:
+        return nn.AdaptiveAvgPool2d(1)
+
+    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int,
+            reduction:bool, reduction_prev:bool)->nn.Module:
+        return _Cell(self.genotype, ch_pp, ch_p, ch_cur, reduction, reduction_prev)
+
+class ImageNetTestModel(CnnTestModel):
+    def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
+        stem0 = nn.Sequential(
+            nn.Conv2d(ch_in, ch_out//2, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out//2),
             nn.ReLU(inplace=True),
-            nn.Conv2d(ch_out_init // 2, ch_out_init, 3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_out_init),
+            nn.Conv2d(ch_out//2, ch_out, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out)
         )
 
-        self.stem1 = nn.Sequential(
+        stem1 = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.Conv2d(ch_out_init, ch_out_init, 3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_out_init),
+            nn.Conv2d(ch_out, ch_out, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out)
         )
 
-        C_prev_prev, C_prev, C_curr = ch_out_init, ch_out_init, ch_out_init
+        return stem0, stem1
 
-        self.cells = nn.ModuleList()
-        reduction_prev = True
-        for i in range(layers):
-            if i in [layers // 3, 2 * layers // 3]:
-                C_curr *= 2
-                reduction = True
-            else:
-                reduction = False
-            cell = _Cell(genotype, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
-            reduction_prev = reduction
-            self.cells += [cell]
-            C_prev_prev, C_prev = C_prev, cell.multiplier * C_curr
-            if i == 2 * layers // 3:
-                C_to_auxiliary = C_prev
+    def _get_aux_tower(self, input_size:int, ch_aux:int, n_classes:int)->nn.Module:
+        return AuxTower(ch_aux, n_classes, pool_stride=3)
 
-        if auxiliary:
-            self.auxiliary_head = AuxiliaryHeadImageNet(C_to_auxiliary, n_classes)
-        self.global_pooling = nn.AvgPool2d(7)
-        self.classifier = nn.Linear(C_prev, n_classes)
+    def _get_final_pooling(self)->nn.Module:
+        return nn.AvgPool2d(7)
 
-    def forward(self, input):
-        logits_aux = None
-        s0 = self.stem0(input)
-        s1 = self.stem1(s0)
-        for i, cell in enumerate(self.cells):
-            s0, s1 = s1, cell(s0, s1, self.drop_path_prob)
-            if i == 2 * self._layers // 3:
-                if self._auxiliary and self.training:
-                    logits_aux = self.auxiliary_head(s1)
-        out = self.global_pooling(s1)
-        logits = self.classifier(out.view(out.size(0), -1))
-        return logits, logits_aux
+    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int,
+            reduction:bool, reduction_prev:bool)->nn.Module:
+        return _Cell(self.genotype, ch_pp, ch_p, ch_cur, reduction, reduction_prev)
+

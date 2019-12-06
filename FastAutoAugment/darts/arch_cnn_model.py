@@ -45,11 +45,11 @@ class _Cell(nn.Module):
         #   stride 2 through input nodes however FactorizedReduce does only
         #   4X reduction. Is this correct?
         if reduction_prev:
-            self.preprocess0 = FactorizedReduce(ch_pp, ch_out, affine=False)
+            self._preprocess0 = FactorizedReduce(ch_pp, ch_out, affine=False)
         else: # use 1x1 conv to get desired channels
-            self.preprocess0 = ReLUConvBN(ch_pp, ch_out, 1, 1, 0, affine=False)
-        # preprocess1 deal with output from prev cell
-        self.preprocess1 = ReLUConvBN(ch_p, ch_out, 1, 1, 0, affine=False)
+            self._preprocess0 = ReLUConvBN(ch_pp, ch_out, 1, 1, 0, affine=False)
+        # _preprocess1 deal with output from prev cell
+        self._preprocess1 = ReLUConvBN(ch_p, ch_out, 1, 1, 0, affine=False)
 
         # n_nodes inside a cell
         self.n_nodes = n_nodes # 4
@@ -58,17 +58,17 @@ class _Cell(nn.Module):
         # dag has n_nodes, each node is list containing edges to previous nodes
         # Each edge in dag is populated with MixedOp but it could
         # be some other op as well
-        self.dag = nn.ModuleList()
+        self._dag = nn.ModuleList()
 
         for i in range(self.n_nodes):
             # for each i inside cell, it connects with all previous output
             # plus previous two cells' output
-            self.dag.append(nn.ModuleList())
+            self._dag.append(nn.ModuleList())
             for j in range(2 + i): # include 2 input nodes
                 # reduction should be used only for first 2 input node
                 stride = 2 if reduction and j < 2 else 1
                 op = MixedOp(ch_out, stride)
-                self.dag[i].append(op)
+                self._dag[i].append(op)
 
     def forward(self, s0, s1, alphas_sm):
         """
@@ -79,8 +79,8 @@ class _Cell(nn.Module):
         """
 
         # print('s0:', s0.shape,end='=>')
-        s0 = self.preprocess0(s0) # [40, 48, 32, 32], [40, 16, 32, 32]
-        s1 = self.preprocess1(s1) # [40, 48, 32, 32], [40, 16, 32, 32]
+        s0 = self._preprocess0(s0) # [40, 48, 32, 32], [40, 16, 32, 32]
+        s1 = self._preprocess1(s1) # [40, 48, 32, 32], [40, 16, 32, 32]
 
         node_outs = [s0, s1]
 
@@ -88,7 +88,7 @@ class _Cell(nn.Module):
         node_alphas:nn.Parameter # shape (i+2, n_ops)
         node_ops:nn.ModuleList # list of MixedOp operating on previous nodes
 
-        for node_ops, node_alphas in zip(self.dag, alphas_sm):
+        for node_ops, node_alphas in zip(self._dag, alphas_sm):
             # take each previous ouput and column of node_alphas param
             # (each column has n_ops trainable params)
             out_alpha = zip(node_outs, node_alphas)
@@ -150,8 +150,7 @@ class _CnnModel(nn.Module):
         for i in range(n_layers):
             # for layer in the middle [1/3, 2/3], reduce via stride=2
             if i in [n_layers // 3, 2 * n_layers // 3]:
-                ch_cur *= 2
-                reduction = True
+                ch_cur, reduction = ch_cur * 2, True
             else:
                 reduction = False
 
