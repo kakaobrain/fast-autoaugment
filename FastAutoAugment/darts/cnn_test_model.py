@@ -9,7 +9,8 @@ from ..common.utils import drop_path_
 from . import genotypes as gt
 
 class _Cell(nn.Module):
-    def __init__(self, genotype, ch_pp, ch_p, ch_out_init, reduction, reduction_prev):
+    def __init__(self, genotype:gt.Genotype, ch_pp:int, ch_p:int,
+            ch_out_init:int, reduction:bool, reduction_prev:bool)->None:
         """
         We recieve genotype and build a cell that has 4 nodes, each with
         exactly two edges and only one primitive attached to this edge.
@@ -30,7 +31,7 @@ class _Cell(nn.Module):
 
         self._dag = gt.to_dag(ch_out_init, gene, reduction)
 
-    def forward(self, s0, s1, drop_prob):
+    def forward(self, s0:torch.Tensor, s1:torch.Tensor, drop_prob:float):
         s0 = self._preprocess0(s0)
         s1 = self._preprocess1(s1)
 
@@ -66,13 +67,13 @@ class AuxTower(nn.Module):
         )
         self.linear = nn.Linear(768, n_classes)
 
-    def forward(self, x):
+    def forward(self, x:torch.Tensor):
         x = self.features(x)
         x = self.linear(x.view(x.size(0), -1))
         return x
 
 class CnnTestModel(nn.Module, ABC):
-    def __init__(self, input_size:int, ch_in:int, ch_out_init:int,
+    def __init__(self, ch_in:int, ch_out_init:int,
             n_classes:int, n_layers:int, use_auxtowers:bool, genotype,
             stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
             ):
@@ -103,7 +104,7 @@ class CnnTestModel(nn.Module, ABC):
             self._cells += [cell]
             ch_pp, ch_p = ch_p, cell.n_node_outs * ch_cur
             if use_auxtowers and i==self.aux_pos:
-                self.aux_tower = self._get_aux_tower(input_size, ch_p, n_classes)
+                self.aux_tower = self._get_aux_tower(ch_p, n_classes)
 
         self.final_pooling = self._get_final_pooling()
         self.linear = nn.Linear(ch_p, n_classes)
@@ -158,7 +159,7 @@ class Cifar10TestModel(CnnTestModel):
         )
         return stem, stem
 
-    def _get_aux_tower(self, input_size:int, ch_aux:int, n_classes:int)->nn.Module:
+    def _get_aux_tower(self, ch_aux:int, n_classes:int)->nn.Module:
         return AuxTower(ch_aux, n_classes, pool_stride=3)
 
     def _get_final_pooling(self)->nn.Module:
@@ -186,7 +187,7 @@ class ImageNetTestModel(CnnTestModel):
 
         return stem0, stem1
 
-    def _get_aux_tower(self, input_size:int, ch_aux:int, n_classes:int)->nn.Module:
+    def _get_aux_tower(self, ch_aux:int, n_classes:int)->nn.Module:
         return AuxTower(ch_aux, n_classes, pool_stride=3)
 
     def _get_final_pooling(self)->nn.Module:

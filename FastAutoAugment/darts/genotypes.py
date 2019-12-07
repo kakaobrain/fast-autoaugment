@@ -7,7 +7,7 @@
 from collections import namedtuple
 import torch
 import torch.nn as nn
-from typing List
+from typing import List
 
 # TODO: remove circular reference
 from . import operations as ops
@@ -108,7 +108,7 @@ MyDARTS = Genotype(normal=[('max_pool_3x3', 0), ('max_pool_3x3', 1), ('max_pool_
 DARTS = DARTS_V1
 
 
-def to_dag(ch_in, gene, reduction):
+def to_dag(ch_in:int, gene:List[tuple], reduction:bool)->nn.ModuleList:
     """ generate discrete ops from gene """
     dag = nn.ModuleList()
     for edges in gene:
@@ -149,7 +149,7 @@ def from_str(s)->Genotype:
     return genotype
 
 
-def parse(alpha, k)->List(tuple):
+def parse(alpha, k)->List[tuple]:
     """
     parse continuous alpha to discrete gene.
     alpha is ParameterList:

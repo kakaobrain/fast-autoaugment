@@ -12,37 +12,36 @@ from torch.optim.lr_scheduler import _LRScheduler
 from ..common import utils
 from ..common.common import get_logger, get_tb_writer, test_epoch, train_epoch
 from ..common.data import get_dataloaders
-from .model_test import NetworkCIFAR as Network
+from .cnn_test_model import CnnTestModel as Network
 from ..common.optimizer import get_lr_scheduler, get_optimizer
 
 def test_arch(conf):
     logger, writer = get_logger(), get_tb_writer()
 
     # region conf vars
-    conf_ds       = conf['dataset']
-    dataroot      = conf['dataroot']
-    conf_test   = conf['darts']['test']
-    conf_loader   = conf_test['loader']
-    cutout        = conf_loader['cutout']
-    test_genotype     = conf_test['test_genotype']
-    ch_out_init   = conf_test['ch_out_init']
-    n_layers      = conf_test['layers']
-    aux_weight = conf_test['aux_weight']
+    conf_ds        = conf['dataset']
+    dataroot       = conf['dataroot']
+    conf_test      = conf['darts']['test']
+    conf_loader    = conf_test['loader']
+    cutout         = conf_loader['cutout']
+    test_genotype  = conf_test['test_genotype']
+    ch_out_init    = conf_test['ch_out_init']
+    n_layers       = conf_test['layers']
+    aux_weight     = conf_test['aux_weight']
     drop_path_prob = conf_test['drop_path_prob']
-    ds_name       = conf_ds['name']
-    ch_in         = conf_ds['ch_in']
-    n_classes     = conf_ds['n_classes']
-    aug           = conf_loader['aug']
-    cutout        = conf_loader['cutout']
-    val_ratio     = conf_loader['val_ratio']
-    batch_size    = conf_loader['batch']
-    epochs        = conf_loader['epochs']
-    conf_opt    = conf_test['optimizer']
-    conf_lr_sched    = conf_test['lr_schedule']
-    report_freq   = conf['report_freq']
-    horovod       = conf['horovod']
-    aux_weight = conf_test['aux_weight']
-
+    ds_name        = conf_ds['name']
+    ch_in          = conf_ds['ch_in']
+    n_classes      = conf_ds['n_classes']
+    aug            = conf_loader['aug']
+    cutout         = conf_loader['cutout']
+    val_ratio      = conf_loader['val_ratio']
+    batch_size     = conf_loader['batch']
+    epochs         = conf_loader['epochs']
+    conf_opt       = conf_test['optimizer']
+    conf_lr_sched  = conf_test['lr_schedule']
+    report_freq    = conf['report_freq']
+    horovod        = conf['horovod']
+    aux_weight     = conf_test['aux_weight']
     # endregion
 
     device = torch.device("cuda")
@@ -60,7 +59,7 @@ def test_arch(conf):
     criterion = nn.CrossEntropyLoss().to(device)
 
     # create model
-    model = Network(ch_out_init, n_classes, n_layers, aux_weight, genotype)
+    model = Network(ch_in, ch_out_init, n_classes, n_layers, aux_weight, genotype)
     logger.info("Model size = {:.3f} MB".format(utils.param_size(model)))
     # TODO: model = nn.DataParallel(model, device_ids=config.gpus).to(device)
     model = model.to(device)
