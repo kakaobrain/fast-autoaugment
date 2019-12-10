@@ -10,7 +10,8 @@ from torch.nn.modules.loss import _Loss
 from torch.optim.lr_scheduler import _LRScheduler
 
 from ..common import utils
-from ..common.common import get_logger, get_tb_writer, train_test
+from ..common.common import get_logger, get_tb_writer
+from ..common.train_test_utils import train_test
 from ..common.data import get_dataloaders
 from .cnn_test_model import Cifar10TestModel
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
@@ -19,34 +20,34 @@ def test_arch(conf):
     logger, writer = get_logger(), get_tb_writer()
 
     # region conf vars
-    conf_ds        = conf['dataset']
-    dataroot       = conf['dataroot']
-    chkptdir       = conf['chkptdir']
-    conf_test      = conf['darts']['test']
-    conf_train_lossfn   = conf_search['train_lossfn']
-    conf_test_lossfn   = conf_search['test_lossfn']
-    conf_loader    = conf_test['loader']
-    cutout         = conf_loader['cutout']
-    test_genotype  = conf_test['test_genotype']
-    ch_out_init    = conf_test['ch_out_init']
-    n_layers       = conf_test['layers']
-    aux_weight     = conf_test['aux_weight']
-    drop_path_prob = conf_test['drop_path_prob']
-    ds_name        = conf_ds['name']
-    ch_in          = conf_ds['ch_in']
-    n_classes      = conf_ds['n_classes']
-    aug            = conf_loader['aug']
-    cutout         = conf_loader['cutout']
-    val_ratio      = conf_loader['val_ratio']
-    batch_size     = conf_loader['batch']
-    epochs         = conf_loader['epochs']
-    conf_opt       = conf_test['optimizer']
-    conf_lr_sched  = conf_test['lr_schedule']
-    report_freq    = conf['report_freq']
-    horovod        = conf['horovod']
-    aux_weight     = conf_test['aux_weight']
-    grad_clip   = conf_opt['clip']
-    data_parallel = conf_test['data_parallel']
+    conf_ds           = conf['dataset']
+    dataroot          = conf['dataroot']
+    chkptdir          = conf['chkptdir']
+    conf_test         = conf['darts']['test']
+    conf_train_lossfn = conf_test['train_lossfn']
+    conf_test_lossfn  = conf_test['test_lossfn']
+    conf_loader       = conf_test['loader']
+    cutout            = conf_loader['cutout']
+    test_genotype     = conf_test['test_genotype']
+    ch_out_init       = conf_test['ch_out_init']
+    n_layers          = conf_test['layers']
+    aux_weight        = conf_test['aux_weight']
+    drop_path_prob    = conf_test['drop_path_prob']
+    ds_name           = conf_ds['name']
+    ch_in             = conf_ds['ch_in']
+    n_classes         = conf_ds['n_classes']
+    aug               = conf_loader['aug']
+    cutout            = conf_loader['cutout']
+    val_ratio         = conf_loader['val_ratio']
+    batch_size        = conf_loader['batch']
+    epochs            = conf_loader['epochs']
+    conf_opt          = conf_test['optimizer']
+    conf_lr_sched     = conf_test['lr_schedule']
+    report_freq       = conf['report_freq']
+    horovod           = conf['horovod']
+    aux_weight        = conf_test['aux_weight']
+    grad_clip         = conf_opt['clip']
+    data_parallel     = conf_test['data_parallel']
 
 
     # endregion

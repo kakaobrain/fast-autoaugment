@@ -27,6 +27,7 @@ def get_optimizer(conf:dict, params)->Optimizer:
 def get_optim_lr(optimizer:Optimizer)->float:
     for param_group in optimizer.param_groups:
         return param_group['lr']
+    raise RuntimeError('optimizer did not had any param_group named lr!')
 
 def get_lr_scheduler(conf_lrs:dict, epochs:int, optimizer:Optimizer)-> \
         _LRScheduler:
