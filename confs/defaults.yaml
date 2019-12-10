@@ -60,10 +60,10 @@ darts:
     data_parallel: False
     train_lossfn:
       lossfn:
-        name: 'CrossEntropyLoss'
+        type: 'CrossEntropyLoss'
     test_lossfn:
       lossfn:
-        name: 'CrossEntropyLoss'
+        type: 'CrossEntropyLoss'
     loader:
       aug: '' # additional augmentations to use
       cutout: 16 # cutout length, use cutout augmentation when > 0
@@ -103,7 +103,7 @@ darts:
         betas: [0.5, 0.999]
       lr_schedule: null
       lossfn:
-        name: 'CrossEntropyLoss'
+        type: 'CrossEntropyLoss'
     weights:
       optimizer:
         type: 'sgd'
@@ -117,4 +117,4 @@ darts:
         type: 'cosine'
         lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler
       lossfn:
-        name: 'CrossEntropyLoss'
+        type: 'CrossEntropyLoss'

@@ -33,7 +33,7 @@ darts:
     data_parallel: True
     test_lossfn:
       lossfn:
-        name: 'CrossEntropyLabelSmooth'
+        type: 'CrossEntropyLabelSmooth'
         smoothing: 0.1
     loader:
       aug: '' # additional augmentations to use

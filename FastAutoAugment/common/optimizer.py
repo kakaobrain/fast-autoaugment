@@ -121,10 +121,10 @@ class SmoothCrossEntropyLoss(_WeightedLoss):
         return loss
 
 def get_lossfn(conf_lossfn:dict, conf_dataset:dict)->nn._Loss:
-    name = conf_lossfn['name']
-    if name == 'CrossEntropyLoss':
+    type = conf_lossfn['type']
+    if type == 'CrossEntropyLoss':
         return nn.CrossEntropyLoss()
-    elif name == 'CrossEntropyLabelSmooth':
+    elif type == 'CrossEntropyLabelSmooth':
         return SmoothCrossEntropyLoss(smoothing=conf_lossfn['smoothing'])
     else:
-        raise ValueError('criterian with name "{}" is not supported'.format(name))
+        raise ValueError('criterian type "{}" is not supported'.format(type))
