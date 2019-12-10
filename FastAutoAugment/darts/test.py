@@ -10,9 +10,9 @@ from torch.nn.modules.loss import _Loss
 from torch.optim.lr_scheduler import _LRScheduler
 
 from ..common import utils
-from ..common.common import get_logger, get_tb_writer, test_epoch, train_epoch
+from ..common.common import get_logger, get_tb_writer, train_test
 from ..common.data import get_dataloaders
-from .cnn_test_model import CnnTestModel as Network
+from .cnn_test_model import Cifar10TestModel
 from ..common.optimizer import get_lr_scheduler, get_optimizer
 
 def test_arch(conf):
@@ -21,6 +21,7 @@ def test_arch(conf):
     # region conf vars
     conf_ds        = conf['dataset']
     dataroot       = conf['dataroot']
+    chkptdir       = conf['chkptdir']
     conf_test      = conf['darts']['test']
     conf_loader    = conf_test['loader']
     cutout         = conf_loader['cutout']
@@ -42,6 +43,9 @@ def test_arch(conf):
     report_freq    = conf['report_freq']
     horovod        = conf['horovod']
     aux_weight     = conf_test['aux_weight']
+    grad_clip   = conf_opt['clip']
+
+
     # endregion
 
     device = torch.device("cuda")
@@ -59,7 +63,7 @@ def test_arch(conf):
     criterion = nn.CrossEntropyLoss().to(device)
 
     # create model
-    model = Network(ch_in, ch_out_init, n_classes, n_layers, aux_weight, genotype)
+    model = Cifar10TestModel(ch_in, ch_out_init, n_classes, n_layers, aux_weight, genotype)
     logger.info("Model size = {:.3f} MB".format(utils.param_size(model)))
     # TODO: model = nn.DataParallel(model, device_ids=config.gpus).to(device)
     model = model.to(device)
@@ -67,8 +71,10 @@ def test_arch(conf):
     optim = get_optimizer(conf_opt, model.parameters())
     lr_scheduler = get_lr_scheduler(conf_lr_sched, epochs, optim)
 
-    test_acc, test_loss = _infer(test_dl, model, criterion, report_freq)
-    logger.info('test_acc %f', test_acc)
+    best_top1 = train_test(train_dl, test_dl, model, device, criterion, optim,
+        aux_weight, grad_clip, lr_scheduler, drop_path_prob, chkptdir,
+        report_freq, epochs)
+    logger.info('best_top1 %f', best_top1)
 
 
 

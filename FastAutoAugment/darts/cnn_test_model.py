@@ -74,7 +74,7 @@ class AuxTower(nn.Module):
 
 class CnnTestModel(nn.Module, ABC):
     def __init__(self, ch_in:int, ch_out_init:int,
-            n_classes:int, n_layers:int, use_auxtowers:bool, genotype,
+            n_classes:int, n_layers:int, aux_weight:float, genotype:gt.Genotype,
             stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
             ):
         super().__init__()
@@ -103,7 +103,7 @@ class CnnTestModel(nn.Module, ABC):
             reduction_prev = reduction
             self._cells += [cell]
             ch_pp, ch_p = ch_p, cell.n_node_outs * ch_cur
-            if use_auxtowers and i==self.aux_pos:
+            if aux_weight > 0. and i==self.aux_pos:
                 self.aux_tower = self._get_aux_tower(ch_p, n_classes)
 
         self.final_pooling = self._get_final_pooling()
@@ -141,7 +141,7 @@ class CnnTestModel(nn.Module, ABC):
     def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
         pass
     @abstractmethod
-    def _get_aux_tower(self, input_size:int, ch_aux:int, n_classes:int)->nn.Module:
+    def _get_aux_tower(self, ch_aux:int, n_classes:int)->nn.Module:
         pass
     @abstractmethod
     def _get_final_pooling(self)->nn.Module:

@@ -9,10 +9,11 @@ import yaml
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
-from  torch.utils.data import DataLoader
-import  torch.nn as nn
+from torch.utils.data import DataLoader
+import torch.nn as nn
 from torch.nn.modules.loss import _Loss
 from torch.optim.optimizer import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
 
 from .config import Config
 from .stopwatch import StopWatch
@@ -85,15 +86,16 @@ def common_init(config_filepath:str, defaults_filepath:str,
 
     logdir = os.path.expanduser(conf['logdir'])
     dataroot = os.path.expanduser(conf['dataroot'])
-    plotsdir = os.path.expanduser(conf['plotsdir'])
-    if experiment_name:
-        logdir = os.path.join(logdir, experiment_name)
-        plotsdir = os.path.join(plotsdir, experiment_name)
+    logdir = os.path.join(logdir, experiment_name)
+    plotsdir = os.path.join(logdir, 'plots')
+    chkptdir = os.path.join(logdir, 'chkpt')
     os.makedirs(logdir, exist_ok=True)
     os.makedirs(dataroot, exist_ok=True)
     os.makedirs(plotsdir, exist_ok=True)
+    os.makedirs(chkptdir, exist_ok=True)
+
     conf['logdir'], conf['dataroot'] = logdir, dataroot
-    conf['plotsdir'] = plotsdir
+    conf['plotsdir'], conf['chkptdir'] = plotsdir, chkptdir
 
     # copy net config to experiment folder for reference
     with open(os.path.join(logdir, 'full_config.yaml'), 'w') as f:
@@ -235,7 +237,7 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
 def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
         criterion:_Loss, optim:Optimizer, aux_weight:float, grad_clip:float,
         lr_scheduler:_LRScheduler, drop_path_prob:float, model_save_dir:str,
-        report_freq:int, epoch:int, epochs:int):
+        report_freq:int, epochs:int):
     logger = get_logger()
 
     best_top1 = 0.
