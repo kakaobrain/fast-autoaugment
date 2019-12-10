@@ -11,7 +11,7 @@ from .arch import Arch
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, get_tb_writer
 from ..common import utils
-from ..common.optimizer import get_lr_scheduler, get_optimizer
+from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
 from .vis_genotype import draw_genotype
 
 def search_arch(conf:Config)->None:
@@ -24,6 +24,7 @@ def search_arch(conf:Config)->None:
     conf_w_opt    = conf_search['weights']['optimizer']
     conf_w_sched  = conf_search['weights']['lr_schedule']
     ds_name       = conf_ds['name']
+    conf_lossfn   = conf_search['lossfn']
     dataroot      = conf['dataroot']
     aug           = conf_loader['aug']
     cutout        = conf_loader['cutout']
@@ -48,11 +49,11 @@ def search_arch(conf:Config)->None:
         aug=aug, cutout=cutout, load_train=True, load_test=False,
         val_ratio=val_ratio, val_fold=val_fold, horovod=horovod)
 
-    # CIFAR classification task
     device = torch.device('cuda')
-    criterion = nn.CrossEntropyLoss().to(device)
+
+    lossfn = get_lossfn(conf_lossfn, conf_ds).to(device)
     model = CnnArchModel(ch_in, ch_out_init, n_classes, n_layers,
-                        criterion).to(device)
+                        lossfn).to(device)
     logger.info("Total param size = %f MB", utils.param_size(model))
 
     # trainer for alphas
@@ -78,7 +79,7 @@ def search_arch(conf:Config)->None:
             epoch, epochs, global_step)
 
         # validation
-        val_top1 = utils.test_epoch(val_dl, model, device, model.criterion,
+        val_top1 = utils.test_epoch(val_dl, model, device, model.lossfn,
             report_freq, epoch, epochs, global_step)
 
         lr_scheduler.step()
@@ -140,7 +141,7 @@ def train_epoch(train_dl:DataLoader, val_dl:DataLoader, model:CnnArchModel,
         # update weights
         w_optim.zero_grad()
         logits = model(x_train)
-        loss = model.criterion(logits, y_train)
+        loss = model.lossfn(logits, y_train)
         loss.backward()
         # TODO: original darts clips alphas as well
         nn.utils.clip_grad_norm_(model.weights(), grad_clip)
@@ -187,7 +188,7 @@ def _validate_epoch(val_dl:DataLoader, model:CnnArchModel, device,
             batch_size = x_val.size(0)
 
             logits = model(x_val)
-            loss = model.criterion(logits, y_val)
+            loss = model.lossfn(logits, y_val)
 
             prec1, prec5 = utils.accuracy(logits, y_val, topk=(1, 5))
             losses.update(loss.item(), batch_size)

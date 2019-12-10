@@ -141,7 +141,7 @@ def _create_tb_writer(conf:Config, is_master=True,
 
     return WriterClass(log_dir='{}/tb/{}'.format(conf['logdir']))
 
-def test_epoch(test_dl:DataLoader, model:nn.Module, device, criterion:_Loss,
+def test_epoch(test_dl:DataLoader, model:nn.Module, device, lossfn:_Loss,
         report_freq:int, epoch:int, epochs:int, global_step:int)->float:
     logger, writer = get_logger(), get_tb_writer()
 
@@ -156,7 +156,7 @@ def test_epoch(test_dl:DataLoader, model:nn.Module, device, criterion:_Loss,
             x, y = x.to(device), y.to(device, non_blocking=True)
 
             logits, _ = model(x)
-            loss = criterion(logits, y)
+            loss = lossfn(logits, y)
 
             prec1, prec5 = utils.accuracy(logits, y, topk=(1, 5))
             batch_size = x.size(0)
@@ -182,7 +182,7 @@ def test_epoch(test_dl:DataLoader, model:nn.Module, device, criterion:_Loss,
 
 
 def train_epoch(train_dl:DataLoader, model:nn.Module, device,
-        criterion:_Loss, optim:Optimizer, aux_weight:float, grad_clip:float,
+        lossfn:_Loss, optim:Optimizer, aux_weight:float, grad_clip:float,
         report_freq:int, epoch:int, epochs:int, global_step:int):
     logger, writer = get_logger(), get_tb_writer()
 
@@ -203,11 +203,11 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
         optim.zero_grad()
         if aux_weight > 0.:
             logits, aux_logits = model(x)
-            loss = criterion(logits, y)
-            loss += aux_weight * criterion(aux_logits, y)
+            loss = lossfn(logits, y)
+            loss += aux_weight * lossfn(aux_logits, y)
         else:
             logits = model(x)
-            loss = criterion(logits, y)
+            loss = lossfn(logits, y)
 
         loss.backward()
         if grad_clip:
@@ -235,7 +235,7 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
             epoch+1, epochs, top1.avg))
 
 def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
-        criterion:_Loss, optim:Optimizer, aux_weight:float, grad_clip:float,
+        train_lossfn:_Loss, test_lossfn:_Loss, optim:Optimizer, aux_weight:float, grad_clip:float,
         lr_scheduler:_LRScheduler, drop_path_prob:float, model_save_dir:str,
         report_freq:int, epochs:int):
     logger = get_logger()
@@ -254,10 +254,10 @@ def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
         global_step = epoch*len(train_dl)
 
         train_epoch(train_dl, model, device,
-            criterion, optim, aux_weight, grad_clip, report_freq, epoch,
+            train_lossfn, optim, aux_weight, grad_clip, report_freq, epoch,
             epochs, global_step)
 
-        top1 = test_epoch(test_dl, model, device, criterion,
+        top1 = test_epoch(test_dl, model, device, test_lossfn,
             report_freq, epoch, epochs, global_step)
 
         lr_scheduler.step()

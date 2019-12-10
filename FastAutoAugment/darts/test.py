@@ -13,7 +13,7 @@ from ..common import utils
 from ..common.common import get_logger, get_tb_writer, train_test
 from ..common.data import get_dataloaders
 from .cnn_test_model import Cifar10TestModel
-from ..common.optimizer import get_lr_scheduler, get_optimizer
+from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
 
 def test_arch(conf):
     logger, writer = get_logger(), get_tb_writer()
@@ -23,6 +23,8 @@ def test_arch(conf):
     dataroot       = conf['dataroot']
     chkptdir       = conf['chkptdir']
     conf_test      = conf['darts']['test']
+    conf_train_lossfn   = conf_search['train_lossfn']
+    conf_test_lossfn   = conf_search['test_lossfn']
     conf_loader    = conf_test['loader']
     cutout         = conf_loader['cutout']
     test_genotype  = conf_test['test_genotype']
@@ -44,6 +46,7 @@ def test_arch(conf):
     horovod        = conf['horovod']
     aux_weight     = conf_test['aux_weight']
     grad_clip   = conf_opt['clip']
+    data_parallel = conf_test['data_parallel']
 
 
     # endregion
@@ -60,18 +63,22 @@ def test_arch(conf):
     genotype = eval("genotypes.%s" % test_genotype)
     logger.info('test genotype: {}'.format(genotype))
 
-    criterion = nn.CrossEntropyLoss().to(device)
+    train_lossfn = get_lossfn(conf_train_lossfn, conf_ds).to(device)
+    test_lossfn = get_lossfn(conf_test_lossfn, conf_ds).to(device)
 
     # create model
     model = Cifar10TestModel(ch_in, ch_out_init, n_classes, n_layers, aux_weight, genotype)
     logger.info("Model size = {:.3f} MB".format(utils.param_size(model)))
-    # TODO: model = nn.DataParallel(model, device_ids=config.gpus).to(device)
-    model = model.to(device)
+    if data_parallel:
+        model = nn.DataParallel(model).to(device)
+    else:
+        model = model.to(device)
 
     optim = get_optimizer(conf_opt, model.parameters())
     lr_scheduler = get_lr_scheduler(conf_lr_sched, epochs, optim)
 
-    best_top1 = train_test(train_dl, test_dl, model, device, criterion, optim,
+    best_top1 = train_test(train_dl, test_dl, model, device,
+        train_lossfn, test_lossfn, optim,
         aux_weight, grad_clip, lr_scheduler, drop_path_prob, chkptdir,
         report_freq, epochs)
     logger.info('best_top1 %f', best_top1)

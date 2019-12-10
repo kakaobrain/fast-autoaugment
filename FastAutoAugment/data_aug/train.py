@@ -151,7 +151,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
         data_parallel=(not horovod))
 
     # select loss function and optimizer
-    criterion = nn.CrossEntropyLoss()
+    lossfn = nn.CrossEntropyLoss()
     optimizer = get_optimizer(conf_opt, model.parameters())
 
     # distributed optimizer if horovod is used
@@ -215,11 +215,11 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
         logger.info('evaluation only+')
         model.eval()
         rs = dict() # stores metrics for each set
-        rs['train'] = run_epoch(conf, logger, model, train_dl, criterion, None,
+        rs['train'] = run_epoch(conf, logger, model, train_dl, lossfn, None,
             split_type='train', epoch=0)
-        rs['valid'] = run_epoch(conf, logger, model, valid_dl, criterion, None,
+        rs['valid'] = run_epoch(conf, logger, model, valid_dl, lossfn, None,
             split_type='valid', epoch=0)
-        rs['test'] = run_epoch(conf, logger, model, test_dl, criterion, None,
+        rs['test'] = run_epoch(conf, logger, model, test_dl, lossfn, None,
             split_type='test', epoch=0)
 
         for key, setname in itertools.product(
@@ -239,7 +239,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
         # run train epoch and update the model
         model.train()
         rs = dict()
-        rs['train'] = run_epoch(conf, logger, model, train_dl, criterion,
+        rs['train'] = run_epoch(conf, logger, model, train_dl, lossfn,
             optimizer, split_type='train', epoch=epoch, verbose=is_master,
             scheduler=scheduler)
         if scheduler:
@@ -253,9 +253,9 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
 
         # collect metrics on val and test set, checkpoint
         if epoch % checkpoint_freq == 0 or epoch == max_epoch:
-            rs['valid'] = run_epoch(conf, logger, model, valid_dl, criterion,
+            rs['valid'] = run_epoch(conf, logger, model, valid_dl, lossfn,
                 None, split_type='valid', epoch=epoch, verbose=is_master)
-            rs['test'] = run_epoch(conf, logger, model, test_dl, criterion,
+            rs['test'] = run_epoch(conf, logger, model, test_dl, lossfn,
                 None, split_type='test', epoch=epoch, verbose=is_master)
 
             # TODO: is this good enough condition?

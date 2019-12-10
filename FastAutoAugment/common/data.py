@@ -315,6 +315,7 @@ def _get_imagenet_transforms():
             saturation=0.4,
         ),
         transforms.ToTensor(),
+        # TODO: Lightning is not used in original darts paper
         Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225])
@@ -336,12 +337,15 @@ def get_dataloaders(dataset:str, batch, dataroot:str, aug, cutout:int,
     horovod=False, target_lb=-1, num_workers:int=None) \
         -> Tuple[DataLoader, DataLoader, DataLoader, Sampler]:
 
-    if num_workers is None:
-        # if debugging in vscode, workers > 0 gets termination
-        if 'pydevd' in sys.modules:
-            num_workers = 0
-        else:
-            num_workers = 32
+    logger = get_logger()
+
+    # if debugging in vscode, workers > 0 gets termination
+    if 'pydevd' in sys.modules:
+        num_workers = 0
+        logger.warn('Using num_workers=0 because debugger is detected.')
+    else: # use simple heuristic to auto select number of workers
+        num_workers = torch.cuda.device_count()*4 if num_workers is None \
+            else num_workers
 
     # get usual random crop/flip transforms
     transform_train, transform_test = get_transforms(dataset)
