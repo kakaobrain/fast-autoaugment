@@ -23,6 +23,7 @@ dataset:
   name: 'cifar10'
   n_classes: 10
   ch_in: 3 # number of channels in image
+  max_batches: -1 # if >= 0 then only these many batches are generated (useful for debugging)
 
 autoaug:
   num_op: 2

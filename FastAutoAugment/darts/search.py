@@ -26,6 +26,9 @@ def search_arch(conf:Config)->None:
     conf_w_opt    = conf_search['weights']['optimizer']
     conf_w_sched  = conf_search['weights']['lr_schedule']
     ds_name       = conf_ds['name']
+    ch_in         = conf_ds['ch_in']
+    n_classes     = conf_ds['n_classes']
+    max_batches     = conf_ds['max_batches']
     conf_lossfn   = conf_search['lossfn']
     dataroot      = conf['dataroot']
     aug           = conf_loader['aug']
@@ -35,9 +38,7 @@ def search_arch(conf:Config)->None:
     epochs        = conf_loader['epochs']
     val_fold      = conf_loader['val_fold']
     horovod       = conf['horovod']
-    ch_in         = conf_ds['ch_in']
     ch_out_init   = conf_search['ch_out_init']
-    n_classes     = conf_ds['n_classes']
     n_layers      = conf_search['layers']
     report_freq   = conf['report_freq']
     grad_clip     = conf_w_opt['clip']
@@ -49,7 +50,8 @@ def search_arch(conf:Config)->None:
     train_dl, val_dl, *_ = get_dataloaders(
         ds_name, batch_size, dataroot,
         aug=aug, cutout=cutout, load_train=True, load_test=False,
-        val_ratio=val_ratio, val_fold=val_fold, horovod=horovod)
+        val_ratio=val_ratio, val_fold=val_fold, horovod=horovod,
+        max_batches=max_batches)
 
     device = torch.device('cuda')
 

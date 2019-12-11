@@ -23,7 +23,7 @@ def test_epoch(test_dl:DataLoader, model:nn.Module, device, lossfn:_Loss,
         for step, (x, y) in enumerate(test_dl):
             x, y = x.to(device), y.to(device, non_blocking=True)
 
-            logits, _ = model(x)
+            logits = model(x)
             loss = lossfn(logits, y)
 
             prec1, prec5 = utils.accuracy(logits, y, topk=(1, 5))

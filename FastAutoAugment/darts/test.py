@@ -36,6 +36,7 @@ def test_arch(conf):
     ds_name           = conf_ds['name']
     ch_in             = conf_ds['ch_in']
     n_classes         = conf_ds['n_classes']
+    max_batches       = conf_ds['max_batches']
     aug               = conf_loader['aug']
     cutout            = conf_loader['cutout']
     val_ratio         = conf_loader['val_ratio']
@@ -59,7 +60,7 @@ def test_arch(conf):
         ds_name, batch_size, dataroot, aug, cutout,
         load_train=True, load_test=True,
         val_ratio=0., val_fold=0, # no validation set
-        horovod=horovod)
+        horovod=horovod, max_batches=max_batches)
 
     # load genotype we want to test
     genotype = eval("genotypes.%s" % test_genotype)
@@ -82,7 +83,7 @@ def test_arch(conf):
 
     best_top1 = train_test(train_dl, test_dl, model, device,
         train_lossfn, test_lossfn, optim,
-        aux_weight, grad_clip, lr_scheduler, drop_path_prob, chkptdir,
+        aux_weight, lr_scheduler, drop_path_prob, chkptdir, grad_clip,
         report_freq, epochs)
     logger.info('best_top1 %f', best_top1)
 

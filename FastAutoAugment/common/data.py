@@ -8,7 +8,7 @@ import torchvision
 from PIL import Image
 
 from torch.utils.data import \
-        SubsetRandomSampler, Sampler, Subset, ConcatDataset, Dataset
+    SubsetRandomSampler, Sampler, Subset, ConcatDataset, Dataset, random_split
 from torchvision.transforms import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
 
@@ -21,7 +21,8 @@ from .imagenet import ImageNet
 DatasetLike = Union[Dataset, Subset, ConcatDataset]
 
 def _get_datasets(dataset, dataroot, load_train:bool, load_test:bool,
-        transform_train, transform_test)->Tuple[DatasetLike, DatasetLike]:
+        transform_train, transform_test)\
+            ->Tuple[DatasetLike, DatasetLike]:
     logger = get_logger()
     trainset, testset = None, None
 
@@ -332,9 +333,20 @@ def _get_imagenet_transforms():
     return transform_train, transform_test
 
 
-def get_dataloaders(dataset:str, batch, dataroot:str, aug, cutout:int,
+class LimitDataset(Dataset):
+    def __init__(self, dataset, n):
+        self.dataset = dataset
+        self.n = n
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, i):
+        return self.dataset[i]
+
+def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     load_train:bool, load_test:bool, val_ratio:float,  val_fold=0,
-    horovod=False, target_lb=-1, num_workers:int=None) \
+    horovod=False, target_lb=-1, num_workers:int=None, max_batches:int=-1) \
         -> Tuple[DataLoader, DataLoader, DataLoader, Sampler]:
 
     logger = get_logger()
@@ -368,17 +380,23 @@ def get_dataloaders(dataset:str, batch, dataroot:str, aug, cutout:int,
     trainloader, validloader, testloader = None, None, None
 
     if trainset:
+        if max_batches >= 0:
+            logger.warn('Trainset trimmed due to max_batches config')
+            trainset = LimitDataset(trainset, max_batches*batch_size)
         trainloader = torch.utils.data.DataLoader(trainset,
-            batch_size=batch, shuffle=True if train_sampler is None else False,
+            batch_size=batch_size, shuffle=True if train_sampler is None else False,
             num_workers=num_workers, pin_memory=True,
             sampler=train_sampler, drop_last=True)
         validloader = torch.utils.data.DataLoader(trainset,
-            batch_size=batch, shuffle=False,
+            batch_size=batch_size, shuffle=False,
             num_workers=num_workers/2, pin_memory=True,
             sampler=valid_sampler, drop_last=False)
     if testset:
+        if max_batches >= 0:
+            logger.warn('Testset trimmed due to max_batches config')
+            testset = LimitDataset(testset, max_batches*batch_size)
         testloader = torch.utils.data.DataLoader(testset,
-            batch_size=batch, shuffle=False,
+            batch_size=batch_size, shuffle=False,
             num_workers=num_workers, pin_memory=True,
             sampler=None, drop_last=False
     )
