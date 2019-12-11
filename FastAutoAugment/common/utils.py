@@ -95,7 +95,8 @@ def drop_path_(x, drop_prob):
         # Bernoulli returns 1 with pobability p and 0 with 1-p.
         # Below generates tensor of shape (batch,1,1,1) filled with 1s and 0s
         #   as per keep_prob.
-        mask = torch.cuda.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob)
+        mask = torch.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob) \
+            .to(device=x.device)
         # scale tensor by 1/p as we will be losing other values
         x.div_(keep_prob)
         # for each tensor in batch, zero out values with probability p

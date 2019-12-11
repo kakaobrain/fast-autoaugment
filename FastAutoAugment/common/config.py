@@ -72,12 +72,12 @@ class Config(UserDict):
             if i == len(extra_args)-1:
                 raise ArgumentError('Value is expected after argument {key}')
             if arg.startswith(("--")):
-                arg = arg[len("--"):]
-                if not key in c:
+                key = arg[len("--"):]
+                if key not in conf:
                     raise ArgumentError('{key} argument not recognized')
-                if c[key] is None:
+                if conf[key] is None:
                     raise ArgumentError('{key} argument type cannot be determined as its value in yaml is None')
-                c[key] = type(c[key])(extra_args[i+1])
+                conf[key] = type(conf[key])(extra_args[i+1])
 
     @staticmethod
     def set(instance:'Config')->None:

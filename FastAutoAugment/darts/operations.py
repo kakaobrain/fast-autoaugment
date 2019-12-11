@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from . import genotypes
-from . import utils
+from ..common import utils
 
 # OPS is a set of uninary tensor operators
 OPS = {

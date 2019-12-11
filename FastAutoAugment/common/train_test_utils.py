@@ -120,7 +120,7 @@ def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
         lr_scheduler:_LRScheduler, drop_path_prob:float, model_save_dir:str,
         grad_clip:float, report_freq:int, epochs:int,
         pre_stepfn:Callable=None, post_stepfn:Callable=None,
-        pre_epochfn:Callable=None, post_epochfn:Callable=None)->None:
+        pre_epochfn:Callable=None, post_epochfn:Callable=None)->float:
 
     logger = get_logger()
 

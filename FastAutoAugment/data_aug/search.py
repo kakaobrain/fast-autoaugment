@@ -19,7 +19,7 @@ from ..common.data import get_dataloaders
 from ..common.metrics import Accumulator
 from ..networks import get_model, num_class
 from ..common.augmentations import augment_list
-from ..common.train import train_and_eval
+from .train import train_and_eval
 from ..common.common import get_model_savepath, get_logger
 
 from ..common.config import Config

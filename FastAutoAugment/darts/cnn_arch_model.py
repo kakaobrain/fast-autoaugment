@@ -229,9 +229,9 @@ class CnnArchModel(nn.Module):
         # TODO: is unofrm rand init good idea?
         for i in range(self.n_nodes):
             self._alphas_normal.append(
-                nn.Parameter(1e-3*torch.randn(i+2, n_ops)))
+                nn.Parameter(1e-3*torch.randn(i+2, n_ops), requires_grad=True))
             self._alphas_reduce.append(
-                nn.Parameter(1e-3*torch.randn(i+2, n_ops)))
+                nn.Parameter(1e-3*torch.randn(i+2, n_ops), requires_grad=True))
 
         # setup alphas list
         self._alphas = []

@@ -1,7 +1,7 @@
 from torch.optim import lr_scheduler, SGD, Adam, Optimizer
 from warmup_scheduler import GradualWarmupScheduler
 from torch.optim.lr_scheduler import _LRScheduler
-from torch.nn.modules.loss import _WeightedLoss
+from torch.nn.modules.loss import _WeightedLoss, _Loss
 import torch.nn.functional as F
 
 import torch
@@ -69,7 +69,7 @@ def _adjust_learning_rate_pyramid(optimizer, max_epoch:int, base_lr:float):
     def _internal_adjust_learning_rate_pyramid(epoch):
         """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
         lr = base_lr * (0.1 ** (epoch // (max_epoch * 0.5))) * (0.1 ** (epoch // (max_epoch * 0.75)))
-        return lr    lossfn =
+        return lr
 
     return lr_scheduler.LambdaLR(optimizer, _internal_adjust_learning_rate_pyramid)
 
@@ -121,7 +121,7 @@ class SmoothCrossEntropyLoss(_WeightedLoss):
 
         return loss
 
-def get_lossfn(conf_lossfn:dict, conf_dataset:dict)->nn._Loss:
+def get_lossfn(conf_lossfn:dict, conf_dataset:dict)->_Loss:
     type = conf_lossfn['type']
     if type == 'CrossEntropyLoss':
         return nn.CrossEntropyLoss()
