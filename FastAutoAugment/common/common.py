@@ -104,7 +104,7 @@ def common_init(config_filepath:str, defaults_filepath:str,
     logfile_path = os.path.join(logdir, logfilename)
     _add_filehandler(logger, logfile_path)
 
-    logger.info('checkpoint will be saved at %s' % logdir)
+    logger.info('logdir: %s' % logdir)
     logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
     logger.info('Original CUDA_VISIBLE_DEVICES: {}'.format( \
             os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ else 'NotSet'))

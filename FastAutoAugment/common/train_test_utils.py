@@ -61,7 +61,7 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
     train_size = len(train_dl)
 
     cur_lr = optim.param_groups[0]['lr']
-    logger.info("Epoch {} LR {}".format(epoch+1, cur_lr))
+    logger.info("Epoch {}: LR {}".format(epoch+1, cur_lr))
     writer.add_scalar('train/lr', cur_lr, global_step)
 
     model.train()
@@ -126,8 +126,6 @@ def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
 
     best_top1 = 0.
     for epoch in range(epochs):
-        lr_scheduler.step()
-
         if drop_path_prob:
             drop_prob = drop_path_prob * epoch / epochs
             # set value as property in model (it will be used by forward())
@@ -145,7 +143,7 @@ def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
         train_epoch(train_dl, model, device,
             train_lossfn, optim, aux_weight, grad_clip,
             report_freq, epoch, epochs, global_step, pre_stepfn)
-
+        lr_scheduler.step()
         top1 = test_epoch(test_dl, model, device, test_lossfn,
             report_freq, epoch, epochs, global_step)
 
