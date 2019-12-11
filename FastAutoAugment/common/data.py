@@ -358,8 +358,8 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
         num_workers = 0
         logger.warn('Using num_workers=0 because debugger is detected.')
     else: # use simple heuristic to auto select number of workers
-        num_workers = torch.cuda.device_count()*4 if num_workers is None \
-            else num_workers
+        num_workers = int(torch.cuda.device_count()*4 if num_workers is None \
+            else num_workers)
 
     # get usual random crop/flip transforms
     transform_train, transform_test = get_transforms(dataset)
