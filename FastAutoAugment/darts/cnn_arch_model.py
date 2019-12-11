@@ -205,11 +205,10 @@ class _CnnModel(nn.Module):
         return logits
 
 class CnnArchModel(nn.Module):
-    def __init__(self, ch_in, ch_out_init, n_classes, n_layers, lossfn,
+    def __init__(self, ch_in, ch_out_init, n_classes, n_layers,
             n_nodes=4, n_node_outs=4, stem_multiplier=3):
         super().__init__()
         self.n_nodes = n_nodes
-        self.lossfn = lossfn
 
         # alphas must be created before we create inner model
         self._create_alpahs()
@@ -248,10 +247,6 @@ class CnnArchModel(nn.Module):
             for alpha in self._alphas_reduce]
 
         return self._model(x, alphas_sm_normal, alphas_sm_reduce)
-
-    def loss(self, x, target):
-        logits = self(x)
-        return self.lossfn(logits, target)
 
     def print_alphas(self, logger):
         # remove formats

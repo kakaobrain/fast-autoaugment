@@ -2,6 +2,8 @@ import  torch
 import  numpy as np
 from    torch import autograd
 from torch.optim import Optimizer
+from torch.nn.modules.loss import _Loss
+
 import copy
 
 
@@ -10,13 +12,17 @@ from ..common.config import Config
 from ..common.optimizer import get_optimizer
 
 
+def _get_loss(model, lossfn, x, y):
+    logits = model(x)
+    return lossfn(logits, y)
+
     # t.view(-1) reshapes tensor to 1 row N columnsstairs
 #   w - model parameters
 #   alphas - arch parameters
 #   w' - updated w using grads from the loss
 class Arch:
 
-    def __init__(self, conf:Config, model:CnnArchModel)->None:
+    def __init__(self, conf:Config, model:CnnArchModel, lossfn:_Loss)->None:
 
         # region conf vars
         conf_search = conf['darts']['search']
@@ -29,6 +35,7 @@ class Arch:
 
         self._w_momentum = w_momentum # momentum for w
         self._w_weight_decay = w_decay # weight decay for w
+        self._lossfn = lossfn
         self._model = model # main model with respect to w and alpha
         self._bilevel:bool = bilevel
 
@@ -45,7 +52,7 @@ class Arch:
         """ Update vmodel with w' (main model has w) """
 
         # TODO: should this loss be stored for later use?
-        loss = self._model.loss(x, y)
+        loss = _get_loss(self._model, self._lossfn, x, y)
         gradients = autograd.grad(loss, self._model.weights())
 
         """update weights in vmodel so we leave main model undisturbed
@@ -90,7 +97,7 @@ class Arch:
         :param y_valid:
         :return:
         """
-        loss = self._model.loss(x_valid, y_valid)
+        loss = _get_loss(self._model, self._lossfn, x_valid, y_valid)
         # both alphas and w require grad but only alphas optimizer will
         # step in current phase.
         loss.backward()
@@ -105,7 +112,8 @@ class Arch:
         # compute loss on validation set for model with w'
         # wrt alphas. The autograd.grad is used instead of backward()
         # to avoid having to loop through params
-        vloss = self._vmodel.loss(x_valid, y_valid)
+        vloss = _get_loss(self._vmodel, self._lossfn, x_valid, y_valid)
+
         v_alphas = tuple(self._vmodel.alphas())
         v_weights = tuple(self._vmodel.weights())
         v_grads = autograd.grad(vloss, v_alphas + v_weights)
@@ -151,7 +159,7 @@ class Arch:
 
         # Now that we have model with w+, we need to compute grads wrt alphas
         # This loss needs to be on train set, not validation set
-        loss = self._model.loss(x, y)
+        loss = _get_loss(self._model, self._lossfn, x, y)
         dalpha_plus = autograd.grad(loss, self._model.alphas()) #dalpha{L_trn(w+)}
 
         # get model with w- and then compute grads wrt alphas
@@ -162,7 +170,7 @@ class Arch:
                 p -= 2. * epsilon * v
 
         # similarly get dalpha_minus
-        loss = self._model.loss(x, y)
+        loss = _get_loss(self._model, self._lossfn, x, y)
         dalpha_minus = autograd.grad(loss, self._model.alphas())
 
         # reset back params to original values by adding dw

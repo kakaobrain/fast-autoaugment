@@ -1,3 +1,4 @@
+from typing import Callable
 import torch
 from torch.utils.data import DataLoader
 import torch.nn as nn
@@ -50,7 +51,8 @@ def test_epoch(test_dl:DataLoader, model:nn.Module, device, lossfn:_Loss,
 
 def train_epoch(train_dl:DataLoader, model:nn.Module, device,
         lossfn:_Loss, optim:Optimizer, aux_weight:float, grad_clip:float,
-        report_freq:int, epoch:int, epochs:int, global_step:int):
+        report_freq:int, epoch:int, epochs:int, global_step:int,
+        pre_stepfn:Callable=None, post_stepfn:Callable=None)->float:
     logger, writer = get_logger(), get_tb_writer()
 
     top1 = utils.AverageMeter()
@@ -64,8 +66,14 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
 
     model.train()
     for step, (x, y) in enumerate(train_dl):
+        assert model.training # make sure something else doesn't alter the mode
+
+        # enable non-blocking on 2nd part so its ready when we get to it
         x, y = x.to(device), y.to(device, non_blocking=True)
         batch_size = x.size(0)
+
+        if not pre_stepfn:
+            pre_stepfn(step, x, y, cur_lr)
 
         optim.zero_grad()
         if aux_weight > 0.:
@@ -78,8 +86,12 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
 
         loss.backward()
         if grad_clip:
+            # TODO: original darts clips alphas as well but pt.darts doesn't
             nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optim.step()
+
+        if post_stepfn:
+            post_stepfn(step, x, y, cur_lr)
 
         prec1, prec5 = utils.accuracy(logits, y, topk=(1, 5))
         losses.update(loss.item(), batch_size)
@@ -101,14 +113,21 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
     logger.info("Train: [{:3d}/{}] Final Prec@1 {:.4%}".format(
             epoch+1, epochs, top1.avg))
 
+    return top1.avg
+
 def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
-        train_lossfn:_Loss, test_lossfn:_Loss, optim:Optimizer, aux_weight:float, grad_clip:float,
+        train_lossfn:_Loss, test_lossfn:_Loss, optim:Optimizer, aux_weight:float,
         lr_scheduler:_LRScheduler, drop_path_prob:float, model_save_dir:str,
-        report_freq:int, epochs:int):
+        grad_clip:float, report_freq:int, epochs:int,
+        pre_stepfn:Callable=None, post_stepfn:Callable=None,
+        pre_epochfn:Callable=None, post_epochfn:Callable=None)->None:
+
     logger = get_logger()
 
     best_top1 = 0.
     for epoch in range(epochs):
+        if pre_epochfn:
+            pre_epochfn()
         if drop_path_prob:
             drop_prob = drop_path_prob * epoch / epochs
             # set value as property in model (it will be used by forward())
@@ -121,8 +140,8 @@ def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
         global_step = epoch*len(train_dl)
 
         train_epoch(train_dl, model, device,
-            train_lossfn, optim, aux_weight, grad_clip, report_freq, epoch,
-            epochs, global_step)
+            train_lossfn, optim, aux_weight, grad_clip,
+            report_freq, epoch, epochs, global_step, pre_stepfn)
 
         top1 = test_epoch(test_dl, model, device, test_lossfn,
             report_freq, epoch, epochs, global_step)
@@ -135,6 +154,9 @@ def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
         else:
             is_best = False
         utils.save_checkpoint(model, model_save_dir, is_best)
+
+        if post_epochfn:
+            post_epochfn(epoch, best_top1, top1, is_best)
 
     logger.info("Final best Prec@1 = {:.4%}".format(best_top1))
     return best_top1
