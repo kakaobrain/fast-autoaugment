@@ -391,7 +391,7 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             sampler=train_sampler, drop_last=True)
         validloader = torch.utils.data.DataLoader(trainset,
             batch_size=batch_size, shuffle=False,
-            num_workers=num_workers/2, pin_memory=True,
+            num_workers=num_workers//2, pin_memory=True,
             sampler=valid_sampler, drop_last=False)
     if testset:
         if max_batches >= 0:
