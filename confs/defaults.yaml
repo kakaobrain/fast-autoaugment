@@ -62,11 +62,9 @@ darts:
     data_parallel: False
     model_class: 'Cifar10TestModel'
     train_lossfn:
-      lossfn:
-        type: 'CrossEntropyLoss'
+      type: 'CrossEntropyLoss'
     test_lossfn:
-      lossfn:
-        type: 'CrossEntropyLoss'
+      type: 'CrossEntropyLoss'
     loader:
       aug: '' # additional augmentations to use
       cutout: 16 # cutout length, use cutout augmentation when > 0
@@ -90,6 +88,8 @@ darts:
     bilevel: True
     ch_out_init: 16 # num of channels for stem outpt node
     layers: 8 # total number of layers
+    lossfn:
+      type: 'CrossEntropyLoss'
     loader:
       aug: '' # additional augmentations to use
       cutout: 0 # cutout length, use cutout augmentation when > 0

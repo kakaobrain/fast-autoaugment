@@ -1,5 +1,4 @@
 dataroot: '~/data/ImageNet' #torchvision data folder
-logdir: '~/logdir'
 seed: 0
 enable_tb: True # if False then TensorBoard logging is ignored
 horovod: False
@@ -23,9 +22,8 @@ darts:
     data_parallel: True
     model_class: 'ImageNetTestModel'
     test_lossfn:
-      lossfn:
-        type: 'CrossEntropyLabelSmooth'
-        smoothing: 0.1
+      type: 'CrossEntropyLabelSmooth'
+      smoothing: 0.1
     loader:
       aug: '' # additional augmentations to use
       cutout: 16 # cutout length, use cutout augmentation when > 0

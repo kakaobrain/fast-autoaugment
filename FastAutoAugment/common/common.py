@@ -136,4 +136,4 @@ def _create_tb_writer(conf:Config, is_master=True,
     WriterClass = SummaryWriterDummy if not conf['enable_tb'] or not is_master \
             else SummaryWriter
 
-    return WriterClass(log_dir='{}/tb/{}'.format(conf['logdir']))
+    return WriterClass(log_dir=os.path.join(conf['logdir'], 'tb'))
