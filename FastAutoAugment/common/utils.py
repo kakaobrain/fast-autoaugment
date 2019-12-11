@@ -2,6 +2,8 @@ import  os
 import  numpy as np
 import  torch
 import  shutil
+from torch import nn
+from torch.optim.optimizer import Optimizer
 import  torchvision.transforms as transforms
 
 
@@ -71,7 +73,14 @@ def param_size(model):
         if "auxiliary" not in name) / 1e6
 
 
-def save_checkpoint(state, is_best, ckpt_dir):
+def save_checkpoint(model:nn.Module, optim:Optimizer, best_top1:float,
+        epoch:int, is_best:bool, ckpt_dir:str)->None:
+    state = {
+            'epoch': epoch + 1,
+            'model': model.state_dict(),
+            'best_top1': best_top1,
+            'optim': optim.state_dict(),
+    }
     filename = os.path.join(ckpt_dir, 'checkpoint.pth.tar')
     torch.save(state, filename)
     if is_best:

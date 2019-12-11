@@ -152,7 +152,8 @@ def train_test(train_dl:DataLoader, test_dl:DataLoader, model:nn.Module, device,
             best_top1, is_best = top1, True
         else:
             is_best = False
-        utils.save_checkpoint(model, model_save_dir, is_best)
+        utils.save_checkpoint(model, optim, best_top1, epoch,
+            is_best, model_save_dir)
 
         if post_epochfn:
             post_epochfn(epoch, best_top1, top1, is_best)

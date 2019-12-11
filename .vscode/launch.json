@@ -5,6 +5,7 @@
     "version": "0.2.0",
     "configurations": [
 
+
         {
             "name": "TrainAug wresnet40x2 cifar10",
             "type": "python",
@@ -41,6 +42,13 @@
             "type": "python",
             "request": "launch",
             "program": "${cwd}/tests/darts_imagenet_test.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "CurrentFile",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
             "console": "integratedTerminal"
         }
     ]

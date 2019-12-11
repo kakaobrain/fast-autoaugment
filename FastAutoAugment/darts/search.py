@@ -69,11 +69,13 @@ def search_arch(conf:Config)->None:
     # in search phase we typically only run 50 epochs
     best_genotype:gt.Genotype = None
     valid_iter:Iterator[Any] = None
-    def _pre_epoch():
+    def _pre_epoch(*_):
         nonlocal valid_iter
         valid_iter = iter(val_dl)
 
     def _post_epochfn(epoch, best_top1, top1, is_best):
+        nonlocal best_genotype
+
         # log results of this epoch
         genotype = model.genotype()
         logger.info("genotype = {}".format(genotype))
@@ -83,8 +85,7 @@ def search_arch(conf:Config)->None:
         draw_genotype(genotype.normal, plot_filepath+"-normal", caption=caption)
         draw_genotype(genotype.reduce, plot_filepath+"-reduce", caption=caption)
 
-        if is_best:
-            nonlocal best_genotype
+        if is_best or best_genotype is None:
             best_genotype = genotype
 
     def _pre_stepfn(step, x_train, y_train, cur_lr):
@@ -104,7 +105,8 @@ def search_arch(conf:Config)->None:
     train_test(train_dl, val_dl, model, device, lossfn, lossfn,
         w_optim, aux_weight=0.0, grad_clip=grad_clip, lr_scheduler=lr_scheduler,
         drop_path_prob=0.0, model_save_dir=chkptdir, report_freq=report_freq,
-        epochs=epochs)
+        epochs=epochs, pre_stepfn=_pre_stepfn, pre_epochfn=_pre_epoch,
+        post_epochfn=_post_epochfn)
 
     logger.info("Best Genotype = {}".format(best_genotype))
 

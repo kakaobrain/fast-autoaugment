@@ -337,6 +337,8 @@ class LimitDataset(Dataset):
     def __init__(self, dataset, n):
         self.dataset = dataset
         self.n = n
+        if hasattr(dataset, 'targets'):
+            self.targets = dataset.targets[:n]
 
     def __len__(self):
         return self.n
@@ -373,16 +375,16 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     #     trainset.set_preaug(augs, total_aug)
     #     print('set_preaug-')
 
-    # sample validation set from trainset if cv_ration > 0
-    train_sampler, valid_sampler = _get_train_sampler(val_ratio, val_fold,
-        trainset, horovod, target_lb)
-
     trainloader, validloader, testloader = None, None, None
 
     if trainset:
         if max_batches >= 0:
-            logger.warn('Trainset trimmed due to max_batches config')
-            trainset = LimitDataset(trainset, max_batches*batch_size)
+            max_size = max_batches*batch_size
+            logger.warn('Trainset trimmed to max_batches: {}'.format(max_size))
+            trainset = LimitDataset(trainset, max_size)
+        # sample validation set from trainset if cv_ration > 0
+        train_sampler, valid_sampler = _get_train_sampler(val_ratio, val_fold,
+            trainset, horovod, target_lb)
         trainloader = torch.utils.data.DataLoader(trainset,
             batch_size=batch_size, shuffle=True if train_sampler is None else False,
             num_workers=num_workers, pin_memory=True,
@@ -393,7 +395,8 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             sampler=valid_sampler, drop_last=False)
     if testset:
         if max_batches >= 0:
-            logger.warn('Testset trimmed due to max_batches config')
+            max_size = max_batches*batch_size
+            logger.warn('Testset trimmed to max_batches: {}'.format(max_size))
             testset = LimitDataset(testset, max_batches*batch_size)
         testloader = torch.utils.data.DataLoader(testset,
             batch_size=batch_size, shuffle=False,
