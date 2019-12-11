@@ -6,7 +6,7 @@
     "configurations": [
 
         {
-            "name": "TrainAug wresnet40x2 cifar10 ",
+            "name": "TrainAug wresnet40x2 cifar10",
             "type": "python",
             "request": "launch",
             "program": "${cwd}/tests/aug_train.py",
@@ -15,7 +15,7 @@
                 "--aug", "fa_reduced_cifar10"]
         },
         {
-            "name": "SearchAug wresnet40x2 cifar10 ",
+            "name": "SearchAug wresnet40x2 cifar10",
             "type": "python",
             "request": "launch",
             "program": "${cwd}/tests/aug_search.py",
@@ -23,20 +23,25 @@
             "args": ["-c", "confs/wresnet40x2_cifar10_b512.yaml"]
         },
         {
-            "name": "SearchDarts cifar10 ",
+            "name": "SearchDarts cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/tests/darts_search.py",
-            "console": "integratedTerminal",
-            "args": ["-c", "confs/cifar_darts.yaml"]
+            "program": "${cwd}/tests/darts_cifar_search.py",
+            "console": "integratedTerminal"
         },
         {
-            "name": "TestDarts cifar10 ",
+            "name": "TestDarts cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/tests/darts_test.py",
-            "console": "integratedTerminal",
-            "args": ["-c", "confs/cifar_darts.yaml"]
+            "program": "${cwd}/tests/darts_cifar_test.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "TestDarts imagenet",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/tests/darts_imagenet_test.py",
+            "console": "integratedTerminal"
         }
     ]
 }

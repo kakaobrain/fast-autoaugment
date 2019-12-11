@@ -1,5 +1,7 @@
 dataroot: '~/torchvision_data_dir' #torchvision data folder
 logdir: '~/logdir'
+plotsdir: null # use default subfolder in logdir
+chkptdir: null # use default subfolder in logdir
 seed: 42
 enable_tb: True # if False then TensorBoard logging is ignored
 horovod: False

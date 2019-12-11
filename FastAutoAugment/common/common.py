@@ -83,8 +83,10 @@ def common_init(config_filepath:str, defaults_filepath:str,
     logdir = os.path.expanduser(conf['logdir'])
     dataroot = os.path.expanduser(conf['dataroot'])
     logdir = os.path.join(logdir, experiment_name)
-    plotsdir = os.path.join(logdir, 'plots')
-    chkptdir = os.path.join(logdir, 'chkpt')
+    plotsdir = os.path.join(logdir, 'plots') if not conf['plotsdir'] \
+        else os.path.expanduser(conf['plotsdir'])
+    chkptdir = os.path.join(logdir, 'chkpt') if not conf['chkptdir'] \
+        else os.path.expanduser(conf['chkptdir'])
     os.makedirs(logdir, exist_ok=True)
     os.makedirs(dataroot, exist_ok=True)
     os.makedirs(plotsdir, exist_ok=True)
@@ -98,8 +100,7 @@ def common_init(config_filepath:str, defaults_filepath:str,
         yaml.dump(conf, f, default_flow_style=False)
 
     # file where logger would log messages
-    logfilename = '{}_cv{:.1f}.log'.format(conf['dataset'],
-            conf['val_ratio'])
+    logfilename = 'logs.log'
     logfile_path = os.path.join(logdir, logfilename)
     _add_filehandler(logger, logfile_path)
 
