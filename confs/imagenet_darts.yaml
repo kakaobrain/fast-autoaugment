@@ -21,6 +21,7 @@ darts:
     ch_out_init: 48 # num of channels for stem outpt node
     layers: 14 # total number of layers
     data_parallel: True
+    model_class: 'ImageNetTestModel'
     test_lossfn:
       lossfn:
         type: 'CrossEntropyLabelSmooth'

@@ -13,7 +13,7 @@ from ..common import utils
 from ..common.common import get_logger, get_tb_writer
 from ..common.train_test_utils import train_test
 from ..common.data import get_dataloaders
-from .cnn_test_model import Cifar10TestModel
+from . import cnn_test_model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
 
 def test_arch(conf):
@@ -43,6 +43,7 @@ def test_arch(conf):
     epochs            = conf_loader['epochs']
     conf_opt          = conf_test['optimizer']
     conf_lr_sched     = conf_test['lr_schedule']
+    model_classname   = conf_test['model_class']
     report_freq       = conf['report_freq']
     horovod           = conf['horovod']
     aux_weight        = conf_test['aux_weight']
@@ -68,7 +69,8 @@ def test_arch(conf):
     test_lossfn = get_lossfn(conf_test_lossfn, conf_ds).to(device)
 
     # create model
-    model = Cifar10TestModel(ch_in, ch_out_init, n_classes, n_layers, aux_weight, genotype)
+    model_class = getattr(cnn_test_model, model_classname)
+    model = model_class(ch_in, ch_out_init, n_classes, n_layers, aux_weight, genotype)
     logger.info("Model size = {:.3f} MB".format(utils.param_size(model)))
     if data_parallel:
         model = nn.DataParallel(model).to(device)

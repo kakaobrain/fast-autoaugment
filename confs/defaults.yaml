@@ -58,6 +58,7 @@ darts:
     ch_out_init: 36 # num of channels for stem outpt node
     layers: 20 # total number of layers
     data_parallel: False
+    model_class: 'Cifar10TestModel'
     train_lossfn:
       lossfn:
         type: 'CrossEntropyLoss'

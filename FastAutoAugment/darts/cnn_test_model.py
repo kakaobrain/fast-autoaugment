@@ -152,6 +152,7 @@ class CnnTestModel(nn.Module, ABC):
       pass
 
 class Cifar10TestModel(CnnTestModel):
+    # must have same __init__ signature as CnnTestModel
     def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
         stem = nn.Sequential(
             nn.Conv2d(ch_in, ch_out, 3, padding=1, bias=False),
@@ -170,6 +171,7 @@ class Cifar10TestModel(CnnTestModel):
         return _Cell(self.genotype, ch_pp, ch_p, ch_cur, reduction, reduction_prev)
 
 class ImageNetTestModel(CnnTestModel):
+    # must have same __init__ signature as CnnTestModel
     def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
         stem0 = nn.Sequential(
             nn.Conv2d(ch_in, ch_out//2, kernel_size=3, stride=2, padding=1, bias=False),
