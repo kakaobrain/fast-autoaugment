@@ -43,6 +43,7 @@ def test_arch(conf):
     val_ratio         = conf_loader['val_ratio']
     batch_size        = conf_loader['batch']
     epochs            = conf_loader['epochs']
+    n_workers         = conf_loader['n_workers']
     conf_opt          = conf_test['optimizer']
     conf_lr_sched     = conf_test['lr_schedule']
     model_classname   = conf_test['model_class']
@@ -61,7 +62,7 @@ def test_arch(conf):
         ds_name, batch_size, dataroot, aug, cutout,
         load_train=True, load_test=True,
         val_ratio=0., val_fold=0, # no validation set
-        horovod=horovod, max_batches=max_batches)
+        horovod=horovod, max_batches=max_batches, n_workers=n_workers)
 
     # load genotype we want to test
     genotype = eval("genotypes.%s" % test_genotype)

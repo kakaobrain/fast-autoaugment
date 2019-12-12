@@ -32,6 +32,7 @@ darts:
       val_ratio: 0.4 #split portion for test set, 0 to 1
       val_fold: 0 #Fold number to use (0 to 4)
       cv_num: 5 # total number of folds available
+      n_workers: 4 # if null then gpu_count*4
     optimizer:
       type: 'sgd'
       lr: 0.1 # init learning rate

@@ -348,18 +348,18 @@ class LimitDataset(Dataset):
 
 def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     load_train:bool, load_test:bool, val_ratio:float,  val_fold=0,
-    horovod=False, target_lb=-1, num_workers:int=None, max_batches:int=-1) \
+    horovod=False, target_lb=-1, n_workers:int=None, max_batches:int=-1) \
         -> Tuple[DataLoader, DataLoader, DataLoader, Sampler]:
 
     logger = get_logger()
 
     # if debugging in vscode, workers > 0 gets termination
     if 'pydevd' in sys.modules:
-        num_workers = 0
-        logger.warn('Using num_workers=0 because debugger is detected.')
+        n_workers = 0
+        logger.warn('Using n_workers=0 because debugger is detected.')
     else: # use simple heuristic to auto select number of workers
-        num_workers = int(torch.cuda.device_count()*4 if num_workers is None \
-            else num_workers)
+        n_workers = int(torch.cuda.device_count()*4 if n_workers is None \
+            else n_workers)
 
     # get usual random crop/flip transforms
     transform_train, transform_test = get_transforms(dataset)
@@ -387,11 +387,11 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             trainset, horovod, target_lb)
         trainloader = torch.utils.data.DataLoader(trainset,
             batch_size=batch_size, shuffle=True if train_sampler is None else False,
-            num_workers=num_workers, pin_memory=True,
+            n_workers=n_workers, pin_memory=True,
             sampler=train_sampler, drop_last=True)
         validloader = torch.utils.data.DataLoader(trainset,
             batch_size=batch_size, shuffle=False,
-            num_workers=num_workers//2, pin_memory=True,
+            n_workers=n_workers//2, pin_memory=True,
             sampler=valid_sampler, drop_last=False)
     if testset:
         if max_batches >= 0:
@@ -400,7 +400,7 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             testset = LimitDataset(testset, max_batches*batch_size)
         testloader = torch.utils.data.DataLoader(testset,
             batch_size=batch_size, shuffle=False,
-            num_workers=num_workers, pin_memory=True,
+            n_workers=n_workers, pin_memory=True,
             sampler=None, drop_last=False
     )
 

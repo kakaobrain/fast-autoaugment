@@ -37,6 +37,7 @@ def search_arch(conf:Config)->None:
     batch_size    = conf_loader['batch']
     epochs        = conf_loader['epochs']
     val_fold      = conf_loader['val_fold']
+    n_workers     = conf_loader['n_workers']
     horovod       = conf['horovod']
     ch_out_init   = conf_search['ch_out_init']
     n_layers      = conf_search['layers']
@@ -51,7 +52,7 @@ def search_arch(conf:Config)->None:
         ds_name, batch_size, dataroot,
         aug=aug, cutout=cutout, load_train=True, load_test=False,
         val_ratio=val_ratio, val_fold=val_fold, horovod=horovod,
-        max_batches=max_batches)
+        max_batches=max_batches, n_workers=n_workers)
 
     device = torch.device('cuda')
 

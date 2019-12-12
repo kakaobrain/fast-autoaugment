@@ -318,6 +318,7 @@ def _eval_tta(conf, augment, reporter):
     ds_name     = conf_ds['name']
     cutout   = conf_loader['cutout']
     batch_size   = conf_loader['batch_size']
+    n_workers     = conf_loader['n_workers']
     # endregion
 
     val_ratio, val_fold, save_path = \
@@ -340,7 +341,7 @@ def _eval_tta(conf, augment, reporter):
         tl, validloader, tl2, _ = get_dataloaders(ds_name, batch_size,
             augment['dataroot'], aug, cutout,
             load_train=True, load_test=True,
-            val_ratio=val_ratio, val_fold=val_fold)
+            val_ratio=val_ratio, val_fold=val_fold, n_workers=n_workers)
         loaders.append(iter(validloader))
         del tl, tl2 # TODO: why exclude validloader?
 

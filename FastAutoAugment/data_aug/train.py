@@ -126,6 +126,7 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
     conf_model      = conf['autoaug']['model']
     conf_opt        = conf['autoaug']['optimizer']
     conf_lr_sched   = conf['autoaug']['lr_schedule']
+    n_workers       = conf_loader['n_workers']
     # endregion
 
 
@@ -143,8 +144,8 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
     # get dataloaders with transformations and splits applied
     train_dl, valid_dl, test_dl, trainsampler = get_dataloaders(ds_name,
         batch_size, dataroot, aug, cutout,
-        load_train=True, load_test=True,
-        val_ratio=val_ratio, val_fold=val_fold, horovod=horovod)
+        load_train=True, load_test=True, val_ratio=val_ratio, val_fold=val_fold,
+        horovod=horovod, n_workers=n_workers)
 
     # create a model & an optimizer
     model = get_model(conf_model, num_class(ds_name),
