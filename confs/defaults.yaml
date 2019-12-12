@@ -6,7 +6,7 @@ seed: 42
 enable_tb: True # if False then TensorBoard logging is ignored
 horovod: False
 checkpoint_freq: 10
-report_freq: 50 # after every N updates dump loss and other metrics in logger
+report_freq: 1 # after every N updates dump loss and other metrics in logger
 # TODO: workers setting
 
 # reddis address of Ray cluster. Use None for single node run

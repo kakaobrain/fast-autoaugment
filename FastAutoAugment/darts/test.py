@@ -28,7 +28,7 @@ def test_arch(conf):
     conf_test_lossfn  = conf_test['test_lossfn']
     conf_loader       = conf_test['loader']
     cutout            = conf_loader['cutout']
-    test_genotype     = conf_test['test_genotype']
+    test_genotype     = conf_test['genotype']
     ch_out_init       = conf_test['ch_out_init']
     n_layers          = conf_test['layers']
     aux_weight        = conf_test['aux_weight']
