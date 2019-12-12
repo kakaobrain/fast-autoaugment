@@ -9,7 +9,7 @@ from ..common.utils import drop_path_
 from . import genotypes as gt
 
 class _Cell(nn.Module):
-    def __init__(self, genotype:gt.Genotype, ch_pp:int, ch_p:int,
+    def __init__(self, n_node_outs:int, genotype:gt.Genotype, ch_pp:int, ch_p:int,
             ch_out_init:int, reduction:bool, reduction_prev:bool)->None:
         """
         We recieve genotype and build a cell that has 4 nodes, each with
@@ -18,10 +18,11 @@ class _Cell(nn.Module):
         """
         super().__init__()
 
+        self.n_node_outs = n_node_outs
         if reduction_prev: # if previous layer was reduction layer
             self._preprocess0 = FactorizedReduce(ch_pp, ch_out_init)
         else:
-            self.preprocess0 = ReLUConvBN(ch_pp, ch_out_init, 1, 1, 0)
+            self._preprocess0 = ReLUConvBN(ch_pp, ch_out_init, 1, 1, 0)
         self._preprocess1 = ReLUConvBN(ch_p, ch_out_init, 1, 1, 0)
 
         if reduction:
@@ -31,7 +32,7 @@ class _Cell(nn.Module):
 
         self._dag = gt.to_dag(ch_out_init, gene, reduction)
 
-    def forward(self, s0:torch.Tensor, s1:torch.Tensor, drop_prob:float):
+    def forward(self, s0:torch.Tensor, s1:torch.Tensor):
         s0 = self._preprocess0(s0)
         s1 = self._preprocess1(s1)
 
@@ -45,7 +46,8 @@ class _Cell(nn.Module):
 
         # concatenate outputs of all node which becomes the result of the cell
         # this makes it necessory that wxh is same for all outputs
-        s_out = torch.cat([states[i] for i in self._concat], dim=1)
+        node_outs = [states[i] for i in self._concat]
+        s_out = torch.cat(node_outs[-self.n_node_outs:], dim=1)
 
         return s_out
 
@@ -75,7 +77,7 @@ class AuxTower(nn.Module):
 class CnnTestModel(nn.Module, ABC):
     def __init__(self, ch_in:int, ch_out_init:int,
             n_classes:int, n_layers:int, aux_weight:float, genotype:gt.Genotype,
-            stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
+            n_node_outs=4, stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
             ):
         super().__init__()
 
@@ -98,7 +100,8 @@ class CnnTestModel(nn.Module, ABC):
             else:
                 reduction = False
 
-            cell = self._get_cell(ch_pp, ch_p, ch_cur, reduction, reduction_prev)
+            cell = self._get_cell(ch_pp, ch_p, ch_cur, n_node_outs,
+                                  reduction, reduction_prev)
 
             reduction_prev = reduction
             self._cells += [cell]
@@ -136,6 +139,11 @@ class CnnTestModel(nn.Module, ABC):
             if isinstance(module, DropPath_):
                 module.p = p
 
+    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int, n_node_outs:int,
+            reduction:bool, reduction_prev:bool)->nn.Module:
+        return _Cell(n_node_outs, self.genotype, ch_pp, ch_p, ch_cur,
+                reduction, reduction_prev)
+
     # Abstract methods
     @abstractmethod
     def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
@@ -145,10 +153,6 @@ class CnnTestModel(nn.Module, ABC):
         pass
     @abstractmethod
     def _get_final_pooling(self)->nn.Module:
-      pass
-    @abstractmethod
-    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int,
-            reduction:bool, reduction_prev:bool)->nn.Module:
       pass
 
 class Cifar10TestModel(CnnTestModel):
@@ -165,10 +169,6 @@ class Cifar10TestModel(CnnTestModel):
 
     def _get_final_pooling(self)->nn.Module:
         return nn.AdaptiveAvgPool2d(1)
-
-    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int,
-            reduction:bool, reduction_prev:bool)->nn.Module:
-        return _Cell(self.genotype, ch_pp, ch_p, ch_cur, reduction, reduction_prev)
 
 class ImageNetTestModel(CnnTestModel):
     # must have same __init__ signature as CnnTestModel
@@ -195,7 +195,4 @@ class ImageNetTestModel(CnnTestModel):
     def _get_final_pooling(self)->nn.Module:
         return nn.AvgPool2d(7)
 
-    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int,
-            reduction:bool, reduction_prev:bool)->nn.Module:
-        return _Cell(self.genotype, ch_pp, ch_p, ch_cur, reduction, reduction_prev)
 

@@ -98,8 +98,8 @@ def load(model, model_path):
     model.load_state_dict(torch.load(model_path))
 
 
-def drop_path_(x, drop_prob):
-    if drop_prob > 0.:
+def drop_path_(x, drop_prob, training):
+    if training and drop_prob > 0.:
         keep_prob = 1. - drop_prob
         # Bernoulli returns 1 with pobability p and 0 with 1-p.
         # Below generates tensor of shape (batch,1,1,1) filled with 1s and 0s
@@ -107,8 +107,7 @@ def drop_path_(x, drop_prob):
         mask = torch.FloatTensor(x.size(0), 1, 1, 1).bernoulli_(keep_prob) \
             .to(device=x.device)
         # scale tensor by 1/p as we will be losing other values
-        x.div_(keep_prob)
         # for each tensor in batch, zero out values with probability p
-        x.mul_(mask)
+        x.div_(keep_prob).mul_(mask)
     return x
 

@@ -54,7 +54,7 @@ autoaug:
 
 darts:
   test:
-    genotype: 'DARTS'
+    genotype: 'PT_DARTS' # original paper: 'DARTS'
     aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
     drop_path_prob: 0.2 # drop path probability
     model_filename: 'cifar10_model.pt'

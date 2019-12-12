@@ -15,6 +15,7 @@ from ..common.train_test_utils import train_test
 from ..common.data import get_dataloaders
 from . import cnn_test_model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
+from . import genotypes
 
 def test_arch(conf):
     logger, writer = get_logger(), get_tb_writer()
