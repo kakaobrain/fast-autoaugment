@@ -347,7 +347,7 @@ class LimitDataset(Dataset):
         return self.dataset[i]
 
 def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
-    load_train:bool, load_test:bool, val_ratio:float,  val_fold=0,
+    load_train:bool, load_test:bool, val_ratio:float, val_fold=0,
     horovod=False, target_lb=-1, n_workers:int=None, max_batches:int=-1) \
         -> Tuple[DataLoader, DataLoader, DataLoader, Sampler]:
 
@@ -387,11 +387,11 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             trainset, horovod, target_lb)
         trainloader = torch.utils.data.DataLoader(trainset,
             batch_size=batch_size, shuffle=True if train_sampler is None else False,
-            n_workers=n_workers, pin_memory=True,
+            num_workers=n_workers, pin_memory=True,
             sampler=train_sampler, drop_last=True)
         validloader = torch.utils.data.DataLoader(trainset,
             batch_size=batch_size, shuffle=False,
-            n_workers=n_workers//2, pin_memory=True,
+            num_workers=n_workers//2, pin_memory=True,
             sampler=valid_sampler, drop_last=False)
     if testset:
         if max_batches >= 0:
@@ -400,7 +400,7 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             testset = LimitDataset(testset, max_batches*batch_size)
         testloader = torch.utils.data.DataLoader(testset,
             batch_size=batch_size, shuffle=False,
-            n_workers=n_workers, pin_memory=True,
+            num_workers=n_workers, pin_memory=True,
             sampler=None, drop_last=False
     )
 
