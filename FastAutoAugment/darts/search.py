@@ -105,8 +105,6 @@ def search_arch(conf:Config)->None:
         # update alphas
         arch.step(x_train, y_train, x_val, y_val, cur_lr, w_optim)
 
-        timebudget.report(reset=True)
-
     train_test(train_dl, val_dl, model, device, lossfn, lossfn,
         w_optim, aux_weight=0.0, grad_clip=grad_clip, lr_scheduler=lr_scheduler,
         drop_path_prob=0.0, model_save_dir=chkptdir, report_freq=report_freq,
