@@ -13,7 +13,7 @@ from ..common.optimizer import get_optimizer
 
 
 def _get_loss(model, lossfn, x, y):
-    logits = model(x)
+    logits = model.forward(x)
     return lossfn(logits, y)
 
     # t.view(-1) reshapes tensor to 1 row N columnsstairs

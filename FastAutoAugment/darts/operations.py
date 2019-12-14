@@ -1,12 +1,16 @@
+from typing import List, Optional
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from . import genotypes
 from ..common import utils
+from .operations import OPS, FactorizedReduce, ReLUConvBN, MixedOp
 
 # OPS is a set of uninary tensor operators
 OPS = {
-    'none':         lambda ch, stride, affine: Zero(stride),
+    'none': lambda ch, stride, affine: Zero(stride),
     'avg_pool_3x3': lambda ch, stride, affine: PoolBN('avg', ch, 3, stride, 1, affine=affine),
     'max_pool_3x3': lambda ch, stride, affine: PoolBN('max', ch, 3, stride, 1, affine=affine),
     'skip_connect': lambda ch, stride, affine: Identity() if stride == 1 else FactorizedReduce(ch, ch, affine=affine),
@@ -15,13 +19,15 @@ OPS = {
     'sep_conv_7x7': lambda ch, stride, affine: SepConv(ch, ch, 7, stride, 3, affine=affine),
     'dil_conv_3x3': lambda ch, stride, affine: DilConv(ch, ch, 3, stride, 2, 2, affine=affine),
     'dil_conv_5x5': lambda ch, stride, affine: DilConv(ch, ch, 5, stride, 4, 2, affine=affine),
-    'conv_7x1_1x7': lambda C, stride, affine: FacConv(C, C, 7, stride, 3, affine=affine)
+    'conv_7x1_1x7': lambda ch, stride, affine: FacConv(ch, ch, 7, stride, 3, affine=affine)
 }
+
 
 class PoolBN(nn.Module):
     """
     AvgPool or MaxPool - BN
     """
+
     def __init__(self, pool_type, ch, kernel_size, stride, padding, affine=True):
         """
         Args:
@@ -31,7 +37,8 @@ class PoolBN(nn.Module):
         if pool_type.lower() == 'max':
             self.pool = nn.MaxPool2d(kernel_size, stride, padding)
         elif pool_type.lower() == 'avg':
-            self.pool = nn.AvgPool2d(kernel_size, stride, padding, count_include_pad=False)
+            self.pool = nn.AvgPool2d(
+                kernel_size, stride, padding, count_include_pad=False)
         else:
             raise ValueError()
 
@@ -42,16 +49,20 @@ class PoolBN(nn.Module):
         out = self.bn(out)
         return out
 
+
 class FacConv(nn.Module):
     """ Factorized conv
     ReLU - Conv(Kx1) - Conv(1xK) - BN
     """
+
     def __init__(self, ch_in, ch_out, kernel_length, stride, padding, affine=True):
         super().__init__()
         self.net = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(ch_in, ch_in, (kernel_length, 1), stride, padding, bias=False),
-            nn.Conv2d(ch_in, ch_out, (1, kernel_length), stride, padding, bias=False),
+            nn.Conv2d(ch_in, ch_in, (kernel_length, 1),
+                      stride, padding, bias=False),
+            nn.Conv2d(ch_in, ch_out, (1, kernel_length),
+                      stride, padding, bias=False),
             nn.BatchNorm2d(ch_out, affine=affine)
         )
 
@@ -63,6 +74,7 @@ class ReLUConvBN(nn.Module):
     """
     Stack of relu-conv-bn
     """
+
     def __init__(self, ch_in, ch_out, kernel_size, stride, padding, affine=True):
         """
 
@@ -77,7 +89,8 @@ class ReLUConvBN(nn.Module):
 
         self.op = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(ch_in, ch_out, kernel_size, stride=stride, padding=padding, bias=False),
+            nn.Conv2d(ch_in, ch_out, kernel_size, stride=stride,
+                      padding=padding, bias=False),
             nn.BatchNorm2d(ch_out, affine=affine)
         )
 
@@ -92,6 +105,7 @@ class DilConv(nn.Module):
     If dilation == 2, 3x3 conv => 5x5 receptive field
                       5x5 conv => 9x9 receptive field
     """
+
     def __init__(self, ch_in, ch_out, kernel_size, stride, padding, dilation, affine=True):
         super(DilConv, self).__init__()
 
@@ -114,6 +128,7 @@ class SepConv(nn.Module):
 
     This is same as two DilConv stacked with dilation=1
     """
+
     def __init__(self, ch_in, ch_out, kernel_size, stride, padding, affine=True):
         super(SepConv, self).__init__()
 
@@ -148,6 +163,7 @@ class Zero(nn.Module):
     """
     zero by stride
     """
+
     def __init__(self, stride):
         super(Zero, self).__init__()
 
@@ -164,6 +180,7 @@ class FactorizedReduce(nn.Module):
     reduce feature maps height/width by 4X while keeping channel same using two 1x1 convs, each with stride=2.
     """
     # TODO: modify to take number of nodes in reduction cells where stride 2 was applied (currently only first two input nodes)
+
     def __init__(self, ch_in, ch_out, affine=True):
         super(FactorizedReduce, self).__init__()
 
@@ -171,9 +188,11 @@ class FactorizedReduce(nn.Module):
 
         self.relu = nn.ReLU()
         # this conv layer operates on even pixels to produce half width, half channels
-        self.conv_1 = nn.Conv2d(ch_in, ch_out // 2, 1, stride=2, padding=0, bias=False)
+        self.conv_1 = nn.Conv2d(ch_in, ch_out // 2, 1,
+                                stride=2, padding=0, bias=False)
         # this conv layer operates on odd pixels (because of code in forward()) to produce half width, half channels
-        self.conv_2 = nn.Conv2d(ch_in, ch_out // 2, 1, stride=2, padding=0, bias=False)
+        self.conv_2 = nn.Conv2d(ch_in, ch_out // 2, 1,
+                                stride=2, padding=0, bias=False)
         self.bn = nn.BatchNorm2d(ch_out, affine=affine)
 
     def forward(self, x):
@@ -194,20 +213,32 @@ class MixedOp(nn.Module):
     """
     The output of MixedOp is weighted output of all allowed primitives.
     """
-    def __init__(self, ch, stride):
-        super(MixedOp, self).__init__()
+
+    def __init__(self, ch, stride, alphas: Optional[nn.Parameter]):
+        super().__init__()
 
         self._ops = nn.ModuleList()
+        if alphas is None:
+            alphas = nn.Parameter( # TODO: use better init than uniform random?
+                1e-3*torch.randn(len(genotypes.PRIMITIVES)), requires_grad=True)
+        self._alphas = alphas
+
         for primitive in genotypes.PRIMITIVES:
             # create corresponding layer
             op = OPS[primitive](ch, stride, affine=False)
             self._ops.append(op)
 
-    def forward(self, x, alpha):
-        return sum(w * op(x) for w, op in zip(alpha, self._ops))
+    def get_alphas(self)->nn.Parameter:
+        return self._alphas
+
+    def forward(self, x):
+        asm = F.softmax(self._alphas)
+        return sum(w * op(x) for w, op in zip(asm, self._ops))
+
 
 class DropPath_(nn.Module):
     """Replace values in tensor by 0. with probability p"""
+
     def __init__(self, p=0.):
         """ [!] DropPath is inplace module
         Args:
@@ -221,4 +252,3 @@ class DropPath_(nn.Module):
 
     def forward(self, x):
         return utils.drop_path_(x, self.p, self.training)
-
