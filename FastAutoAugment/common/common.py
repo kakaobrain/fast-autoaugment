@@ -10,7 +10,6 @@ import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 
-
 from .config import Config
 from .stopwatch import StopWatch
 from .metrics import SummaryWriterDummy
@@ -51,17 +50,20 @@ def _add_filehandler(logger, filepath):
 
 # initializes random number gen, debugging etc
 def common_init(config_filepath:str, defaults_filepath:str,
-        param_args:List[str]=[], experiment_name='', seed=42, detect_anomaly=True,
+        param_args:List[str]=[], experiment_name='', seed=42,
         log_level=logging.DEBUG, is_master=True, tb_names:Iterable[str]=['0']) \
         -> Config:
 
     global _app_name
     _app_name = experiment_name
 
-    conf = Config(config_filepath=config_filepath, defaults_filepath=defaults_filepath)
+    conf = Config(config_filepath=config_filepath,
+                  defaults_filepath=defaults_filepath)
 
-    assert not (conf['horovod'] and conf['only_eval']), 'can not use horovod when evaluation mode is enabled.'
-    assert (conf['only_eval'] and conf['logdir']) or not conf['only_eval'], 'checkpoint path not provided in evaluation mode.'
+    assert not (conf['horovod'] and conf['only_eval']),  \
+        'can not use horovod when evaluation mode is enabled.'
+    assert (conf['only_eval'] and conf['logdir']) or not conf['only_eval'], \
+        'checkpoint path not provided in evaluation mode.'
 
     Config.set(conf)
 
@@ -70,14 +72,16 @@ def common_init(config_filepath:str, defaults_filepath:str,
 
     logger = _setup_logger(experiment_name)
 
-    cudnn.benchmark = True
     cudnn.enabled = True
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    cudnn.benchmark = True
+    # torch.cuda.empty_cache()
+    # torch.cuda.synchronize()
 
-    if detect_anomaly:
-        # TODO: enable below only in debug mode
+    if conf['detect_anomaly']:
+        logger.warn('PyTorch code will be 6X slower because detect_anomaly=True.')
         torch.autograd.set_detect_anomaly(True)
 
     logdir = os.path.expanduser(conf['logdir'])

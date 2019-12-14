@@ -5,6 +5,8 @@ from torch.optim.optimizer import Optimizer
 from  torch.utils.data import DataLoader
 import os
 
+import timebudget
+
 from ..common.config import Config
 from .cnn_arch_model import CnnArchModel
 from .arch import Arch
@@ -102,6 +104,8 @@ def search_arch(conf:Config)->None:
 
         # update alphas
         arch.step(x_train, y_train, x_val, y_val, cur_lr, w_optim)
+
+        timebudget.report(reset=True)
 
     train_test(train_dl, val_dl, model, device, lossfn, lossfn,
         w_optim, aux_weight=0.0, grad_clip=grad_clip, lr_scheduler=lr_scheduler,

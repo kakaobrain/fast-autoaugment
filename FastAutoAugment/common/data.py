@@ -162,7 +162,7 @@ def _get_train_sampler(val_ratio:float, val_fold:int, trainset, horovod,
         target_lb {int} -- If >= 0 then trainset is filtered for only that
             target class ID
     """
-
+    logger = get_logger()
     assert val_fold >= 0
 
     train_sampler, valid_sampler = None, None
@@ -171,6 +171,9 @@ def _get_train_sampler(val_ratio:float, val_fold:int, trainset, horovod,
         each val_ratio containing tuple of train and valid set with valid set
         size portion = val_ratio, while samples for each class having same
         proportions as original dataset"""
+
+        logger.info('Validation set ratio = {}'.format(val_ratio))
+
         # TODO: random_state should be None so np.random is used
         # TODO: keep hardcoded n_splits=5?
         sss = StratifiedShuffleSplit(n_splits=5, test_size=val_ratio,
@@ -193,6 +196,8 @@ def _get_train_sampler(val_ratio:float, val_fold:int, trainset, horovod,
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                     train_sampler, num_replicas=hvd.size(), rank=hvd.rank())
     else:
+        logger.info('Validation set is not produced')
+
         # this means no sampling, validation set would be empty
         valid_sampler = SubsetSampler([])
 
@@ -210,11 +215,10 @@ def _add_augs(transform_train, aug:str, cutout:int):
     # TODO: total_aug remains None in original code
     total_aug = augs = None
 
+    logger.info('Additional augmentation = "{}"'.format(aug))
     if isinstance(aug, list):
-        logger.debug('augmentation provided.')
         transform_train.transforms.insert(0, Augmentation(aug))
     elif aug:
-        logger.debug('augmentation: %s' % aug)
         if aug == 'fa_reduced_cifar10':
             transform_train.transforms.insert(0, Augmentation(fa_reduced_cifar10()))
 
@@ -233,7 +237,7 @@ def _add_augs(transform_train, aug:str, cutout:int):
         elif aug in ['default', 'inception', 'inception320']:
             pass
         else:
-            raise ValueError('not found augmentations. %s' % aug)
+            raise ValueError('Augmentations not found: %s' % aug)
 
     # add cutout transform
     if cutout > 0:
@@ -282,7 +286,7 @@ def get_transforms(dataset):
             transforms.RandomVerticalFlip()
         ]
     else:
-        raise ValueError('not expected dataset = {}'.format(dataset))
+        raise ValueError('dataset not recognized: {}'.format(dataset))
 
     normalize = [
         transforms.ToTensor(),
@@ -356,10 +360,11 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     # if debugging in vscode, workers > 0 gets termination
     if 'pydevd' in sys.modules:
         n_workers = 0
-        logger.warn('Using n_workers=0 because debugger is detected.')
+        logger.warn('Debugger is detected, lower performance settings may be used.')
     else: # use simple heuristic to auto select number of workers
         n_workers = int(torch.cuda.device_count()*4 if n_workers is None \
             else n_workers)
+    logger.info('n_workers = {}'.format(n_workers))
 
     # get usual random crop/flip transforms
     transform_train, transform_test = get_transforms(dataset)
@@ -380,7 +385,7 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     if trainset:
         if max_batches >= 0:
             max_size = max_batches*batch_size
-            logger.warn('Trainset trimmed to max_batches: {}'.format(max_size))
+            logger.warn('Trainset trimmed to max_batches = {}'.format(max_size))
             trainset = LimitDataset(trainset, max_size)
         # sample validation set from trainset if cv_ration > 0
         train_sampler, valid_sampler = _get_train_sampler(val_ratio, val_fold,
@@ -391,12 +396,12 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             sampler=train_sampler, drop_last=True)
         validloader = torch.utils.data.DataLoader(trainset,
             batch_size=batch_size, shuffle=False,
-            num_workers=n_workers//2, pin_memory=True,
+            num_workers=n_workers, pin_memory=True, #TODO: set n_workers per ratio?
             sampler=valid_sampler, drop_last=False)
     if testset:
         if max_batches >= 0:
             max_size = max_batches*batch_size
-            logger.warn('Testset trimmed to max_batches: {}'.format(max_size))
+            logger.warn('Testset trimmed to max_batches = {}'.format(max_size))
             testset = LimitDataset(testset, max_batches*batch_size)
         testloader = torch.utils.data.DataLoader(testset,
             batch_size=batch_size, shuffle=False,
