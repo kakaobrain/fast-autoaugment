@@ -5,8 +5,6 @@ from torch.optim.optimizer import Optimizer
 from  torch.utils.data import DataLoader
 import os
 
-import timebudget
-
 from ..common.config import Config
 from .cnn_arch_model import CnnArchModel
 from .arch import Arch
