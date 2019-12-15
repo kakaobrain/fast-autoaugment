@@ -228,7 +228,7 @@ class MixedOp(nn.Module):
             op = OPS[primitive](ch, stride, affine=False)
             self._ops.append(op)
 
-    def get_alphas(self)->nn.Parameter:
+    def alphas(self)->nn.Parameter:
         return self._alphas
 
     def forward(self, x):

@@ -5,11 +5,10 @@ import logging
 from typing import List, Optional, Iterator
 
 from .search_cell import SearchCell
+from .darts_search_cell import DartsSearchCell
 from . import genotypes as gt
 
-class _CnnModel(nn.Module):
-    """ Search CNN model """
-
+class CnnArchModel(nn.Module):
     def __init__(self, ch_in:int, ch_out_init:int, n_classes:int, n_layers:int,
         n_nodes=4, n_node_outs=4, stem_multiplier=3):
         """
@@ -30,6 +29,7 @@ class _CnnModel(nn.Module):
         self.n_classes = n_classes
         self.n_layers = n_layers
         self.n_node_outs = n_node_outs
+        self.n_nodes = n_nodes
 
         # stem is the start of network. This is additional
         # 3x3 conv layer that multiplies channels
@@ -50,6 +50,7 @@ class _CnnModel(nn.Module):
         first_normal:Optional[SearchCell] = None
         first_reduction:Optional[SearchCell] = None
         reduction_prev = False
+
         for i in range(n_layers):
             # for layer in the middle [1/3, 2/3], reduce via stride=2
             if i in [n_layers // 3, 2 * n_layers // 3]:
@@ -59,12 +60,13 @@ class _CnnModel(nn.Module):
 
             # [ch_p, h, h] => [n_node_outs*ch_cur, h/h//2, h/h//2]
             # the output channels = n_node_outs * ch_cur
-            cell = SearchCell(n_nodes, n_node_outs, ch_pp, ch_p, ch_cur, reduction,
+            cell = DartsSearchCell(n_nodes, n_node_outs, ch_pp, ch_p, ch_cur, reduction,
                 reduction_prev, first_reduction if reduction else first_normal)
             # update reduction_prev
             reduction_prev = reduction
 
             self._cells.append(cell)
+
             if first_normal is None and not reduction:
                 first_normal = cell
             if first_reduction is None and reduction:
@@ -77,8 +79,15 @@ class _CnnModel(nn.Module):
         # it indicates the input channel number
         self.linear = nn.Linear(ch_p, n_classes)
 
-    def get_alphas(self)->Iterator[nn.Parameter]:
-        return self._cells[0].get_alphas() # all other cells shares alphas
+    def alphas(self)->Iterator[nn.Parameter]:
+        return (alpha                               \
+                    for cell in self._cells         \
+                        if not cell.shared_alphas   \
+                            for alpha in cell.alphas())
+    def weights(self)->Iterator[nn.Parameter]:
+        return (p                                   \
+                for cell in self._cells             \
+                    for p in cell.weights())
 
     def forward(self, x):
         """
@@ -112,21 +121,6 @@ class _CnnModel(nn.Module):
 
         return logits
 
-class CnnArchModel(nn.Module):
-    def __init__(self, ch_in, ch_out_init, n_classes, n_layers,
-            n_nodes=4, n_node_outs=4, stem_multiplier=3):
-        super().__init__()
-        self.n_nodes = n_nodes
-
-        self._model = _CnnModel(ch_in, ch_out_init, n_classes, n_layers,
-            n_nodes, n_node_outs, stem_multiplier)
-
-    def alphas(self) -> Iterator[nn.Parameter]:
-        return self._model.get_alphas()
-
-    def forward(self, x):
-        return self._model(x)
-
     def genotype(self):
         gene_normal = gt.parse(self._alphas_normal, k=2)
         gene_reduce = gt.parse(self._alphas_reduce, k=2)
@@ -134,8 +128,3 @@ class CnnArchModel(nn.Module):
 
         return gt.Genotype(normal=gene_normal, normal_concat=concat,
                            reduce=gene_reduce, reduce_concat=concat)
-
-    def weights(self):
-        return self._model.parameters()
-
-
