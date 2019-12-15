@@ -9,13 +9,14 @@ import torchvision.datasets as tvds
 from torch.nn.modules.loss import _Loss
 from torch.optim.lr_scheduler import _LRScheduler
 
+import yaml
+
 from ..common import utils
 from ..common.common import get_logger, get_tb_writer
 from ..common.train_test_utils import train_test
 from ..common.data import get_dataloaders
 from . import cnn_test_model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
-from . import genotypes
 
 def test_arch(conf):
     logger, writer = get_logger(), get_tb_writer()
@@ -29,7 +30,7 @@ def test_arch(conf):
     conf_test_lossfn  = conf_test['test_lossfn']
     conf_loader       = conf_test['loader']
     cutout            = conf_loader['cutout']
-    test_genotype     = conf_test['genotype']
+    arch_file         = conf_test['arch_file']
     ch_out_init       = conf_test['ch_out_init']
     n_layers          = conf_test['layers']
     aux_weight        = conf_test['aux_weight']
@@ -64,16 +65,17 @@ def test_arch(conf):
         val_ratio=0., val_fold=0, # no validation set
         horovod=horovod, max_batches=max_batches, n_workers=n_workers)
 
-    # load genotype we want to test
-    genotype = eval("genotypes.%s" % test_genotype)
-    logger.info('test genotype: {}'.format(genotype))
+    # load architecture we want to test
+    with open(arch_file, 'r') as f:
+        model_desc = yaml.safe_load(f)
+    logger.info('Loaded test architecture file: {}'.format(arch_file))
 
     train_lossfn = get_lossfn(conf_train_lossfn, conf_ds).to(device)
     test_lossfn = get_lossfn(conf_test_lossfn, conf_ds).to(device)
 
     # create model
     model_class = getattr(cnn_test_model, model_classname)
-    model = model_class(ch_in, ch_out_init, n_classes, n_layers, aux_weight, genotype)
+    model = model_class(ch_in, ch_out_init, n_classes, n_layers, aux_weight, model_desc)
     logger.info("Model size = {:.3f} MB".format(utils.param_size(model)))
     if data_parallel:
         model = nn.DataParallel(model).to(device)

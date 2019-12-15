@@ -1,4 +1,5 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
+from abc import ABC, abstractmethod
 
 import torch
 import torch.nn as nn
@@ -6,27 +7,43 @@ import torch.nn.functional as F
 
 from . import genotypes
 from ..common import utils
-from .operations import OPS, FactorizedReduce, ReLUConvBN, MixedOp
 
-# OPS is a set of uninary tensor operators
-OPS = {
-    'none': lambda ch, stride, affine: Zero(stride),
-    'avg_pool_3x3': lambda ch, stride, affine: PoolBN('avg', ch, 3, stride, 1, affine=affine),
-    'max_pool_3x3': lambda ch, stride, affine: PoolBN('max', ch, 3, stride, 1, affine=affine),
-    'skip_connect': lambda ch, stride, affine: Identity() if stride == 1 else FactorizedReduce(ch, ch, affine=affine),
-    'sep_conv_3x3': lambda ch, stride, affine: SepConv(ch, ch, 3, stride, 1, affine=affine),
-    'sep_conv_5x5': lambda ch, stride, affine: SepConv(ch, ch, 5, stride, 2, affine=affine),
-    'sep_conv_7x7': lambda ch, stride, affine: SepConv(ch, ch, 7, stride, 3, affine=affine),
-    'dil_conv_3x3': lambda ch, stride, affine: DilConv(ch, ch, 3, stride, 2, 2, affine=affine),
-    'dil_conv_5x5': lambda ch, stride, affine: DilConv(ch, ch, 5, stride, 4, 2, affine=affine),
-    'conv_7x1_1x7': lambda ch, stride, affine: FacConv(ch, ch, 7, stride, 3, affine=affine)
+
+# Each op is a uninary tensor operator, all take same constructor params
+_ops_factory = {
+    'max_pool_3x3': lambda ch, stride, affine, alphas, training: PoolBN('max', ch, 3, stride, 1, affine=affine),
+    'avg_pool_3x3': lambda ch, stride, affine, alphas, training: PoolBN('avg', ch, 3, stride, 1, affine=affine),
+    'skip_connect': lambda ch, stride, affine, alphas, training: Identity(training) if stride == 1 else FactorizedReduce(ch, ch, affine=affine),
+    'sep_conv_3x3': lambda ch, stride, affine, alphas, training: SepConv(ch, ch, 3, stride, 1, affine=affine),
+    'sep_conv_5x5': lambda ch, stride, affine, alphas, training: SepConv(ch, ch, 5, stride, 2, affine=affine),
+    'dil_conv_3x3': lambda ch, stride, affine, alphas, training: DilConv(ch, ch, 3, stride, 2, 2, affine=affine),
+    'dil_conv_5x5': lambda ch, stride, affine, alphas, training: DilConv(ch, ch, 5, stride, 4, 2, affine=affine),
+    'none':         lambda ch, stride, affine, alphas, training: Zero(stride),
+    'sep_conv_7x7': lambda ch, stride, affine, alphas, training: SepConv(ch, ch, 7, stride, 3, affine=affine),
+    'conv_7x1_1x7': lambda ch, stride, affine, alphas, training: FacConv(ch, ch, 7, stride, 3, affine=affine),
+    'mixed_op':     lambda ch, stride, affine, alphas, training: MixedOp(ch, stride, affine, alphas)
 }
 
+class SearchOpBase(nn.Module, ABC):
+    def alphas(self)->Optional[nn.Parameter]:
+        return None
 
-class PoolBN(nn.Module):
-    """
-    AvgPool or MaxPool - BN
-    """
+    def finalize(self)->dict:
+        return self._create_info
+
+    def _set_create_info(self, create_info:dict)->None:
+        self._create_info = create_info
+
+
+def create_op(name:str, ch:int, stride:int, affine:bool,
+               alphas: Optional[nn.Parameter]=None, training=True)->SearchOpBase:
+    op = _ops_factory[name](ch, stride, affine, alphas, training)
+    op._set_create_info({'name':name, 'ch':ch, 'stride':stride, 'affine':affine })
+    return op
+
+
+class PoolBN(SearchOpBase):
+    """AvgPool or MaxPool - BN """
 
     def __init__(self, pool_type, ch, kernel_size, stride, padding, affine=True):
         """
@@ -50,7 +67,7 @@ class PoolBN(nn.Module):
         return out
 
 
-class FacConv(nn.Module):
+class FacConv(SearchOpBase):
     """ Factorized conv
     ReLU - Conv(Kx1) - Conv(1xK) - BN
     """
@@ -70,7 +87,7 @@ class FacConv(nn.Module):
         return self.net(x)
 
 
-class ReLUConvBN(nn.Module):
+class ReLUConvBN(SearchOpBase):
     """
     Stack of relu-conv-bn
     """
@@ -98,7 +115,7 @@ class ReLUConvBN(nn.Module):
         return self.op(x)
 
 
-class DilConv(nn.Module):
+class DilConv(SearchOpBase):
     """ (Dilated) depthwise separable conv
     ReLU - (Dilated) depthwise separable - Pointwise - BN
 
@@ -122,7 +139,7 @@ class DilConv(nn.Module):
         return self.op(x)
 
 
-class SepConv(nn.Module):
+class SepConv(SearchOpBase):
     """ Depthwise separable conv
     DilConv(dilation=1) * 2
 
@@ -151,21 +168,23 @@ class SepConv(nn.Module):
         return self.op(x)
 
 
-class Identity(nn.Module):
-    def __init__(self):
-        super(Identity, self).__init__()
+class Identity(SearchOpBase):
+    def __init__(self, training):
+        super().__init__()
+        self._drop_op = DropPath_() if not training else None
 
     def forward(self, x):
+        # TODO: investigate need for drop path
+        if self._drop_op is not None:
+            x = self._drop_op(x)
         return x
 
 
-class Zero(nn.Module):
-    """
-    zero by stride
-    """
+class Zero(SearchOpBase):
+    """Represents no connection """
 
     def __init__(self, stride):
-        super(Zero, self).__init__()
+        super().__init__()
 
         self.stride = stride
 
@@ -174,8 +193,7 @@ class Zero(nn.Module):
             return x.mul(0.)
         return x[:, :, ::self.stride, ::self.stride].mul(0.)
 
-
-class FactorizedReduce(nn.Module):
+class FactorizedReduce(SearchOpBase):
     """
     reduce feature maps height/width by 4X while keeping channel same using two 1x1 convs, each with stride=2.
     """
@@ -209,31 +227,54 @@ class FactorizedReduce(nn.Module):
         return out
 
 
-class MixedOp(nn.Module):
+class MixedOp(SearchOpBase):
     """
     The output of MixedOp is weighted output of all allowed primitives.
     """
 
-    def __init__(self, ch, stride, alphas: Optional[nn.Parameter]):
+    PRIMITIVES = [
+        'max_pool_3x3',
+        'avg_pool_3x3',
+        'skip_connect', #identity
+        'sep_conv_3x3',
+        'sep_conv_5x5',
+            'dil_conv_3x3',
+        'dil_conv_5x5',
+        'none' # this must be at the end so top1 doesn't chose it
+    ]
+
+
+    def __init__(self, ch, stride, affine, alphas: Optional[nn.Parameter]):
         super().__init__()
 
+        assert MixedOp.PRIMITIVES[-1] == 'none' # assume last PRIMITIVE is 'none'
+        self.ch, self.stride = ch, stride
         self._ops = nn.ModuleList()
         if alphas is None:
             alphas = nn.Parameter( # TODO: use better init than uniform random?
-                1e-3*torch.randn(len(genotypes.PRIMITIVES)), requires_grad=True)
+                1e-3*torch.randn(len(MixedOp.PRIMITIVES)), requires_grad=True)
         self._alphas = alphas
 
-        for primitive in genotypes.PRIMITIVES:
+        for primitive in MixedOp.PRIMITIVES:
             # create corresponding layer
-            op = OPS[primitive](ch, stride, affine=False)
+            op = create_op(primitive, ch, stride, affine)
             self._ops.append(op)
-
-    def alphas(self)->nn.Parameter:
-        return self._alphas
 
     def forward(self, x):
         asm = F.softmax(self._alphas)
         return sum(w * op(x) for w, op in zip(asm, self._ops))
+
+    # overrides
+    def alphas(self)->Optional[nn.Parameter]:
+        return self._alphas
+
+    # overrides
+    def finalize(self)->dict:
+        # select except 'none' op
+        val, i = torch.topk(self._alphas[:-1], 1)
+        op_desc = self._ops[i].finalize()
+        op_desc['rank'] = val
+        return op_desc
 
 
 class DropPath_(nn.Module):

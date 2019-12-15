@@ -4,33 +4,45 @@ from abc import ABC, abstractmethod
 import torch
 import torch.nn as nn
 
-from .operations import *
-from ..common.utils import drop_path_
-from . import genotypes as gt
+from .operations import create_op, FactorizedReduce, ReLUConvBN
+from ..common.utils import first_or_default
+from .dag_edge import DagEdge
 
 class _Cell(nn.Module):
-    def __init__(self, n_node_outs:int, genotype:gt.Genotype, ch_pp:int, ch_p:int,
-            ch_out_init:int, reduction:bool, reduction_prev:bool)->None:
-        """
-        We recieve genotype and build a cell that has 4 nodes, each with
-        exactly two edges and only one primitive attached to this edge.
-        This genotype then would be "compiled" to produce PyTorch module.
-        """
+    def __init__(self, cell_desc:dict)->None:
         super().__init__()
 
-        self.n_node_outs = n_node_outs
-        if reduction_prev: # if previous layer was reduction layer
-            self._preprocess0 = FactorizedReduce(ch_pp, ch_out_init)
-        else:
-            self._preprocess0 = ReLUConvBN(ch_pp, ch_out_init, 1, 1, 0)
-        self._preprocess1 = ReLUConvBN(ch_p, ch_out_init, 1, 1, 0)
+        self.n_node_outs = cell_desc['n_node_outs']
+        self.ch_pp = cell_desc['ch_pp']
+        self.ch_p = cell_desc['ch_p']
+        self.ch_out_init = cell_desc['ch_out_init']
+        self.reduction = cell_desc['reduction']
+        self.reduction_prev = cell_desc['reduction_prev']
+        self.ch_out = cell_desc['ch_out']
 
-        if reduction:
-            gene, self._concat = genotype.reduce, genotype.reduce_concat
+        if self.reduction_prev: # if previous layer was reduction layer
+            self._preprocess0 = FactorizedReduce(self.ch_pp,self. ch_out_init)
         else:
-            gene, self._concat = genotype.normal, genotype.normal_concat
+            self._preprocess0 = ReLUConvBN(self.ch_pp, self.ch_out_init, 1, 1, 0)
+        self._preprocess1 = ReLUConvBN(self.ch_p, self.ch_out_init, 1, 1, 0)
 
-        self._dag = gt.to_dag(ch_out_init, gene, reduction)
+        self._dag = self._to_dag(self.ch_out_init, cell_desc, self.reduction)
+
+    def _to_dag(self, ch_in:int, cell_desc:dict, reduction:bool)->nn.ModuleList:
+        """ generate discrete ops from gene """
+        dag = nn.ModuleList()
+        for edges in cell_desc['nodes']:
+            row = nn.ModuleList()
+            for edge in edges:
+                op = create_op(edge['name'], edge['ch'], edge['stride'], edge['affine'])
+                row.append(DagEdge(op, edge['input_ids'], None))
+                op_name, s_idx = , edge['input_ids']
+                # reduction cell & from input nodes => stride = 2
+                stride = 2 if reduction and s_idx < 2 else 1
+            dag.append(row)
+
+        return dag
+
 
     def forward(self, s0:torch.Tensor, s1:torch.Tensor):
         s0 = self._preprocess0(s0)
@@ -46,8 +58,9 @@ class _Cell(nn.Module):
 
         # concatenate outputs of all node which becomes the result of the cell
         # this makes it necessory that wxh is same for all outputs
-        node_outs = [states[i] for i in self._concat]
-        s_out = torch.cat(node_outs[-self.n_node_outs:], dim=1)
+        node_outs_range = range(len(states))[:self.n_nodes_out]
+        node_outs = [states[i] for i in node_outs_range]
+        s_out = torch.cat(node_outs, dim=1)
 
         return s_out
 
@@ -76,14 +89,14 @@ class AuxTower(nn.Module):
 
 class CnnTestModel(nn.Module, ABC):
     def __init__(self, ch_in:int, ch_out_init:int,
-            n_classes:int, n_layers:int, aux_weight:float, genotype:gt.Genotype,
-            n_node_outs=4, stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
+            n_classes:int, n_layers:int, aux_weight:float, model_desc:dict,
+            stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
             ):
         super().__init__()
 
         self._n_layers = n_layers
         self.aux_tower, self.aux_pos = None, 2*n_layers//3
-        self.genotype = genotype # will be used by derived classes
+        self.model_desc = model_desc # will be used by derived classes
 
         ch_cur = stem_multiplier * ch_out_init
         self.stem0, self.stem1 = self._get_stems(ch_in, ch_cur)
@@ -91,29 +104,19 @@ class CnnTestModel(nn.Module, ABC):
         # ch_cur: output channels for cell i
         # ch_p: output channels for cell i-1
         # ch_pp: output channels for cell i-2
-        ch_pp, ch_p, ch_cur = ch_cur, ch_cur, ch_out_init
         self._cells = nn.ModuleList()
-        reduction_prev = False
-        for i in range(n_layers):
-            if i in [n_layers // 3, 2 * n_layers // 3]:
-                ch_cur, reduction = ch_cur * 2, True
-            else:
-                reduction = False
-
-            cell = self._get_cell(ch_pp, ch_p, ch_cur, n_node_outs,
-                                  reduction, reduction_prev)
-
-            reduction_prev = reduction
+        for i, cell_desc in enumerate(model_desc['cells']):
+            cell = _Cell(cell_desc)
             self._cells += [cell]
-            ch_pp, ch_p = ch_p, cell.n_node_outs * ch_cur
             if aux_weight > 0. and i==self.aux_pos:
-                self.aux_tower = self._get_aux_tower(ch_p, n_classes)
+                self.aux_tower = self._get_aux_tower(
+                    cell.n_node_outs * cell.ch_out, n_classes)
 
         self.final_pooling = self._get_final_pooling()
-        self.linear = nn.Linear(ch_p, n_classes)
+        self.linear = nn.Linear(cell.n_node_outs * cell.ch_out, n_classes)
 
     def forward(self, input:torch.Tensor):
-        logits_aux:torch.Tensor = None
+        logits_aux = None
 
         # TODO: this is bit weired logic in original paper
         s0 = self.stem0(input)
@@ -138,11 +141,6 @@ class CnnTestModel(nn.Module, ABC):
         for module in self.modules():
             if isinstance(module, DropPath_):
                 module.p = p
-
-    def _get_cell(self, ch_pp:int, ch_p:int, ch_cur:int, n_node_outs:int,
-            reduction:bool, reduction_prev:bool)->nn.Module:
-        return _Cell(n_node_outs, self.genotype, ch_pp, ch_p, ch_cur,
-                reduction, reduction_prev)
 
     # Abstract methods
     @abstractmethod

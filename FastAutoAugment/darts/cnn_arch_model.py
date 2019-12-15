@@ -24,12 +24,9 @@ class CnnArchModel(nn.Module):
         """
         super().__init__()
 
-        self.ch_in = ch_in
-        self.ch_out_init = ch_out_init
-        self.n_classes = n_classes
-        self.n_layers = n_layers
-        self.n_node_outs = n_node_outs
-        self.n_nodes = n_nodes
+        self.ch_in, self.ch_out_init = ch_in, ch_out_init
+        self.n_classes, self.n_nodes = n_classes, n_nodes
+        self.n_layers, self.n_node_outs = n_layers, n_node_outs
 
         # stem is the start of network. This is additional
         # 3x3 conv layer that multiplies channels
@@ -121,10 +118,7 @@ class CnnArchModel(nn.Module):
 
         return logits
 
-    def genotype(self):
-        gene_normal = gt.parse(self._alphas_normal, k=2)
-        gene_reduce = gt.parse(self._alphas_reduce, k=2)
-        concat = range(2, 2+self.n_nodes) # concat all intermediate nodes
-
-        return gt.Genotype(normal=gene_normal, normal_concat=concat,
-                           reduce=gene_reduce, reduce_concat=concat)
+    def finalize(self, max_edges)->dict:
+        return {
+            'cells': [cell.finalize() for cell in self._cells]
+        }

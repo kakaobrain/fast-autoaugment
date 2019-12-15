@@ -1,9 +1,10 @@
-from typing import Tuple, Any, Iterator
+from typing import Tuple, Any, Iterator, Optional
 import  torch.nn as nn
 import torch
 from torch.optim.optimizer import Optimizer
 from  torch.utils.data import DataLoader
 import os
+import yaml
 
 from ..common.config import Config
 from .cnn_arch_model import CnnArchModel
@@ -12,9 +13,9 @@ from ..common.data import get_dataloaders
 from ..common.common import get_logger, get_tb_writer
 from ..common import utils
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
-from .vis_genotype import draw_genotype
+from .vis_genotype import draw_model_desc
 from ..common.train_test_utils import train_test
-from . import genotypes as gt
+
 
 def search_arch(conf:Config)->None:
     logger = get_logger()
@@ -23,6 +24,7 @@ def search_arch(conf:Config)->None:
     conf_search   = conf['darts']['search']
     conf_loader   = conf['darts']['search']['loader']
     conf_ds       = conf['dataset']
+    logdir        = conf['logdir']
     conf_w_opt    = conf_search['weights']['optimizer']
     conf_w_sched  = conf_search['weights']['lr_schedule']
     ds_name       = conf_ds['name']
@@ -68,26 +70,25 @@ def search_arch(conf:Config)->None:
     lr_scheduler = get_lr_scheduler(conf_w_sched, epochs, w_optim)
 
     # in search phase we typically only run 50 epochs
-    best_genotype:gt.Genotype = None
-    valid_iter:Iterator[Any] = None
+    best_model_desc:Optional[dict] = None
+    valid_iter:Optional[Iterator[Any]] = None
     def _pre_epoch(*_):
         nonlocal valid_iter
         valid_iter = iter(val_dl)
 
     def _post_epochfn(epoch, best_top1, top1, is_best):
-        nonlocal best_genotype
+        nonlocal best_model_desc
 
         # log results of this epoch
-        genotype = model.genotype()
-        logger.info("genotype = {}".format(genotype))
-        # genotype as a image
+        model_desc = model.finalize(max_edges=2) # TODO: add config
+        logger.info("model_desc = {}".format(model_desc))
+        # model_desc as a image
         plot_filepath = os.path.join(plotsdir, "EP{:03d}".format(epoch+1))
         caption = "Epoch {}".format(epoch+1)
-        draw_genotype(genotype.normal, plot_filepath+"-normal", caption=caption)
-        draw_genotype(genotype.reduce, plot_filepath+"-reduce", caption=caption)
+        draw_model_desc(model_desc, plot_filepath+"-normal", caption=caption)
 
-        if is_best or best_genotype is None:
-            best_genotype = genotype
+        if is_best or best_model_desc is None:
+            best_model_desc = model_desc
 
     def _pre_stepfn(step, x_train, y_train, cur_lr):
         nonlocal valid_iter
@@ -109,6 +110,9 @@ def search_arch(conf:Config)->None:
         epochs=epochs, pre_stepfn=_pre_stepfn, pre_epochfn=_pre_epoch,
         post_epochfn=_post_epochfn)
 
-    logger.info("Best Genotype = {}".format(best_genotype))
+    found_arch = yaml.dump(best_model_desc, default_flow_style=False)
+    logger.info("Best architecture\n{}".format(found_arch))
+    with open(os.path.join(logdir, 'found_arch.yaml'), 'w') as f:
+        f.write(found_arch)
 
 

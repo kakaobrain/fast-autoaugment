@@ -1,27 +1,11 @@
-from typing import Iterator, List, Sequence, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 from abc import ABC, abstractmethod
 from .operations import FactorizedReduce, ReLUConvBN
 
 import torch
 from torch import nn
-from torch.nn.modules.container import ModuleList
 
-
-class DagEdge(nn.Module):
-    def __init__(self, op:nn.Module, input_ids:List[int],
-                 alphas:Optional[nn.Parameter])->None:
-        super().__init__()
-        self.op = op
-        self.alphas = alphas
-        self.input_ids = input_ids
-
-    def forward(self, inputs:List[torch.Tensor]):
-        if len(self.input_ids)==1:
-            return self.op(inputs[self.input_ids[0]])
-        elif len(self.input_ids) == len(inputs): # for perf
-            return self.op(inputs)
-        else:
-            return self.op([inputs[i] for i in self.input_ids])
+from .dag_edge import DagEdge
 
 class SearchCell(nn.Module, ABC):
     def __init__(self, n_nodes: int, n_node_outs: int, ch_pp: int, ch_p: int,
@@ -50,7 +34,8 @@ class SearchCell(nn.Module, ABC):
         super().__init__()
 
         # indicating current cell is reduction or not
-        self.reduction = reduction
+        self.reduction, self.reduction_prev = reduction, reduction_prev
+        self.ch_pp, self.ch_p, self.ch_out = ch_pp, ch_p, ch_out
         self.shared_alphas = alphas_cell is not None
         self._preprocess0, self._preprocess1 = \
             self._get_preprocessors(ch_pp, ch_p, ch_out, reduction_prev)
@@ -104,11 +89,6 @@ class SearchCell(nn.Module, ABC):
 
         return preprocess0, preprocess1
 
-    @abstractmethod
-    def create_edge(self, ch_out:int, state_id:int, reduction:bool,
-                 alphas_edge:Optional[DagEdge])->DagEdge:
-        pass
-
     def forward(self, s0, s1):
         """
 
@@ -141,3 +121,23 @@ class SearchCell(nn.Module, ABC):
         #   happen for max pool etc shapes?
         # 6x[40,16,32,32]
         return torch.cat(node_outs[-self.n_node_outs:], dim=1)
+
+    def finalize(self, max_edges:int)->dict:
+        nodes = []
+        for edges in self._dag:
+            edges_desc = [edge.finalize() for edge in edges]
+            if len(edges_desc) > max_edges:
+                edges_desc = edges_desc.sort(key=lambda d:d['rank'],
+                                             reverse=True)[:max_edges]
+            nodes.append(edges_desc)
+        return { # most of these values are for informational
+            'nodes': nodes,
+            'reduction': self.reduction, 'reduction_prev': self.reduction_prev,
+            'n_node_outs': self.n_node_outs, 'shared_alphas': self.shared_alphas,
+            'ch_pp': self.ch_pp, 'ch_p': self.ch_p, 'ch_out': self.ch_out
+        }
+
+    @abstractmethod
+    def create_edge(self, ch_out:int, state_id:int, reduction:bool,
+                 alphas_edge:Optional[DagEdge])->DagEdge:
+        pass

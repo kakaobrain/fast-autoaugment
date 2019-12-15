@@ -1,4 +1,5 @@
 import  os
+from typing import Iterable
 import  numpy as np
 import  torch
 import  shutil
@@ -111,3 +112,7 @@ def drop_path_(x, drop_prob, training):
         x.div_(keep_prob).mul_(mask)
     return x
 
+def first_or_default(it:Iterable, default=None):
+    for i in it:
+        return i
+    return default
