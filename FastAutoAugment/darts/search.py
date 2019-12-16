@@ -47,9 +47,10 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
     grad_clip     = conf_w_opt['clip']
     plotsdir      = conf['plotsdir']
     chkptdir      = conf['chkptdir']
+    data_parallel     = conf_search['data_parallel']
     # endregion
 
-    # breakdown train to train + val split
+    # get data
     train_dl, val_dl, *_ = get_dataloaders(
         ds_name, batch_size, dataroot,
         aug=aug, cutout=cutout, load_train=True, load_test=False,
@@ -59,8 +60,13 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
     device = torch.device('cuda')
 
     lossfn = get_lossfn(conf_lossfn, conf_ds).to(device)
+
     model = Model(model_desc).to(device)
     logger.info("Total param size = %f MB", utils.param_size(model))
+    if data_parallel:
+        model = nn.DataParallel(model).to(device)
+    else:
+        model = model.to(device)
 
     # trainer for alphas
     arch = Arch(conf, model, lossfn)
