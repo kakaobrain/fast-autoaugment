@@ -56,7 +56,7 @@ autoaug:
 
 darts:
   test:
-    arch_file: 'found_arch.yaml' # original paper: 'DARTS'
+    model_desc_file: 'model_desc.yaml'
     aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
     drop_path_prob: 0.2 # drop path probability
     init_ch_out: 36 # num of channels for stem outpt node

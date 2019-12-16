@@ -13,7 +13,7 @@ dataset:
 
 darts:
   test:
-    genotype: 'DARTS'
+    model_desc_file: 'model_desc.yaml'
     aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
     drop_path_prob: 0.0 # drop path probability
     model_filename: 'imagenet_model.pt'

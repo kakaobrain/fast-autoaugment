@@ -26,5 +26,5 @@ if __name__ == '__main__':
     found_model_desc = search_arch(conf, model_desc)
 
     found_model_yaml = yaml.dump(found_model_desc)
-    with open(os.path.join(logdir, 'found_arch.yaml'), 'w') as f:
+    with open(os.path.join(logdir, 'model_desc.yaml'), 'w') as f:
         f.write(found_model_yaml)

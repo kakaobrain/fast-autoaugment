@@ -30,7 +30,7 @@ def test_arch(conf):
     conf_test_lossfn  = conf_test['test_lossfn']
     conf_loader       = conf_test['loader']
     cutout            = conf_loader['cutout']
-    arch_file         = conf_test['arch_file']
+    model_desc_file         = conf_test['model_desc_file']
     init_ch_out       = conf_test['init_ch_out']
     n_layers          = conf_test['layers']
     aux_weight        = conf_test['aux_weight']
@@ -66,9 +66,9 @@ def test_arch(conf):
         horovod=horovod, max_batches=max_batches, n_workers=n_workers)
 
     # load architecture we want to test
-    with open(arch_file, 'r') as f:
+    with open(model_desc_file, 'r') as f:
         model_desc = yaml.load(f)
-    logger.info('Loaded test architecture file: {}'.format(arch_file))
+    logger.info('Loaded test architecture file: {}'.format(model_desc_file))
 
     train_lossfn = get_lossfn(conf_train_lossfn, conf_ds).to(device)
     test_lossfn = get_lossfn(conf_test_lossfn, conf_ds).to(device)
