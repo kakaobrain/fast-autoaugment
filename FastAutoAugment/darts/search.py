@@ -7,7 +7,7 @@ import os
 import yaml
 
 from ..common.config import Config
-from .cnn_arch_model import CnnArchModel
+from .model import Model
 from .arch import Arch
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, get_tb_writer
@@ -15,9 +15,9 @@ from ..common import utils
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
 from .vis_genotype import draw_model_desc
 from ..common.train_test_utils import train_test
+from .model_desc import ModelDesc
 
-
-def search_arch(conf:Config)->None:
+def search_arch(conf:Config, model_desc:ModelDesc)->None:
     logger = get_logger()
 
     # region conf vars
@@ -41,7 +41,7 @@ def search_arch(conf:Config)->None:
     val_fold      = conf_loader['val_fold']
     n_workers     = conf_loader['n_workers']
     horovod       = conf['horovod']
-    ch_out_init   = conf_search['ch_out_init']
+    init_ch_out   = conf_search['init_ch_out']
     n_layers      = conf_search['layers']
     report_freq   = conf['report_freq']
     grad_clip     = conf_w_opt['clip']
@@ -59,7 +59,7 @@ def search_arch(conf:Config)->None:
     device = torch.device('cuda')
 
     lossfn = get_lossfn(conf_lossfn, conf_ds).to(device)
-    model = CnnArchModel(ch_in, ch_out_init, n_classes, n_layers).to(device)
+    model = Model(model_desc).to(device)
     logger.info("Total param size = %f MB", utils.param_size(model))
 
     # trainer for alphas
@@ -70,7 +70,7 @@ def search_arch(conf:Config)->None:
     lr_scheduler = get_lr_scheduler(conf_w_sched, epochs, w_optim)
 
     # in search phase we typically only run 50 epochs
-    best_model_desc:Optional[dict] = None
+    best_model_desc:Optional[ModelDesc] = None
     valid_iter:Optional[Iterator[Any]] = None
     def _pre_epoch(*_):
         nonlocal valid_iter
@@ -80,7 +80,7 @@ def search_arch(conf:Config)->None:
         nonlocal best_model_desc
 
         # log results of this epoch
-        model_desc = model.finalize(max_edges=2) # TODO: add config
+        model_desc = model.finalize(max_edges=2) # TODO: add config max_edges
         logger.info("model_desc = {}".format(model_desc))
         # model_desc as a image
         plot_filepath = os.path.join(plotsdir, "EP{:03d}".format(epoch+1))
@@ -110,9 +110,8 @@ def search_arch(conf:Config)->None:
         epochs=epochs, pre_stepfn=_pre_stepfn, pre_epochfn=_pre_epoch,
         post_epochfn=_post_epochfn)
 
-    found_arch = yaml.dump(best_model_desc, default_flow_style=False)
-    logger.info("Best architecture\n{}".format(found_arch))
-    with open(os.path.join(logdir, 'found_arch.yaml'), 'w') as f:
-        f.write(found_arch)
+    logger.info("Best architecture\n{}".format(yaml.dump(best_model_desc)))
+
+    return best_model_desc
 
 

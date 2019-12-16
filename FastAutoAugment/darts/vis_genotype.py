@@ -3,16 +3,16 @@ import sys
 from graphviz import Digraph
 from typing import Union, List, Tuple, Optional
 
-from . import genotypes as gt
+from .model_desc import CellDesc, CellType, ModelDesc
 from ..common.utils import first_or_default
 
-def draw_model_desc(model_desc:dict, file_path:str=None, caption:str=None,
+def draw_model_desc(model_desc:ModelDesc, file_path:str=None, caption:str=None,
                     render=True)->Tuple[Optional[Digraph],Optional[Digraph]]:
-    normal_cell_desc = first_or_default((c for c in model_desc['cells'] \
-                                        if not c['reduction']), None)
+    normal_cell_desc = first_or_default((c for c in model_desc.cell_descs \
+                                        if c.cell_type == CellType.Regular), None)
 
-    reduced_cell_desc = first_or_default((c for c in model_desc['cells'] \
-                                        if c['reduction']), None)
+    reduced_cell_desc = first_or_default((c for c in model_desc.cell_descs \
+                                        if c.cell_type == CellType.Reduction), None)
 
     g_normal = draw_cell_desc(normal_cell_desc, file_path, caption, render) \
             if normal_cell_desc is not None else None
@@ -21,7 +21,7 @@ def draw_model_desc(model_desc:dict, file_path:str=None, caption:str=None,
 
     return g_normal, g_reduct
 
-def draw_cell_desc(cell_desc:dict, file_path:str=None, caption:str=None,
+def draw_cell_desc(cell_desc:CellDesc, file_path:str=None, caption:str=None,
                    render=True)->Digraph:
     """ make DAG plot and optionally save to file_path as .png """
 
@@ -52,13 +52,13 @@ def draw_cell_desc(cell_desc:dict, file_path:str=None, caption:str=None,
     g.node("c_{k-1}", fillcolor='darkseagreen2')
 
     # intermediate nodes
-    n_nodes = len(cell_desc['nodes'])
+    n_nodes = len(cell_desc.nodes)
     for i in range(n_nodes):
         g.node(str(i), fillcolor='lightblue')
 
-    for i, edges in enumerate(cell_desc['nodes']):
-        for edge in edges:
-            op, js = edge['name'], edge['input_ids']
+    for i, node in enumerate(cell_desc.nodes):
+        for edge in node.edges:
+            op, js = edge.op_desc.name, edge.input_ids
             for j in js:
                 if j == 0:
                     u = "c_{k-2}"

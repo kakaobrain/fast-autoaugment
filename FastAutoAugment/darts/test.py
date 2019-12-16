@@ -31,7 +31,7 @@ def test_arch(conf):
     conf_loader       = conf_test['loader']
     cutout            = conf_loader['cutout']
     arch_file         = conf_test['arch_file']
-    ch_out_init       = conf_test['ch_out_init']
+    init_ch_out       = conf_test['init_ch_out']
     n_layers          = conf_test['layers']
     aux_weight        = conf_test['aux_weight']
     drop_path_prob    = conf_test['drop_path_prob']
@@ -67,7 +67,7 @@ def test_arch(conf):
 
     # load architecture we want to test
     with open(arch_file, 'r') as f:
-        model_desc = yaml.safe_load(f)
+        model_desc = yaml.load(f)
     logger.info('Loaded test architecture file: {}'.format(arch_file))
 
     train_lossfn = get_lossfn(conf_train_lossfn, conf_ds).to(device)
@@ -75,7 +75,7 @@ def test_arch(conf):
 
     # create model
     model_class = getattr(cnn_test_model, model_classname)
-    model = model_class(ch_in, ch_out_init, n_classes, n_layers, aux_weight, model_desc)
+    model = model_class(ch_in, init_ch_out, n_classes, n_layers, aux_weight, model_desc)
     logger.info("Model size = {:.3f} MB".format(utils.param_size(model)))
     if data_parallel:
         model = nn.DataParallel(model).to(device)

@@ -1,5 +1,6 @@
-from typing import List, Optional, Tuple, overload
+from typing import Callable, List, Optional, Tuple, Dict, Optional, Final
 from abc import ABC, abstractmethod
+import copy
 
 from overrides import overrides, EnforceOverrides
 
@@ -9,44 +10,74 @@ import torch.nn.functional as F
 
 from . import genotypes
 from ..common import utils
-
+from .model_desc import OpDesc
 
 # Each op is a uninary tensor operator, all take same constructor params
-_ops_factory = {
-    'max_pool_3x3': lambda ch, stride, affine, alphas, training: PoolBN('max', ch, 3, stride, 1, affine=affine),
-    'avg_pool_3x3': lambda ch, stride, affine, alphas, training: PoolBN('avg', ch, 3, stride, 1, affine=affine),
-    'skip_connect': lambda ch, stride, affine, alphas, training: Identity(training) if stride == 1 else FactorizedReduce(ch, ch, affine=affine),
-    'sep_conv_3x3': lambda ch, stride, affine, alphas, training: SepConv(ch, ch, 3, stride, 1, affine=affine),
-    'sep_conv_5x5': lambda ch, stride, affine, alphas, training: SepConv(ch, ch, 5, stride, 2, affine=affine),
-    'dil_conv_3x3': lambda ch, stride, affine, alphas, training: DilConv(ch, ch, 3, stride, 2, 2, affine=affine),
-    'dil_conv_5x5': lambda ch, stride, affine, alphas, training: DilConv(ch, ch, 5, stride, 4, 2, affine=affine),
-    'none':         lambda ch, stride, affine, alphas, training: Zero(stride),
-    'sep_conv_7x7': lambda ch, stride, affine, alphas, training: SepConv(ch, ch, 7, stride, 3, affine=affine),
-    'conv_7x1_1x7': lambda ch, stride, affine, alphas, training: FacConv(ch, ch, 7, stride, 3, affine=affine),
-    'mixed_op':     lambda ch, stride, affine, alphas, training: MixedOp(ch, stride, affine, alphas)
+_ops_factory:Dict[str, Callable[[OpDesc, Optional[nn.Parameter]], 'Op']] = {
+    'max_pool_3x3':     lambda op_desc, alphas:
+                        PoolBN('max', op_desc.ch_in, 3, op_desc.stride, 1, affine=op_desc.affine),
+    'avg_pool_3x3':     lambda op_desc, alphas:
+                        PoolBN('avg', op_desc.ch_in, 3, op_desc.stride, 1, affine=op_desc.affine),
+    'skip_connect':     lambda op_desc, alphas:
+                        Identity(op_desc.training) if op_desc.stride == 1 else \
+                            FactorizedReduce(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
+    'sep_conv_3x3':     lambda op_desc, alphas:
+                        SepConv(op_desc.ch_in, op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
+    'sep_conv_5x5':     lambda op_desc, alphas:
+                        SepConv(op_desc.ch_in, op_desc.ch_out, 5, op_desc.stride, 2, affine=op_desc.affine),
+    'dil_conv_3x3':     lambda op_desc, alphas:
+                        DilConv(op_desc.ch_in, op_desc.ch_out, 3, op_desc.stride, 2, 2, affine=op_desc.affine),
+    'dil_conv_5x5':     lambda op_desc, alphas:
+                        DilConv(op_desc.ch_in, op_desc.ch_out, 5, op_desc.stride, 4, 2, affine=op_desc.affine),
+    'none':             lambda op_desc, alphas:
+                        Zero(op_desc.stride),
+    'sep_conv_7x7':     lambda op_desc, alphas:
+                        SepConv(op_desc.ch_in, op_desc.ch_out, 7, op_desc.stride, 3, affine=op_desc.affine),
+    'conv_7x1_1x7':     lambda op_desc, alphas:
+                        FacConv(op_desc.ch_in, op_desc.ch_out, 7, op_desc.stride, 3, affine=op_desc.affine),
+    'mixed_op':         lambda op_desc, alphas:
+                        MixedOp(op_desc.ch_in, op_desc.ch_out, op_desc.stride,
+                                op_desc.affine, alphas, op_desc.training),
+    'prepr_reduce':     lambda op_desc, alphas:
+                        FactorizedReduce(op_desc.ch_in, op_desc.ch_out,
+                                affine=op_desc.affine or not op_desc.training),
+    'prepr_normal':     lambda op_desc, alphas:
+                        ReLUConvBN(op_desc.ch_in, op_desc.ch_out, 1, 1, 0,
+                                affine=op_desc.affine or not op_desc.training),
+    'stem_cifar':       lambda op_desc, alphas:
+                        StemCifar(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
+    'stem0_imagenet':   lambda op_desc, alphas:
+                        Stem0Imagenet(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
+    'stem1_imagenet':   lambda op_desc, alphas:
+                        Stem1Imagenet(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
+    'pool_cifar':       lambda op_desc, alphas:
+                        PoolCifar(),
+    'pool_imagenet':    lambda op_desc, alphas:
+                        PoolImagenet()
+
 }
 
-class SearchOpBase(nn.Module, ABC, EnforceOverrides):
+class Op(nn.Module, ABC, EnforceOverrides):
     def alphas(self)->Optional[nn.Parameter]:
         return None
 
-    def finalize(self)->dict:
-        return self._create_info
+    @staticmethod
+    def create(op_desc:OpDesc, alphas: Optional[nn.Parameter]=None)->'Op':
+        op = _ops_factory[op_desc.name](op_desc, alphas)
+        op.desc = op_desc # TODO: annotate as Final
+        return op
 
-    def _set_create_info(self, create_info:dict)->None:
-        self._create_info = create_info
+    def alphas(self)->Optional[nn.Parameter]:
+        return None # when supported, derived class should override it
 
+    def finalize(self)->Tuple[OpDesc, Optional[float]]:
+        """for trainable op, return final op and its rank"""
+        return self._desc, None
 
-def create_op(name:str, ch:int, stride:int, affine:bool,
-               alphas: Optional[nn.Parameter]=None, training=True)->SearchOpBase:
-    op = _ops_factory[name](ch, stride, affine, alphas, training)
-    op._set_create_info({'name':name, 'ch':ch, 'stride':stride, 'affine':affine })
-    return op
-
-class PoolBN(SearchOpBase):
+class PoolBN(Op):
     """AvgPool or MaxPool - BN """
 
-    def __init__(self, pool_type, ch, kernel_size, stride, padding, affine=True):
+    def __init__(self, pool_type, ch_in, kernel_size, stride, padding, affine=True):
         """
         Args:
             pool_type: 'max' or 'avg'
@@ -60,7 +91,7 @@ class PoolBN(SearchOpBase):
         else:
             raise ValueError()
 
-        self.bn = nn.BatchNorm2d(ch, affine=affine)
+        self.bn = nn.BatchNorm2d(ch_in, affine=affine)
 
     @overrides
     def forward(self, x):
@@ -68,7 +99,7 @@ class PoolBN(SearchOpBase):
         out = self.bn(out)
         return out
 
-class FacConv(SearchOpBase):
+class FacConv(Op):
     """ Factorized conv
     ReLU - Conv(Kx1) - Conv(1xK) - BN
     """
@@ -89,7 +120,7 @@ class FacConv(SearchOpBase):
         return self.net(x)
 
 
-class ReLUConvBN(SearchOpBase):
+class ReLUConvBN(Op):
     """
     Stack of relu-conv-bn
     """
@@ -118,7 +149,7 @@ class ReLUConvBN(SearchOpBase):
         return self.op(x)
 
 
-class DilConv(SearchOpBase):
+class DilConv(Op):
     """ (Dilated) depthwise separable conv
     ReLU - (Dilated) depthwise separable - Pointwise - BN
 
@@ -143,7 +174,7 @@ class DilConv(SearchOpBase):
         return self.op(x)
 
 
-class SepConv(SearchOpBase):
+class SepConv(Op):
     """ Depthwise separable conv
     DilConv(dilation=1) * 2
 
@@ -154,27 +185,16 @@ class SepConv(SearchOpBase):
         super(SepConv, self).__init__()
 
         self.op = nn.Sequential(
-            nn.ReLU(),
-            nn.Conv2d(ch_in, ch_in, kernel_size=kernel_size, stride=stride, padding=padding,
-                      groups=ch_in, bias=False),
-            nn.Conv2d(ch_in, ch_in, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(ch_in, affine=affine),
-
-            # repeat above but with stride 1
-            nn.ReLU(),
-            nn.Conv2d(ch_in, ch_in, kernel_size=kernel_size, stride=1, padding=padding,
-                      groups=ch_in, bias=False),
-            nn.Conv2d(ch_in, ch_out, kernel_size=1, padding=0, bias=False),
-            nn.BatchNorm2d(ch_out, affine=affine),
-        )
+            DilConv(ch_in, ch_in, kernel_size, stride, padding, dilation=1, affine=affine),
+            DilConv(ch_in, ch_out, kernel_size, 1, padding, dilation=1, affine=affine))
 
     @overrides
     def forward(self, x):
         return self.op(x)
 
 
-class Identity(SearchOpBase):
-    def __init__(self, training):
+class Identity(Op):
+    def __init__(self, training:bool):
         super().__init__()
         self._drop_op = DropPath_() if not training else None
 
@@ -186,12 +206,11 @@ class Identity(SearchOpBase):
         return x
 
 
-class Zero(SearchOpBase):
+class Zero(Op):
     """Represents no connection """
 
     def __init__(self, stride):
         super().__init__()
-
         self.stride = stride
 
     @overrides
@@ -200,7 +219,7 @@ class Zero(SearchOpBase):
             return x.mul(0.)
         return x[:, :, ::self.stride, ::self.stride].mul(0.)
 
-class FactorizedReduce(SearchOpBase):
+class FactorizedReduce(Op):
     """
     reduce feature maps height/width by 4X while keeping channel same using two 1x1 convs, each with stride=2.
     """
@@ -234,57 +253,65 @@ class FactorizedReduce(SearchOpBase):
         out = self.bn(out)
         return out
 
-
-class MixedOp(SearchOpBase):
-    """
-    The output of MixedOp is weighted output of all allowed primitives.
-    """
-
-    PRIMITIVES = [
-        'max_pool_3x3',
-        'avg_pool_3x3',
-        'skip_connect', #identity
-        'sep_conv_3x3',
-        'sep_conv_5x5',
-            'dil_conv_3x3',
-        'dil_conv_5x5',
-        'none' # this must be at the end so top1 doesn't chose it
-    ]
-
-
-    def __init__(self, ch, stride, affine, alphas: Optional[nn.Parameter]):
+class StemCifar(Op):
+    def __init__(self, ch_in, ch_out, affine)->None:
         super().__init__()
-
-        assert MixedOp.PRIMITIVES[-1] == 'none' # assume last PRIMITIVE is 'none'
-        self.ch, self.stride = ch, stride
-        self._ops = nn.ModuleList()
-        if alphas is None:
-            alphas = nn.Parameter( # TODO: use better init than uniform random?
-                1e-3*torch.randn(len(MixedOp.PRIMITIVES)), requires_grad=True)
-        self._alphas = alphas
-
-        for primitive in MixedOp.PRIMITIVES:
-            # create corresponding layer
-            op = create_op(primitive, ch, stride, affine)
-            self._ops.append(op)
+        self._op = nn.Sequential( # 3 => 48
+            # batchnorm is added after each layer. Bias is turned off due to
+            # BN in conv layer.
+            nn.Conv2d(ch_in, ch_out, 3, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out, affine=affine)
+        )
 
     @overrides
     def forward(self, x):
-        asm = F.softmax(self._alphas)
-        return sum(w * op(x) for w, op in zip(asm, self._ops))
+        return self._op(x)
+
+class Stem0Imagenet(Op):
+    def __init__(self, ch_in, ch_out, affine)->None:
+        super().__init__()
+        self._op = nn.Sequential(
+            nn.Conv2d(ch_in, ch_out//2, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out//2),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(ch_out//2, ch_out, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out)
+        )
 
     @overrides
-    def alphas(self)->Optional[nn.Parameter]:
-        return self._alphas
+    def forward(self, x):
+        return self._op(x)
+
+class Stem1Imagenet(Op):
+    def __init__(self, ch_in, ch_out, affine)->None:
+        super().__init__()
+        self._op = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.Conv2d(ch_out, ch_out, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out)
+        )
 
     @overrides
-    def finalize(self)->dict:
-        # select except 'none' op
-        val, i = torch.topk(self._alphas[:-1], 1)
-        op_desc = self._ops[i].finalize()
-        op_desc['rank'] = val
-        return op_desc
+    def forward(self, x):
+        return self._op(x)
 
+class PoolImagenet(Op):
+    def __init__(self)->None:
+        super().__init__()
+        self._op = nn.AvgPool2d(7)
+
+    @overrides
+    def forward(self, x):
+        return self._op(x)
+
+class PoolCifar(Op):
+    def __init__(self)->None:
+        super().__init__()
+        self._op = nn.AdaptiveAvgPool2d(1)
+
+    @overrides
+    def forward(self, x):
+        return self._op(x)
 
 class DropPath_(nn.Module):
     """Replace values in tensor by 0. with probability p"""
@@ -303,3 +330,59 @@ class DropPath_(nn.Module):
     @overrides
     def forward(self, x):
         return utils.drop_path_(x, self.p, self.training)
+
+# TODO: reduction cell might have output reduced by 2^1=2X due to
+#   stride 2 through input nodes however FactorizedReduce does only
+#   4X reduction. Is this correct?
+
+
+class MixedOp(Op):
+    """
+    The output of MixedOp is weighted output of all allowed primitives.
+    """
+
+    PRIMITIVES = [
+        'max_pool_3x3',
+        'avg_pool_3x3',
+        'skip_connect', #identity
+        'sep_conv_3x3',
+        'sep_conv_5x5',
+            'dil_conv_3x3',
+        'dil_conv_5x5',
+        'none' # this must be at the end so top1 doesn't chose it
+    ]
+
+
+    def __init__(self, ch_in, ch_out, stride, affine,
+                 alphas:Optional[nn.Parameter], training:bool):
+        super().__init__()
+
+        assert MixedOp.PRIMITIVES[-1] == 'none' # assume last PRIMITIVE is 'none'
+
+        self._ops = nn.ModuleList()
+        if alphas is None:
+            alphas = nn.Parameter( # TODO: use better init than uniform random?
+                1.0e-3*torch.randn(len(MixedOp.PRIMITIVES)), requires_grad=True)
+        self._alphas = alphas
+
+        for primitive in MixedOp.PRIMITIVES:
+            # create corresponding layer
+            op = Op.from_desc(
+                OpDesc(primitive, training, ch_in, ch_out, stride, affine), alphas)
+            self._ops.append(op)
+
+    @overrides
+    def forward(self, x):
+        asm = F.softmax(self._alphas)
+        return sum(w * op(x) for w, op in zip(asm, self._ops))
+
+    @overrides
+    def alphas(self)->Optional[nn.Parameter]:
+        return self._alphas
+
+    @overrides
+    def finalize(self)->Tuple[OpDesc, Optional[float]]:
+        # select except 'none' op
+        with torch.no_grad():
+            val, i = torch.topk(self._alphas[:-1], 1)
+        return self._ops[i].desc, float(val.item())

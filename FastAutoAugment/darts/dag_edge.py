@@ -1,29 +1,32 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from overrides import overrides
-
-from .operations import SearchOpBase
 import torch
 from torch import nn
+from overrides import overrides
+
+from .operations import Op
+from .model_desc import EdgeDesc, OpDesc
 
 class DagEdge(nn.Module):
-    def __init__(self, op:SearchOpBase, input_ids:List[int],
+    def __init__(self, desc:EdgeDesc,
                  alphas:Optional[nn.Parameter])->None:
         super().__init__()
-        self.op = op
-        self.alphas = alphas
-        self.input_ids = input_ids
+        self._op = Op.create(desc.op_desc, alphas)
+        self._input_ids = desc.input_ids
+        self.desc = desc
 
     @overrides
     def forward(self, inputs:List[torch.Tensor]):
-        if len(self.input_ids)==1:
-            return self.op(inputs[self.input_ids[0]])
-        elif len(self.input_ids) == len(inputs): # for perf
-            return self.op(inputs)
+        if len(self._input_ids)==1:
+            return self._op(inputs[self._input_ids[0]])
+        elif len(self._input_ids) == len(inputs): # for perf
+            return self._op(inputs)
         else:
-            return self.op([inputs[i] for i in self.input_ids])
+            return self._op([inputs[i] for i in self._input_ids])
 
-    def finalize(self)->dict:
-        op_desc = self.op.finalize()
-        op_desc['input_ids'] = self.input_ids
-        return op_desc
+    def finalize(self)->Tuple[EdgeDesc, Optional[float]]:
+        op_desc, rank = self._op.finalize()
+        return EdgeDesc(op_desc, self._input_ids), rank
+
+    def alphas(self)->Optional[nn.Parameter]:
+        return self._op.alphas()

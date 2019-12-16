@@ -17,8 +17,9 @@ darts:
     aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
     drop_path_prob: 0.0 # drop path probability
     model_filename: 'imagenet_model.pt'
-    ch_out_init: 48 # num of channels for stem outpt node
-    layers: 14 # total number of layers
+    init_ch_out: 48 # num of channels for stem output
+    stem_multiplier: 1 # output channels multiplier for the stem
+    n_cells: 14 # number of cells
     data_parallel: True
     model_class: 'ImageNetTestModel'
     test_lossfn:
