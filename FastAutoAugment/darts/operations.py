@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from . import genotypes
 from ..common import utils
 from .model_desc import OpDesc
 
