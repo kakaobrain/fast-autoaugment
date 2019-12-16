@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import logging
 from typing import List, Optional, Iterator
 
+from overrides import overrides
+
 from .search_cell import SearchCell
 from .darts_search_cell import DartsSearchCell
 from . import genotypes as gt
@@ -86,6 +88,7 @@ class CnnArchModel(nn.Module):
                 for cell in self._cells             \
                     for p in cell.weights())
 
+    @overrides
     def forward(self, x):
         """
         Runs x through cells with alphas, applies final pooling, send through

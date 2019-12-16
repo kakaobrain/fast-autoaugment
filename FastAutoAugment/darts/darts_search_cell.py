@@ -1,9 +1,13 @@
 from typing import Iterator, List, Sequence, Optional
-from .search_cell import SearchCell, DagEdge
-from .operations import create_op
+
+from overrides import overrides
 import torch
 
+from .search_cell import SearchCell, DagEdge
+from .operations import create_op
+
 class DartsSearchCell(SearchCell):
+    @overrides
     def create_edge(self, ch_out:int, state_id:int, reduction:bool,
                  alphas_edge:Optional[DagEdge])->DagEdge:
         op_alphas = None if alphas_edge is None else alphas_edge.alphas

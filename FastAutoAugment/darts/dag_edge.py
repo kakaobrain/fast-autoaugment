@@ -1,5 +1,7 @@
 from typing import List, Optional
 
+from overrides import overrides
+
 from .operations import SearchOpBase
 import torch
 from torch import nn
@@ -12,6 +14,7 @@ class DagEdge(nn.Module):
         self.alphas = alphas
         self.input_ids = input_ids
 
+    @overrides
     def forward(self, inputs:List[torch.Tensor]):
         if len(self.input_ids)==1:
             return self.op(inputs[self.input_ids[0]])

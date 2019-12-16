@@ -1,5 +1,8 @@
 from typing import Iterator, List, Optional, Tuple
 from abc import ABC, abstractmethod
+
+from overrides import overrides, EnforceOverrides
+
 from .operations import FactorizedReduce, ReLUConvBN
 
 import torch
@@ -7,7 +10,7 @@ from torch import nn
 
 from .dag_edge import DagEdge
 
-class SearchCell(nn.Module, ABC):
+class SearchCell(nn.Module, ABC, EnforceOverrides):
     def __init__(self, n_nodes: int, n_node_outs: int, ch_pp: int, ch_p: int,
                  ch_out:int, reduction: bool, reduction_prev: bool,
                  alphas_cell:Optional['SearchCell']):
@@ -89,6 +92,7 @@ class SearchCell(nn.Module, ABC):
 
         return preprocess0, preprocess1
 
+    @overrides
     def forward(self, s0, s1):
         """
 

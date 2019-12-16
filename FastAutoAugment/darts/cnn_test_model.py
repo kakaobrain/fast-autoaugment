@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 
 import torch
 import torch.nn as nn
+from overrides import overrides, EnforceOverrides
 
 from .operations import create_op, FactorizedReduce, ReLUConvBN
 from ..common.utils import first_or_default
@@ -43,7 +44,7 @@ class _Cell(nn.Module):
 
         return dag
 
-
+    @overrides
     def forward(self, s0:torch.Tensor, s1:torch.Tensor):
         s0 = self._preprocess0(s0)
         s1 = self._preprocess1(s1)
@@ -87,7 +88,7 @@ class AuxTower(nn.Module):
         x = self.linear(x.view(x.size(0), -1))
         return x
 
-class CnnTestModel(nn.Module, ABC):
+class CnnTestModel(nn.Module, ABC, EnforceOverrides):
     def __init__(self, ch_in:int, ch_out_init:int,
             n_classes:int, n_layers:int, aux_weight:float, model_desc:dict,
             stem_multiplier=3 # 3 for Cifar, 1 for ImageNet
@@ -115,6 +116,7 @@ class CnnTestModel(nn.Module, ABC):
         self.final_pooling = self._get_final_pooling()
         self.linear = nn.Linear(cell.n_node_outs * cell.ch_out, n_classes)
 
+    @overrides
     def forward(self, input:torch.Tensor):
         logits_aux = None
 
@@ -155,6 +157,7 @@ class CnnTestModel(nn.Module, ABC):
 
 class Cifar10TestModel(CnnTestModel):
     # must have same __init__ signature as CnnTestModel
+    @overrides
     def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
         stem = nn.Sequential(
             nn.Conv2d(ch_in, ch_out, 3, padding=1, bias=False),
@@ -162,14 +165,17 @@ class Cifar10TestModel(CnnTestModel):
         )
         return stem, stem
 
+    @overrides
     def _get_aux_tower(self, ch_aux:int, n_classes:int)->nn.Module:
         return AuxTower(ch_aux, n_classes, pool_stride=3)
 
+    @overrides
     def _get_final_pooling(self)->nn.Module:
         return nn.AdaptiveAvgPool2d(1)
 
 class ImageNetTestModel(CnnTestModel):
     # must have same __init__ signature as CnnTestModel
+    @overrides
     def _get_stems(self, ch_in:int, ch_out:int)->Tuple[nn.Module, nn.Module]:
         stem0 = nn.Sequential(
             nn.Conv2d(ch_in, ch_out//2, kernel_size=3, stride=2, padding=1, bias=False),
@@ -187,10 +193,10 @@ class ImageNetTestModel(CnnTestModel):
 
         return stem0, stem1
 
+    @overrides
     def _get_aux_tower(self, ch_aux:int, n_classes:int)->nn.Module:
         return AuxTower(ch_aux, n_classes, pool_stride=3)
 
+    @overrides
     def _get_final_pooling(self)->nn.Module:
         return nn.AvgPool2d(7)
-
-

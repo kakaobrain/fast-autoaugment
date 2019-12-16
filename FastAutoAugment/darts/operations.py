@@ -1,5 +1,7 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, overload
 from abc import ABC, abstractmethod
+
+from overrides import overrides, EnforceOverrides
 
 import torch
 import torch.nn as nn
@@ -24,7 +26,7 @@ _ops_factory = {
     'mixed_op':     lambda ch, stride, affine, alphas, training: MixedOp(ch, stride, affine, alphas)
 }
 
-class SearchOpBase(nn.Module, ABC):
+class SearchOpBase(nn.Module, ABC, EnforceOverrides):
     def alphas(self)->Optional[nn.Parameter]:
         return None
 
@@ -40,7 +42,6 @@ def create_op(name:str, ch:int, stride:int, affine:bool,
     op = _ops_factory[name](ch, stride, affine, alphas, training)
     op._set_create_info({'name':name, 'ch':ch, 'stride':stride, 'affine':affine })
     return op
-
 
 class PoolBN(SearchOpBase):
     """AvgPool or MaxPool - BN """
@@ -61,11 +62,11 @@ class PoolBN(SearchOpBase):
 
         self.bn = nn.BatchNorm2d(ch, affine=affine)
 
+    @overrides
     def forward(self, x):
         out = self.pool(x)
         out = self.bn(out)
         return out
-
 
 class FacConv(SearchOpBase):
     """ Factorized conv
@@ -83,6 +84,7 @@ class FacConv(SearchOpBase):
             nn.BatchNorm2d(ch_out, affine=affine)
         )
 
+    @overrides
     def forward(self, x):
         return self.net(x)
 
@@ -111,6 +113,7 @@ class ReLUConvBN(SearchOpBase):
             nn.BatchNorm2d(ch_out, affine=affine)
         )
 
+    @overrides
     def forward(self, x):
         return self.op(x)
 
@@ -135,6 +138,7 @@ class DilConv(SearchOpBase):
             nn.BatchNorm2d(ch_out, affine=affine),
         )
 
+    @overrides
     def forward(self, x):
         return self.op(x)
 
@@ -164,6 +168,7 @@ class SepConv(SearchOpBase):
             nn.BatchNorm2d(ch_out, affine=affine),
         )
 
+    @overrides
     def forward(self, x):
         return self.op(x)
 
@@ -173,6 +178,7 @@ class Identity(SearchOpBase):
         super().__init__()
         self._drop_op = DropPath_() if not training else None
 
+    @overrides
     def forward(self, x):
         # TODO: investigate need for drop path
         if self._drop_op is not None:
@@ -188,6 +194,7 @@ class Zero(SearchOpBase):
 
         self.stride = stride
 
+    @overrides
     def forward(self, x):
         if self.stride == 1:
             return x.mul(0.)
@@ -213,6 +220,7 @@ class FactorizedReduce(SearchOpBase):
                                 stride=2, padding=0, bias=False)
         self.bn = nn.BatchNorm2d(ch_out, affine=affine)
 
+    @overrides
     def forward(self, x):
         x = self.relu(x)
 
@@ -260,15 +268,16 @@ class MixedOp(SearchOpBase):
             op = create_op(primitive, ch, stride, affine)
             self._ops.append(op)
 
+    @overrides
     def forward(self, x):
         asm = F.softmax(self._alphas)
         return sum(w * op(x) for w, op in zip(asm, self._ops))
 
-    # overrides
+    @overrides
     def alphas(self)->Optional[nn.Parameter]:
         return self._alphas
 
-    # overrides
+    @overrides
     def finalize(self)->dict:
         # select except 'none' op
         val, i = torch.topk(self._alphas[:-1], 1)
@@ -291,5 +300,6 @@ class DropPath_(nn.Module):
     def extra_repr(self):
         return 'p={}, inplace'.format(self.p)
 
+    @overrides
     def forward(self, x):
         return utils.drop_path_(x, self.p, self.training)
