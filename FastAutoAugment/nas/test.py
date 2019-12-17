@@ -21,22 +21,18 @@ def test_arch(conf, model_desc:ModelDesc, save_model:bool=True):
     dataroot          = conf['dataroot']
     chkptdir          = conf['chkptdir']
     conf_test         = conf['darts']['test']
+    conf_model_desc   = conf_test['model_desc']
     conf_train_lossfn = conf_test['train_lossfn']
     conf_test_lossfn  = conf_test['test_lossfn']
     conf_loader       = conf_test['loader']
     cutout            = conf_loader['cutout']
-    model_desc_file    = conf_test['model_desc_file']
-    init_ch_out       = conf_test['init_ch_out']
     model_save_file    = conf_test['model_save_file']
-    aux_weight        = conf_test['aux_weight']
-    drop_path_prob    = conf_test['drop_path_prob']
+    aux_weight        = conf_model_desc['aux_weight']
+    drop_path_prob    = conf_model_desc['drop_path_prob']
     ds_name           = conf_ds['name']
-    ch_in             = conf_ds['ch_in']
-    n_classes         = conf_ds['n_classes']
     max_batches       = conf_ds['max_batches']
     aug               = conf_loader['aug']
     cutout            = conf_loader['cutout']
-    val_ratio         = conf_loader['val_ratio']
     batch_size        = conf_loader['batch']
     epochs            = conf_loader['epochs']
     n_workers         = conf_loader['n_workers']
@@ -44,15 +40,11 @@ def test_arch(conf, model_desc:ModelDesc, save_model:bool=True):
     conf_lr_sched     = conf_test['lr_schedule']
     report_freq       = conf['report_freq']
     horovod           = conf['horovod']
-    aux_weight        = conf_test['aux_weight']
     grad_clip         = conf_opt['clip']
     data_parallel     = conf_test['data_parallel']
     model_save_file    = conf_test['model_save_file']
     logdir            = conf['logdir']
     # endregion
-
-    if rewrite_model_desc:
-        model_desc = _rewrite_model_desc(model_desc)
 
     # get data
     train_dl, _, test_dl, _ = get_dataloaders(

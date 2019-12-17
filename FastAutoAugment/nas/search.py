@@ -1,4 +1,4 @@
-from typing import Tuple, Any, Iterator, Optional
+from typing import Tuple, Any, Iterable, Optional
 import  torch.nn as nn
 import torch
 from torch.optim.optimizer import Optimizer
@@ -72,7 +72,7 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
 
     # in search phase we typically only run 50 epochs
     best_model_desc:Optional[ModelDesc] = None
-    valid_iter:Optional[Iterator[Any]] = None
+    valid_iter:Optional[Iterable[Any]] = None
     def _pre_epoch(*_):
         nonlocal valid_iter
         valid_iter = iter(val_dl)

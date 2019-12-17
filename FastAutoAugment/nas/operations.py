@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, Iterator, Optional, Tuple, Dict, Optional, Generator
+from typing import Callable, Iterable, Optional, Tuple, Dict, Optional, Generator
 from abc import ABC, abstractmethod
 
 from overrides import overrides, EnforceOverrides
@@ -11,7 +11,7 @@ from ..common import utils
 from .model_desc import OpDesc
 
 # Each op is a uninary tensor operator, all take same constructor params
-_ops_factory:Dict[str, Callable[[OpDesc, Optional[nn.Parameter]], 'Op']] = {
+_ops_factory:Dict[str, Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']] = {
     'max_pool_3x3':     lambda op_desc, alphas:
                         PoolBN('max', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
     'avg_pool_3x3':     lambda op_desc, alphas:
@@ -57,17 +57,19 @@ _ops_factory:Dict[str, Callable[[OpDesc, Optional[nn.Parameter]], 'Op']] = {
 
 class Op(nn.Module, ABC, EnforceOverrides):
     @staticmethod
-    def create(op_desc:OpDesc, alphas: Optional[nn.Parameter]=None)->'Op':
+    def create(op_desc:OpDesc,
+               alphas:Iterable[nn.Parameter]=[])->'Op':
         op = _ops_factory[op_desc.name](op_desc, alphas)
         op.desc = op_desc # TODO: annotate as Final
         return op
 
     # must override if op has alphas!
     def alphas(self)->Iterable[nn.Parameter]:
-        pass # when supported, derived class should override it
+        return # when supported, derived class should override it
+        yield
 
     # must override if op has alphas!
-    def weights(self)->Iterator[nn.Parameter]:
+    def weights(self)->Iterable[nn.Parameter]:
         for w in self.parameters():
             yield w
 
@@ -354,19 +356,18 @@ class MixedOp(Op):
     ]
 
     def __init__(self, ch_in, ch_out, stride, affine,
-                 alphas:Optional[nn.Parameter], training:bool):
+                 alphas:Iterable[nn.Parameter], training:bool):
         super().__init__()
 
         assert MixedOp.PRIMITIVES[-1] == 'none' # assume last PRIMITIVE is 'none'
 
-        if alphas is None:
-            alphas = nn.Parameter( # TODO: use better init than uniform random?
+        self._alphas = list(alphas)
+        if not len(self._alphas):
+            new_p = nn.Parameter( # TODO: use better init than uniform random?
                 1.0e-3*torch.randn(len(MixedOp.PRIMITIVES)), requires_grad=True)
         # before adding ops, get alphas from the module
-            self._reg_alphas = alphas
+            self._reg_alphas = new_p
             self._alphas = [p for p in self.parameters()]
-        else:
-            self._alphas = [alphas]
 
         self._ops = nn.ModuleList()
 
@@ -382,12 +383,12 @@ class MixedOp(Op):
         return sum(w * op(x) for w, op in zip(asm, self._ops))
 
     @overrides
-    def alphas(self)->Iterator[nn.Parameter]:
+    def alphas(self)->Iterable[nn.Parameter]:
         for alpha in self._alphas:
             yield alpha
 
     @overrides
-    def weights(self)->Iterator[nn.Parameter]:
+    def weights(self)->Iterable[nn.Parameter]:
         for op in self._ops:
             for w in op.parameters():
                 yield w

@@ -1,7 +1,7 @@
 import torch
 from torch import nn, Tensor
 
-from typing import List, Optional, Iterator, Tuple
+from typing import List, Optional, Iterable, Tuple
 
 from overrides import overrides
 
@@ -32,13 +32,13 @@ class Model(nn.Module):
         self.linear = nn.Linear(model_desc.cell_descs[-1].get_ch_out(),
                                 model_desc.n_classes)
 
-    def alphas(self)->Iterator[nn.Parameter]:
+    def alphas(self)->Iterable[nn.Parameter]:
         for cell in self._cells:
             if not cell.shared_alphas:
                 for alpha in cell.alphas():
                     yield alpha
 
-    def weights(self)->Iterator[nn.Parameter]:
+    def weights(self)->Iterable[nn.Parameter]:
         for cell in self._cells:
             for w in cell.weights():
                 yield w

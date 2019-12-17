@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, List, Optional, Tuple
+from typing import Callable, Iterable, List, Optional, Tuple
 from abc import ABC, abstractmethod
 
 from overrides import overrides, EnforceOverrides
@@ -24,7 +24,8 @@ class Cell(nn.Module, ABC, EnforceOverrides):
         self.aux_tower = None
         if desc.aux_tower_desc:
             self.aux_tower = AuxTower(desc.get_ch_out(),
-                                      desc.aux_tower_desc, pool_stride=3)
+                                      desc.aux_tower_desc.n_classes,
+                                      pool_stride=3)
 
 
     @staticmethod
@@ -35,18 +36,23 @@ class Cell(nn.Module, ABC, EnforceOverrides):
             edges:nn.ModuleList = nn.ModuleList()
             dag.append(edges)
             for j, edge_desc in enumerate(node_desc.edges):
+                # TODO: optimize this
+                alphas = None
+                if alphas_cell is not None:
+                    alphas_l = [alphas_cell._dag[i][j].alphas()]
+                    if len(alphas_l):
+                        alphas = alphas_l[0]
                 edges.append(DagEdge(edge_desc,
-                    None if alphas_cell is None \
-                         else next(alphas_cell._dag[i][j].alphas())))
+                    alphas_edge=alphas_cell._dag[i][j] if alphas_cell else None))
         return dag
 
-    def alphas(self)->Iterator[nn.Parameter]:
+    def alphas(self)->Iterable[nn.Parameter]:
         for node in self._dag:
             for edge in node:
                 for alpha in edge.alphas():
                     yield alpha
 
-    def weights(self)->Iterator[nn.Parameter]:
+    def weights(self)->Iterable[nn.Parameter]:
         for node in self._dag:
             for edge in node:
                 for p in edge.weights():
@@ -99,7 +105,7 @@ class AuxTower(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(128, 768, 2, bias=False),
             # TODO: This batchnorm was omitted in orginal implementation due to a typo.
-            nn.BatchNorm2d(768),
+            # nn.BatchNorm2d(768),
             nn.ReLU(inplace=True)
         )
         self.linear = nn.Linear(768, n_classes)
