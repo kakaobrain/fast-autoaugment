@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 import torch
 from torch import nn
@@ -26,7 +26,14 @@ class DagEdge(nn.Module):
 
     def finalize(self)->Tuple[EdgeDesc, Optional[float]]:
         op_desc, rank = self._op.finalize()
-        return EdgeDesc(op_desc, self._input_ids), rank
+        return (EdgeDesc(op_desc, self._input_ids, \
+                self.desc.from_node, self.desc.to_state), rank)
 
-    def alphas(self)->Optional[nn.Parameter]:
-        return self._op.alphas()
+    def alphas(self)->Iterator[nn.Parameter]:
+        for alpha in self._op.alphas():
+            if alpha is not None:
+                yield alpha
+
+    def weights(self)->Iterator[nn.Parameter]:
+        for w in self._op.weights():
+            yield w

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, List, Sequence, Final
+from typing import Optional, List
 import yaml
 
 class DescBase:

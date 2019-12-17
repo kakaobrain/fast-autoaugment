@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple, Dict, Optional, Final
+from typing import Callable, Iterable, Iterator, Optional, Tuple, Dict, Optional, Generator
 from abc import ABC, abstractmethod
 
 from overrides import overrides, EnforceOverrides
@@ -13,9 +13,9 @@ from .model_desc import OpDesc
 # Each op is a uninary tensor operator, all take same constructor params
 _ops_factory:Dict[str, Callable[[OpDesc, Optional[nn.Parameter]], 'Op']] = {
     'max_pool_3x3':     lambda op_desc, alphas:
-                        PoolBN('max', op_desc.ch_in, 3, op_desc.stride, 1, affine=op_desc.affine),
+                        PoolBN('max', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
     'avg_pool_3x3':     lambda op_desc, alphas:
-                        PoolBN('avg', op_desc.ch_in, 3, op_desc.stride, 1, affine=op_desc.affine),
+                        PoolBN('avg', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
     'skip_connect':     lambda op_desc, alphas:
                         Identity(op_desc.training) if op_desc.stride == 1 else \
                             FactorizedReduce(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
@@ -56,17 +56,20 @@ _ops_factory:Dict[str, Callable[[OpDesc, Optional[nn.Parameter]], 'Op']] = {
 }
 
 class Op(nn.Module, ABC, EnforceOverrides):
-    def alphas(self)->Optional[nn.Parameter]:
-        return None
-
     @staticmethod
     def create(op_desc:OpDesc, alphas: Optional[nn.Parameter]=None)->'Op':
         op = _ops_factory[op_desc.name](op_desc, alphas)
         op.desc = op_desc # TODO: annotate as Final
         return op
 
-    def alphas(self)->Optional[nn.Parameter]:
-        return None # when supported, derived class should override it
+    # must override if op has alphas!
+    def alphas(self)->Iterable[nn.Parameter]:
+        pass # when supported, derived class should override it
+
+    # must override if op has alphas!
+    def weights(self)->Iterator[nn.Parameter]:
+        for w in self.parameters():
+            yield w
 
     def finalize(self)->Tuple[OpDesc, Optional[float]]:
         """for trainable op, return final op and its rank"""
@@ -350,37 +353,48 @@ class MixedOp(Op):
         'none' # this must be at the end so top1 doesn't chose it
     ]
 
-
     def __init__(self, ch_in, ch_out, stride, affine,
                  alphas:Optional[nn.Parameter], training:bool):
         super().__init__()
 
         assert MixedOp.PRIMITIVES[-1] == 'none' # assume last PRIMITIVE is 'none'
 
-        self._ops = nn.ModuleList()
         if alphas is None:
             alphas = nn.Parameter( # TODO: use better init than uniform random?
                 1.0e-3*torch.randn(len(MixedOp.PRIMITIVES)), requires_grad=True)
-        self._alphas = alphas
+        # before adding ops, get alphas from the module
+            self._reg_alphas = alphas
+            self._alphas = [p for p in self.parameters()]
+        else:
+            self._alphas = [alphas]
+
+        self._ops = nn.ModuleList()
 
         for primitive in MixedOp.PRIMITIVES:
             # create corresponding layer
-            op = Op.from_desc(
+            op = Op.create(
                 OpDesc(primitive, training, ch_in, ch_out, stride, affine), alphas)
             self._ops.append(op)
 
     @overrides
     def forward(self, x):
-        asm = F.softmax(self._alphas)
+        asm = F.softmax(self._alphas[0], dim=0)
         return sum(w * op(x) for w, op in zip(asm, self._ops))
 
     @overrides
-    def alphas(self)->Optional[nn.Parameter]:
-        return self._alphas
+    def alphas(self)->Iterator[nn.Parameter]:
+        for alpha in self._alphas:
+            yield alpha
+
+    @overrides
+    def weights(self)->Iterator[nn.Parameter]:
+        for op in self._ops:
+            for w in op.parameters():
+                yield w
 
     @overrides
     def finalize(self)->Tuple[OpDesc, Optional[float]]:
         # select except 'none' op
         with torch.no_grad():
-            val, i = torch.topk(self._alphas[:-1], 1)
+            val, i = torch.topk(self._alphas[0][:-1], 1)
         return self._ops[i].desc, float(val.item())

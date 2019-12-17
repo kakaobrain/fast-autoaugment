@@ -437,7 +437,6 @@ class CutoutDefault:
         img *= mask
         return img
 
-
 class Augmentation:
     def __init__(self, policies):
         self.policies = policies

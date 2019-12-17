@@ -1,4 +1,7 @@
+from typing import Union, Any
+
 import  torch
+import  torch.nn as nn
 import  numpy as np
 from    torch import autograd
 from torch.optim import Optimizer
@@ -6,24 +9,22 @@ from torch.nn.modules.loss import _Loss
 
 import copy
 
-
 from .model import Model
 from ..common.config import Config
 from ..common.optimizer import get_optimizer
 
 
 def _get_loss(model, lossfn, x, y):
-    logits = model.forward(x)
+    logits, *_ = model(x)
     return lossfn(logits, y)
 
-    # t.view(-1) reshapes tensor to 1 row N columnsstairs
+# t.view(-1) reshapes tensor to 1 row N columnsstairs
 #   w - model parameters
 #   alphas - arch parameters
 #   w' - updated w using grads from the loss
 class Arch:
-
-    def __init__(self, conf:Config, model:Model, lossfn:_Loss)->None:
-
+    def __init__(self, conf:Config, model:Union[nn.DataParallel, Model],
+                 lossfn:_Loss)->None:
         # region conf vars
         conf_search = conf['darts']['search']
         conf_w_opt  = conf_search['weights']['optimizer']

@@ -8,8 +8,8 @@ from .model_desc import ModelDesc, CellDesc
 class Strategy(ABC, EnforceOverrides):
     def apply(self, model_desc:ModelDesc)->None:
         for cell_desc in model_desc.cell_descs:
-            self._add_cell_nodes(cell_desc)
+            self._add_edges(cell_desc)
 
     @abstractmethod
-    def _add_cell_nodes(self, cell_desc:CellDesc)->None:
+    def _add_edges(self, cell_desc:CellDesc)->None:
         pass

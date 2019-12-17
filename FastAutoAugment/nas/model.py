@@ -33,14 +33,15 @@ class Model(nn.Module):
                                 model_desc.n_classes)
 
     def alphas(self)->Iterator[nn.Parameter]:
-        return (alpha                               \
-                    for cell in self._cells         \
-                        if not cell.shared_alphas   \
-                            for alpha in cell.alphas())
+        for cell in self._cells:
+            if not cell.shared_alphas:
+                for alpha in cell.alphas():
+                    yield alpha
+
     def weights(self)->Iterator[nn.Parameter]:
-        return (p                                   \
-                for cell in self._cells             \
-                    for p in cell.weights())
+        for cell in self._cells:
+            for w in cell.weights():
+                yield w
 
     @overrides
     def forward(self, x)->Tuple[Tensor, Optional[Tensor]]:
@@ -62,9 +63,9 @@ class Model(nn.Module):
         linear: [b, 10]
         """
 
-        # TODO: original code has s0==s1 for cifar but not for imagenet
-        s0 = self._stem0_op(input)
-        s1 = self._stem1_op(s0)
+        # TODO: original code has slighly different way of applying stems
+        s0 = self._stem0_op(x)
+        s1 = self._stem1_op(x)
 
         logits_aux = None
         for cell in self._cells:

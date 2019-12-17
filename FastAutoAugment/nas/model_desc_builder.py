@@ -75,7 +75,7 @@ class ModelDescBuilder(EnforceOverrides):
             s0_op, s1_op = self._get_s_ops(
                 ch_out, p_ch_out, pp_ch_out, reduction_p)
 
-            nodes: List[NodeDesc] = []
+            nodes:List[NodeDesc] = [NodeDesc(edges=[]) for _ in range(self.n_nodes)]
             aux_tower_desc = self._get_aux_tower_desc(ci)
 
             cell_descs.append(CellDesc(
@@ -88,7 +88,7 @@ class ModelDescBuilder(EnforceOverrides):
                 training=self.training
             ))
 
-            self._add_cell_nodes(cell_desc)
+            self._add_template_nodes(cell_descs[-1])
 
             # we concate all channels so next cell node gets channels from all nodes
             pp_ch_out, p_ch_out = p_ch_out, cell_descs[-1].get_ch_out()
@@ -96,32 +96,30 @@ class ModelDescBuilder(EnforceOverrides):
 
         return cell_descs
 
-    def _add_cell_nodes(self, cell_desc:CellDesc)->None:
+    def _add_template_nodes(self, cell_desc:CellDesc)->None:
         if self.template is None:
             return
 
-        ch_out = cell_desc.get_ch_out()
+        ch_out = cell_desc.n_node_channels
         reduction = cell_desc.cell_type == CellType.Reduction
-        cel_template = self.reduction_template if reduction else self.normal_template
+        cell_template = self.reduction_template if reduction else self.normal_template
 
-        if cel_template is None:
+        if cell_template is None:
             return
 
-        for i, node in enumerate(cel_template.nodes):
-            edges: List[EdgeDesc] = []
-            for edge in node.edges:
-                op_desc = OpDesc(edge.op_desc.name,
+        for node, template_node in zip(cell_desc.nodes, cell_template.nodes):
+            for template_edge in template_node.edges:
+                op_desc = OpDesc(template_edge.op_desc.name,
                                     training=self.training,
                                     ch_in=ch_out,
                                     ch_out=ch_out,
-                                    stride=edge.op_desc.stride,
+                                    stride=template_edge.op_desc.stride,
                                     affine=not cell_desc.training)
                 edge = EdgeDesc(op_desc,
-                                input_ids=edge.input_ids,
-                                from_node=edge.from_node,
-                                to_state=edge.to_state)
-                edges.append(edge)
-            cell_desc.nodes.append(NodeDesc(edges=edges))
+                                input_ids=template_edge.input_ids,
+                                from_node=template_edge.from_node,
+                                to_state=template_edge.to_state)
+                node.edges.append(edge)
 
     def _is_reduction(self, cell_index:int)->bool:
         return (cell_index+1) % 3 == 0

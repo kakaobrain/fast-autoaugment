@@ -23,7 +23,7 @@ def test_epoch(test_dl:DataLoader, model:nn.Module, device, lossfn:_Loss,
         for step, (x, y) in enumerate(test_dl):
             x, y = x.to(device), y.to(device, non_blocking=True)
 
-            logits = model(x)
+            logits, *_ = model(x)
             loss = lossfn(logits, y)
 
             prec1, prec5 = utils.accuracy(logits, y, topk=(1, 5))
@@ -81,7 +81,7 @@ def train_epoch(train_dl:DataLoader, model:nn.Module, device,
             loss = lossfn(logits, y)
             loss += aux_weight * lossfn(aux_logits, y)
         else:
-            logits = model(x)
+            logits, *_ = model(x)
             loss = lossfn(logits, y)
 
         loss.backward()

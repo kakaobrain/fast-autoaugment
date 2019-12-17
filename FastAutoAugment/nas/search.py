@@ -24,12 +24,9 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
     conf_search   = conf['darts']['search']
     conf_loader   = conf['darts']['search']['loader']
     conf_ds       = conf['dataset']
-    logdir        = conf['logdir']
     conf_w_opt    = conf_search['weights']['optimizer']
     conf_w_sched  = conf_search['weights']['lr_schedule']
     ds_name       = conf_ds['name']
-    ch_in         = conf_ds['ch_in']
-    n_classes     = conf_ds['n_classes']
     max_batches     = conf_ds['max_batches']
     conf_lossfn   = conf_search['lossfn']
     dataroot      = conf['dataroot']
@@ -41,8 +38,6 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
     val_fold      = conf_loader['val_fold']
     n_workers     = conf_loader['n_workers']
     horovod       = conf['horovod']
-    init_ch_out   = conf_search['init_ch_out']
-    n_layers      = conf_search['layers']
     report_freq   = conf['report_freq']
     grad_clip     = conf_w_opt['clip']
     plotsdir      = conf['plotsdir']
@@ -61,7 +56,7 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
 
     lossfn = get_lossfn(conf_lossfn, conf_ds).to(device)
 
-    model = Model(model_desc).to(device)
+    model = Model(model_desc)
     logger.info("Total param size = %f MB", utils.param_size(model))
     if data_parallel:
         model = nn.DataParallel(model).to(device)
