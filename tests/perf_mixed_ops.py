@@ -1,4 +1,4 @@
-from FastAutoAugment.darts.operations import MixedOp
+from FastAutoAugment.nas.operations import MixedOp
 import torch
 import torch.backends.cudnn as cudnn
 import numpy as np

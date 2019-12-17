@@ -5,7 +5,7 @@ from torch import nn
 from overrides import overrides
 
 from .operations import Op
-from .model_desc import EdgeDesc, OpDesc
+from .model_desc import EdgeDesc
 
 class DagEdge(nn.Module):
     def __init__(self, desc:EdgeDesc,

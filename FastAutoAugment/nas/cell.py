@@ -1,4 +1,3 @@
-from FastAutoAugment.darts.operations import Op
 from typing import Callable, Iterator, List, Optional, Tuple
 from abc import ABC, abstractmethod
 
@@ -9,6 +8,7 @@ from torch import nn
 
 from .dag_edge import DagEdge
 from .model_desc import CellDesc, EdgeDesc, NodeDesc
+from .operations import Op
 
 class Cell(nn.Module, ABC, EnforceOverrides):
     def __init__(self, desc:CellDesc, alphas_cell:Optional['Cell']):

@@ -1,6 +1,6 @@
 from FastAutoAugment.common.common import common_init
-from FastAutoAugment.darts.search import search_arch
-from FastAutoAugment.darts.model_desc_builder import ModelDescBuilder
+from FastAutoAugment.nas.search import search_arch
+from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
 from FastAutoAugment.darts.darts_strategy import DartsStrategy
 
 import yaml

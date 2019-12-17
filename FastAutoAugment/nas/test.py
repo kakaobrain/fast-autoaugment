@@ -3,11 +3,6 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
-from torch.optim.optimizer import Optimizer
-from torch.utils.data.dataloader import DataLoader
-import torchvision.datasets as tvds
-from torch.nn.modules.loss import _Loss
-from torch.optim.lr_scheduler import _LRScheduler
 
 from ..common import utils
 from ..common.common import get_logger, get_tb_writer
@@ -15,7 +10,7 @@ from ..common.train_test_utils import train_test
 from ..common.data import get_dataloaders
 from .model import Model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
-from .model_desc import CellType, ModelDesc
+from .model_desc import ModelDesc
 
 def test_arch(conf, model_desc:ModelDesc, save_model:bool=True):
 

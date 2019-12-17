@@ -1,11 +1,9 @@
-
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple, List
 
 from overrides import EnforceOverrides
 
-from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
-                        EdgeDesc, CellDesc, AuxTowerDesc
+from .model_desc import ModelDesc, CellDesc
 
 class Strategy(ABC, EnforceOverrides):
     def apply(self, model_desc:ModelDesc)->None:

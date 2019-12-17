@@ -1,6 +1,5 @@
 from typing import Callable, List, Optional, Tuple, Dict, Optional, Final
 from abc import ABC, abstractmethod
-import copy
 
 from overrides import overrides, EnforceOverrides
 

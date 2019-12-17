@@ -1,6 +1,6 @@
 from FastAutoAugment.common.common import common_init
-from FastAutoAugment.darts.test import test_arch
-from FastAutoAugment.darts.model_desc_builder import ModelDescBuilder
+from FastAutoAugment.nas.test import test_arch
+from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
 
 import os
 

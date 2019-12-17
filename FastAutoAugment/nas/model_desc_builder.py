@@ -1,12 +1,11 @@
 from typing import Optional, Tuple, List
-from copy import deepcopy
 
 from overrides import EnforceOverrides
 
 from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
                         EdgeDesc, CellDesc, AuxTowerDesc
 
-class ModelDescBuilder:
+class ModelDescBuilder(EnforceOverrides):
     def __init__(self, conf_ds: dict, conf_model_desc: dict,
                  training:bool, template:Optional[ModelDesc]=None)->None:
         self.ds_name = conf_ds['name']
