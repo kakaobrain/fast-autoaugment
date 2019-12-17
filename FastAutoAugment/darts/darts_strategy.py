@@ -20,7 +20,7 @@ class DartsStrategy(Strategy):
                                     ch_out=ch_out,
                                     stride=2 if reduction and j < 2 else 1,
                                     affine=cell_desc!=RunMode.Search)
-                edge = EdgeDesc(op_desc,
+                edge = EdgeDesc(op_desc, len(node.edges),
                                 input_ids=[j],
                                 from_node=i,
                                 to_state=j)

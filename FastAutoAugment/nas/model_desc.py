@@ -28,9 +28,10 @@ class OpDesc(DescBase):
 class EdgeDesc(DescBase):
     """Edge description between two nodes in the cell
     """
-    def __init__(self, op_desc:OpDesc, input_ids:List[int],
+    def __init__(self, op_desc:OpDesc, index:int, input_ids:List[int],
                  from_node:int, to_state:int)->None:
         self.op_desc = op_desc
+        self.index = index
         self.input_ids = input_ids
         self.from_node = from_node
         self.to_state = to_state
@@ -51,11 +52,12 @@ class CellType(Enum):
 class CellDesc(DescBase):
     """Cell description
     """
-    def __init__(self, cell_type:CellType, nodes:List[NodeDesc],
+    def __init__(self, cell_type:CellType, index:int, nodes:List[NodeDesc],
             s0_op:OpDesc, s1_op:OpDesc, aux_tower_desc:Optional[AuxTowerDesc],
             n_out_nodes:int, n_node_channels:int,
             alphas_from:int, run_mode:RunMode)->None:
         self.cell_type = cell_type
+        self.index = index
         self.nodes = nodes
         self.s0_op = s0_op
         self.s1_op = s1_op

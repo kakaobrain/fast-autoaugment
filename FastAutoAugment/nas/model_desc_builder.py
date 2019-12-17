@@ -79,7 +79,7 @@ class ModelDescBuilder(EnforceOverrides):
             aux_tower_desc = self._get_aux_tower_desc(ci)
 
             cell_descs.append(CellDesc(
-                cell_type=cell_type,
+                cell_type=cell_type, index=ci,
                 nodes=nodes,
                 s0_op=s0_op, s1_op=s1_op, aux_tower_desc=aux_tower_desc,
                 n_out_nodes=self.n_out_nodes,
@@ -115,7 +115,7 @@ class ModelDescBuilder(EnforceOverrides):
                                     ch_out=ch_out,
                                     stride=template_edge.op_desc.stride,
                                     affine=cell_desc.run_mode!=RunMode.Search)
-                edge = EdgeDesc(op_desc,
+                edge = EdgeDesc(op_desc, len(node.edges),
                                 input_ids=template_edge.input_ids,
                                 from_node=template_edge.from_node,
                                 to_state=template_edge.to_state)

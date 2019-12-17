@@ -84,13 +84,14 @@ class Cell(nn.Module, ABC, EnforceOverrides):
             nodes_desc.append(NodeDesc([edr[0] for edr in edge_desc_ranks]))
 
         return CellDesc(cell_type=self.desc.cell_type,
+                        index=self.desc.index,
                         nodes=nodes_desc,
                         s0_op=self.desc.s0_op, s1_op=self.desc.s1_op,
                         aux_tower_desc=self.desc.aux_tower_desc,
                         n_out_nodes=self.desc.n_out_nodes,
                         n_node_channels=self.desc.n_node_channels,
                         alphas_from=self.desc.alphas_from,
-                        training=False)
+                        run_mode=self.desc.run_mode)
 
 class AuxTower(nn.Module):
     def __init__(self, init_ch_out:int, n_classes:int, pool_stride:int):
