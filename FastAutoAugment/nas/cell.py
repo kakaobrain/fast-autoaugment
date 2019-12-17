@@ -73,8 +73,8 @@ class Cell(nn.Module, ABC, EnforceOverrides):
         for i, node_desc in enumerate(self.desc.nodes):
             edge_desc_ranks = [edge.finalize() for edge in self._dag[i]]
             if len(edge_desc_ranks) > max_edges:
-                edge_desc_ranks = edge_desc_ranks.sort(key=lambda d:d[1],
-                                             reverse=True)[:max_edges]
+                 edge_desc_ranks.sort(key=lambda d:d[1], reverse=True)
+                 edge_desc_ranks = edge_desc_ranks[:max_edges]
             nodes_desc.append(NodeDesc([edr[0] for edr in edge_desc_ranks]))
 
         return CellDesc(cell_type=self.desc.cell_type,
