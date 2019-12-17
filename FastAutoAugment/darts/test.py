@@ -9,17 +9,16 @@ import torchvision.datasets as tvds
 from torch.nn.modules.loss import _Loss
 from torch.optim.lr_scheduler import _LRScheduler
 
-import yaml
-
 from ..common import utils
 from ..common.common import get_logger, get_tb_writer
 from ..common.train_test_utils import train_test
 from ..common.data import get_dataloaders
 from .model import Model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
-from .model_desc import ModelDesc
+from .model_desc import CellType, ModelDesc
 
-def test_arch(conf, model_desc:ModelDesc):
+def test_arch(conf, model_desc:ModelDesc, save_model:bool=True):
+
     logger, writer = get_logger(), get_tb_writer()
 
     # region conf vars
@@ -31,9 +30,9 @@ def test_arch(conf, model_desc:ModelDesc):
     conf_test_lossfn  = conf_test['test_lossfn']
     conf_loader       = conf_test['loader']
     cutout            = conf_loader['cutout']
-    model_desc_file         = conf_test['model_desc_file']
+    model_desc_file    = conf_test['model_desc_file']
     init_ch_out       = conf_test['init_ch_out']
-    n_layers          = conf_test['layers']
+    model_save_file    = conf_test['model_save_file']
     aux_weight        = conf_test['aux_weight']
     drop_path_prob    = conf_test['drop_path_prob']
     ds_name           = conf_ds['name']
@@ -53,7 +52,12 @@ def test_arch(conf, model_desc:ModelDesc):
     aux_weight        = conf_test['aux_weight']
     grad_clip         = conf_opt['clip']
     data_parallel     = conf_test['data_parallel']
+    model_save_file    = conf_test['model_save_file']
+    logdir            = conf['logdir']
     # endregion
+
+    if rewrite_model_desc:
+        model_desc = _rewrite_model_desc(model_desc)
 
     # get data
     train_dl, _, test_dl, _ = get_dataloaders(
@@ -84,7 +88,13 @@ def test_arch(conf, model_desc:ModelDesc):
         report_freq, epochs)
     logger.info('best_top1 %f', best_top1)
 
-    return best_top1
+    if save_model:
+        utils.save(model, os.path.join(logdir, model_save_file))
+
+    return best_top1, model
+
+
+
 
 
 

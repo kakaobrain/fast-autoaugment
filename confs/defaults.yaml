@@ -57,13 +57,16 @@ autoaug:
 darts:
   test:
     model_desc_file: 'model_desc.yaml'
-    aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
-    drop_path_prob: 0.2 # drop path probability
-    init_ch_out: 36 # num of channels for stem outpt node
-    n_cells: 20 # number of cells
+    model_save_file: 'cifar_model.pt'
     data_parallel: False
-    stem_multiplier: 3 # output channels multiplier for the stem
-    model_class: 'Cifar10TestModel'
+    model_desc:
+      init_ch_out: 36 # num of channels for stem outpt node
+      n_cells: 20 # number of cells
+      n_nodes: 4 # number of nodes in a cell
+      n_out_nodes: 4 # last n nodes to concate output from
+      stem_multiplier: 3 # output channels multiplier for the stem
+      aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
+      drop_path_prob: 0.2 # probability that given edge will be dropped
     train_lossfn:
       type: 'CrossEntropyLoss'
     test_lossfn:
@@ -90,12 +93,15 @@ darts:
       lr_min: 0.001 # min learning rate to se bet in eta_min param of scheduler
   search:
     bilevel: True
-    init_ch_out: 16 # num of channels for stem outpt node
-    n_cells: 8 # number of cells
-    n_nodes: 4 # number of nodes in a cell
-    n_out_nodes: 4 # last n nodes to concate output from
     data_parallel: False
-    stem_multiplier: 3 # output channels multiplier for the stem
+    model_desc:
+      init_ch_out: 16 # num of channels for stem outpt node
+      n_cells: 8 # number of cells
+      n_nodes: 4 # number of nodes in a cell
+      n_out_nodes: 4 # last n nodes to concate output from
+      stem_multiplier: 3 # output channels multiplier for the stem
+      aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
+      drop_path_prob: 0.0 # probability that given edge will be dropped
     lossfn:
       type: 'CrossEntropyLoss'
     loader:

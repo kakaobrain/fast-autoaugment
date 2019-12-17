@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 import os
-from typing import List, Iterable, Union
+from typing import List, Iterable, Union, Optional
 
 from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import yaml
@@ -49,7 +49,7 @@ def _add_filehandler(logger, filepath):
     logger.addHandler(fh)
 
 # initializes random number gen, debugging etc
-def common_init(config_filepath:str, defaults_filepath:str,
+def common_init(config_filepath:Optional[str], defaults_filepath:Optional[str],
         param_args:List[str]=[], experiment_name='', seed=42,
         log_level=logging.DEBUG, is_master=True, tb_names:Iterable[str]=['0']) \
         -> Config:
