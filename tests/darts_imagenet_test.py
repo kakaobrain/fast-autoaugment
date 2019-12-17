@@ -18,7 +18,7 @@ if __name__ == '__main__':
     logdir          = conf['logdir']
 
     with open(os.path.join(logdir, model_desc_file), 'r') as f:
-        found_model_desc = yaml.load(f)
+        found_model_desc = yaml.safe_load(f)
 
     builder = ModelDescBuilder(conf_ds, conf_model_desc,
                                run_mode=RunMode.EvalTrain, template=found_model_desc)

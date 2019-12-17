@@ -6,7 +6,7 @@ class DescBase:
     def serialize(self)->dict:
         return yaml.dump(self)
     def deserialize(self, v:dict)->'DescBase':
-        return yaml.load(v)
+        return yaml.safe_load(v)
 
 
 class RunMode(Enum):

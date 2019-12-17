@@ -52,5 +52,5 @@ o = OpDesc('dd', 2, 3, 4, True)
 print(yaml.dump(o))
 
 s=yaml.dump(o)
-o1=yaml.load(s)
+o1=yaml.safe_load(s)
 print(o1)

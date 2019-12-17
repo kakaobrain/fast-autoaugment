@@ -163,7 +163,7 @@ class ModelDescBuilder(EnforceOverrides):
     def _get_aux_tower_desc(self, cell_index:int) -> Optional[AuxTowerDesc]:
         aux_tower_desc = None
         # TODO: shouldn't we adding aux tower at *every* 1/3rd?
-        if self.run_mode!=RunMode.Search                        \
+        if self.run_mode==RunMode.EvalTrain                        \
                 and self.aux_weight > 0.            \
                 and cell_index == 2*self.n_cells//3:
             aux_tower_desc = AuxTowerDesc(self.n_classes, self.aux_weight)
