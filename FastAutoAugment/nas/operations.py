@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, Optional, Tuple, Dict, Optional, Generator
+from typing import Callable, Iterable, Optional, Tuple, Dict, Optional
 from abc import ABC, abstractmethod
 
 from overrides import overrides, EnforceOverrides
@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ..common import utils
-from .model_desc import OpDesc
+from .model_desc import OpDesc, RunMode
 
 # Each op is a uninary tensor operator, all take same constructor params
 _ops_factory:Dict[str, Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']] = {
@@ -17,7 +17,7 @@ _ops_factory:Dict[str, Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']] = {
     'avg_pool_3x3':     lambda op_desc, alphas:
                         PoolBN('avg', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
     'skip_connect':     lambda op_desc, alphas:
-                        Identity(op_desc.training) if op_desc.stride == 1 else \
+                        Identity(op_desc.run_mode==RunMode.Search) if op_desc.stride == 1 else \
                             FactorizedReduce(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
     'sep_conv_3x3':     lambda op_desc, alphas:
                         SepConv(op_desc.ch_in, op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
@@ -35,13 +35,13 @@ _ops_factory:Dict[str, Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']] = {
                         FacConv(op_desc.ch_in, op_desc.ch_out, 7, op_desc.stride, 3, affine=op_desc.affine),
     'mixed_op':         lambda op_desc, alphas:
                         MixedOp(op_desc.ch_in, op_desc.ch_out, op_desc.stride,
-                                op_desc.affine, alphas, op_desc.training),
+                                op_desc.affine, alphas, op_desc.run_mode==RunMode.Search),
     'prepr_reduce':     lambda op_desc, alphas:
                         FactorizedReduce(op_desc.ch_in, op_desc.ch_out,
-                                affine=op_desc.affine or not op_desc.training),
+                                affine=op_desc.affine or op_desc.run_mode!=RunMode.Search),
     'prepr_normal':     lambda op_desc, alphas:
                         ReLUConvBN(op_desc.ch_in, op_desc.ch_out, 1, 1, 0,
-                                affine=op_desc.affine or not op_desc.training),
+                                affine=op_desc.affine or op_desc.run_mode!=RunMode.Search),
     'stem_cifar':       lambda op_desc, alphas:
                         StemCifar(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
     'stem0_imagenet':   lambda op_desc, alphas:

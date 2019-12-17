@@ -1,6 +1,7 @@
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas.test import test_arch
 from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
+from FastAutoAugment.nas.model_desc import RunMode
 
 import os
 
@@ -20,7 +21,7 @@ if __name__ == '__main__':
         found_model_desc = yaml.load(f)
 
     builder = ModelDescBuilder(conf_ds, conf_model_desc,
-                               training=False, template=found_model_desc)
+                                run_mode=RunMode.EvalTrain, template=found_model_desc)
     model_desc = builder.get_model_desc()
 
     best_top1, model = test_arch(conf, model_desc)

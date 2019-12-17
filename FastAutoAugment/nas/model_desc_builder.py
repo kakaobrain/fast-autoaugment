@@ -3,11 +3,11 @@ from typing import Optional, Tuple, List
 from overrides import EnforceOverrides
 
 from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
-                        EdgeDesc, CellDesc, AuxTowerDesc
+                        EdgeDesc, CellDesc, AuxTowerDesc, RunMode
 
 class ModelDescBuilder(EnforceOverrides):
     def __init__(self, conf_ds: dict, conf_model_desc: dict,
-                 training:bool, template:Optional[ModelDesc]=None)->None:
+                 run_mode:RunMode, template:Optional[ModelDesc]=None)->None:
         self.ds_name = conf_ds['name']
         self.ch_in = conf_ds['ch_in']
         self.n_classes = conf_ds['n_classes']
@@ -19,7 +19,7 @@ class ModelDescBuilder(EnforceOverrides):
         self.stem_multiplier = conf_model_desc['stem_multiplier']
         self.aux_weight = conf_model_desc['aux_weight']
         self.drop_path_prob = conf_model_desc['drop_path_prob']
-        self.training = training
+        self.run_mode = run_mode
         self.template = template
 
         self._set_templates()
@@ -30,10 +30,10 @@ class ModelDescBuilder(EnforceOverrides):
         if self.template is not None:
             for cell_desc in self.template.cell_descs:
                 if self.normal_template is None and \
-                    cell_desc.cell_type==CellType.Regular:
+                        cell_desc.cell_type==CellType.Regular:
                   self.normal_template = cell_desc
                 if self.reduction_template is None and \
-                    cell_desc.cell_type==CellType.Reduction:
+                        cell_desc.cell_type==CellType.Reduction:
                     self.reduction_template = cell_desc
 
     def get_model_desc(self)->ModelDesc:
@@ -42,7 +42,7 @@ class ModelDescBuilder(EnforceOverrides):
         cell_descs = self._get_cell_descs(stem0_op.ch_out)
 
         ch_out = cell_descs[-1].get_ch_out()
-        pool_op = OpDesc(self.pool_op_name, self.training, ch_out, ch_out)
+        pool_op = OpDesc(self.pool_op_name, self.run_mode, ch_out, ch_out)
 
         return ModelDesc(stem0_op, stem1_op, pool_op,
                          self.ch_in, self.n_classes, cell_descs)
@@ -85,7 +85,7 @@ class ModelDescBuilder(EnforceOverrides):
                 n_out_nodes=self.n_out_nodes,
                 n_node_channels=ch_out,
                 alphas_from=alphas_from,
-                training=self.training
+                run_mode=self.run_mode
             ))
 
             self._add_template_nodes(cell_descs[-1])
@@ -110,11 +110,11 @@ class ModelDescBuilder(EnforceOverrides):
         for node, template_node in zip(cell_desc.nodes, cell_template.nodes):
             for template_edge in template_node.edges:
                 op_desc = OpDesc(template_edge.op_desc.name,
-                                    training=self.training,
+                                    run_mode=self.run_mode,
                                     ch_in=ch_out,
                                     ch_out=ch_out,
                                     stride=template_edge.op_desc.stride,
-                                    affine=not cell_desc.training)
+                                    affine=cell_desc.run_mode!=RunMode.Search)
                 edge = EdgeDesc(op_desc,
                                 input_ids=template_edge.input_ids,
                                 from_node=template_edge.from_node,
@@ -148,20 +148,22 @@ class ModelDescBuilder(EnforceOverrides):
                    reduction_p: bool)->Tuple[OpDesc, OpDesc]:
         # TODO: investigate why affine=False for search but True for test
         if reduction_p:
-            s0_op = OpDesc('prepr_reduce', training=self.training,
+            s0_op = OpDesc('prepr_reduce', run_mode=self.run_mode,
                             ch_in=pp_ch_out, ch_out=ch_out, affine=False)
         else:
-            s0_op = OpDesc('prepr_normal', training=self.training,
-                            ch_in=pp_ch_out, ch_out=ch_out, affine=not self.training)
-        s1_op = OpDesc('prepr_normal', training=self.training,
-                        ch_in=p_ch_out, ch_out=ch_out, affine=not self.training)
+            s0_op = OpDesc('prepr_normal', run_mode=self.run_mode,
+                            ch_in=pp_ch_out, ch_out=ch_out,
+                            affine=self.run_mode!=RunMode.Search)
+        s1_op = OpDesc('prepr_normal', run_mode=self.run_mode,
+                        ch_in=p_ch_out, ch_out=ch_out,
+                        affine=self.run_mode!=RunMode.Search)
 
         return s0_op, s1_op
 
     def _get_aux_tower_desc(self, cell_index:int) -> Optional[AuxTowerDesc]:
         aux_tower_desc = None
         # TODO: shouldn't we adding aux tower at *every* 1/3rd?
-        if not self.training                        \
+        if self.run_mode!=RunMode.Search                        \
                 and self.aux_weight > 0.            \
                 and cell_index == 2*self.n_cells//3:
             aux_tower_desc = AuxTowerDesc(self.n_classes, self.aux_weight)
@@ -172,11 +174,11 @@ class ModelDescBuilder(EnforceOverrides):
         # TODO: why do we need stem_multiplier?
         # TODO: in original paper stems are always affine
         stem_ch_out = self.init_ch_out*self.stem_multiplier
-        stem0_op = OpDesc(name=self.stem0_op_name, training=self.training,
+        stem0_op = OpDesc(name=self.stem0_op_name, run_mode=self.run_mode,
                           ch_in=self.ch_in, ch_out=stem_ch_out,
-                          affine=not self.training)
-        stem1_op = OpDesc(name=self.stem1_op_name, training=self.training,
+                          affine=self.run_mode!=RunMode.Search)
+        stem1_op = OpDesc(name=self.stem1_op_name, run_mode=self.run_mode,
                           ch_in=self.ch_in, ch_out=stem_ch_out,
-                          affine=not self.training)
+                          affine=self.run_mode!=RunMode.Search)
 
         return stem0_op, stem1_op

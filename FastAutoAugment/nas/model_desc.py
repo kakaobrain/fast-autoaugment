@@ -8,15 +8,22 @@ class DescBase:
     def deserialize(self, v:dict)->'DescBase':
         return yaml.load(v)
 
+
+class RunMode(Enum):
+    Search = 'search'
+    EvalTrain = 'eval_train'
+    EvalTest = 'eval_test'
+
+
 class OpDesc(DescBase):
     """Op description that is in each edge
     """
-    def __init__(self, name:str, training:bool,
+    def __init__(self, name:str, run_mode:RunMode,
                  ch_in:Optional[int]=None, ch_out:Optional[int]=None,
                 stride:Optional[int]=None, affine:Optional[bool]=None)->None:
         self.name = name
         self.ch_in, self.ch_out = ch_in, ch_out
-        self.stride, self.affine, self.training = stride, affine, training
+        self.stride, self.affine, self.run_mode = stride, affine, run_mode
 
 class EdgeDesc(DescBase):
     """Edge description between two nodes in the cell
@@ -47,7 +54,7 @@ class CellDesc(DescBase):
     def __init__(self, cell_type:CellType, nodes:List[NodeDesc],
             s0_op:OpDesc, s1_op:OpDesc, aux_tower_desc:Optional[AuxTowerDesc],
             n_out_nodes:int, n_node_channels:int,
-            alphas_from:int, training:bool)->None:
+            alphas_from:int, run_mode:RunMode)->None:
         self.cell_type = cell_type
         self.nodes = nodes
         self.s0_op = s0_op
@@ -55,7 +62,7 @@ class CellDesc(DescBase):
         self.aux_tower_desc = aux_tower_desc
         self.n_out_nodes = n_out_nodes
         self.n_node_channels = n_node_channels
-        self.training = training
+        self.run_mode = run_mode
         self.alphas_from = alphas_from
 
     def get_ch_out(self)->int:

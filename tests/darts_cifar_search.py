@@ -1,3 +1,4 @@
+from FastAutoAugment.nas.model_desc import RunMode
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas.search import search_arch
 from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
@@ -15,7 +16,7 @@ if __name__ == '__main__':
     conf_model_desc = conf_search['model_desc']
     logdir = conf['logdir']
 
-    builder = ModelDescBuilder(conf_ds, conf_model_desc, training=True)
+    builder = ModelDescBuilder(conf_ds, conf_model_desc, run_mode=RunMode.Search)
     model_desc = builder.get_model_desc()
 
     strategy = DartsStrategy()
