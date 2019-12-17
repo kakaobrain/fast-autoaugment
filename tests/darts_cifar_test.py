@@ -13,11 +13,11 @@ if __name__ == '__main__':
     conf_ds         = conf['dataset']
     conf_test       = conf['darts']['test']
     model_desc_file = conf_test['model_desc_file']
-    conf_model_desc   = conf_test['model_desc']
+    conf_model_desc = conf_test['model_desc']
     logdir          = conf['logdir']
 
     with open(os.path.join(logdir, model_desc_file), 'r') as f:
-      found_model_desc = yaml.load(f)
+        found_model_desc = yaml.load(f)
 
     builder = ModelDescBuilder(conf_ds, conf_model_desc,
                                training=False, template=found_model_desc)
