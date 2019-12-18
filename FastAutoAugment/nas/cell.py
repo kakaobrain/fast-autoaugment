@@ -23,7 +23,7 @@ class Cell(nn.Module, ABC, EnforceOverrides):
 
         self.aux_tower = None
         if desc.aux_tower_desc:
-            self.aux_tower = AuxTower(desc.get_ch_out(),
+            self.aux_tower = AuxTower(desc.aux_tower_desc.ch_in,
                                       desc.aux_tower_desc.n_classes,
                                       pool_stride=3)
 

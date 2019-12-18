@@ -27,7 +27,7 @@ class DagEdge(nn.Module):
 
     def finalize(self)->Tuple[EdgeDesc, Optional[float]]:
         op_desc, rank = self._op.finalize()
-        return (EdgeDesc(op_desc, self.index, self._input_ids, \
+        return (EdgeDesc(op_desc, self.desc.index, self._input_ids, \
                 self.desc.from_node, self.desc.to_state), rank)
 
     def alphas(self)->Iterable[nn.Parameter]:

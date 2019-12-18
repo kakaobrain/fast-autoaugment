@@ -44,7 +44,7 @@ class Config(UserDict):
         default_yaml = {}
         if defaults_filepath:
             with open(defaults_filepath, 'r') as f:
-                default_yaml = yaml.safe_load(f)
+                default_yaml = yaml.load(f, Loader=yaml.Loader)
                 print('defaults config loaded from: ', config_filepath)
         self.update(default_yaml)
 
@@ -52,7 +52,7 @@ class Config(UserDict):
         main_yaml = {}
         if config_filepath:
             with open(config_filepath, 'r') as f:
-                main_yaml = yaml.safe_load(f)
+                main_yaml = yaml.load(f)
                 print('config loaded from: ', config_filepath)
 
         # merge from params

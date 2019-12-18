@@ -1,0 +1,1108 @@
+!!python/object:FastAutoAugment.nas.model_desc.ModelDesc
+cell_descs:
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 0
+  aux_tower_desc: null
+  cell_type: &id002 !!python/object/apply:FastAutoAugment.nas.model_desc.CellType
+  - regular
+  index: 0
+  n_node_channels: 16
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 2
+  run_mode: &id001 !!python/object/apply:FastAutoAugment.nas.model_desc.RunMode
+  - search
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 48
+    ch_out: 16
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 48
+    ch_out: 16
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 0
+  aux_tower_desc: null
+  cell_type: *id002
+  index: 1
+  n_node_channels: 16
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 16
+        ch_out: 16
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 2
+  run_mode: *id001
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 48
+    ch_out: 16
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 64
+    ch_out: 16
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 2
+  aux_tower_desc: null
+  cell_type: &id003 !!python/object/apply:FastAutoAugment.nas.model_desc.CellType
+  - reduction
+  index: 2
+  n_node_channels: 32
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: dil_conv_3x3
+        run_mode: true
+        stride: 2
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 2
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: dil_conv_5x5
+        run_mode: true
+        stride: 2
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_5x5
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 3
+      input_ids:
+      - 3
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 3
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 3
+      input_ids:
+      - 3
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: max_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 3
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 4
+      input_ids:
+      - 4
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 4
+  run_mode: *id001
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 64
+    ch_out: 32
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 64
+    ch_out: 32
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 0
+  aux_tower_desc: null
+  cell_type: *id002
+  index: 3
+  n_node_channels: 32
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 2
+  run_mode: *id001
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 64
+    ch_out: 32
+    name: prepr_reduce
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 128
+    ch_out: 32
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 0
+  aux_tower_desc: null
+  cell_type: *id002
+  index: 4
+  n_node_channels: 32
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 32
+        ch_out: 32
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 2
+  run_mode: *id001
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 128
+    ch_out: 32
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 128
+    ch_out: 32
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 2
+  aux_tower_desc: null
+  cell_type: *id003
+  index: 5
+  n_node_channels: 64
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: dil_conv_3x3
+        run_mode: true
+        stride: 2
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 2
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: dil_conv_5x5
+        run_mode: true
+        stride: 2
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_5x5
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 3
+      input_ids:
+      - 3
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 3
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 3
+      input_ids:
+      - 3
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: max_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 3
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 4
+      input_ids:
+      - 4
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 4
+  run_mode: *id001
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 128
+    ch_out: 64
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 128
+    ch_out: 64
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 0
+  aux_tower_desc: null
+  cell_type: *id002
+  index: 6
+  n_node_channels: 64
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 2
+  run_mode: *id001
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 128
+    ch_out: 64
+    name: prepr_reduce
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 256
+    ch_out: 64
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+- !!python/object:FastAutoAugment.nas.model_desc.CellDesc
+  alphas_from: 0
+  aux_tower_desc: null
+  cell_type: *id002
+  index: 7
+  n_node_channels: 64
+  n_out_nodes: 4
+  nodes:
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 0
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 1
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 2
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 0
+      input_ids:
+      - 0
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 0
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 2
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: avg_pool_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+  - !!python/object:FastAutoAugment.nas.model_desc.NodeDesc
+    edges:
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 1
+      input_ids:
+      - 1
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: sep_conv_3x3
+        run_mode: true
+        stride: 1
+      to_state: 1
+    - !!python/object:FastAutoAugment.nas.model_desc.EdgeDesc
+      from_node: 3
+      index: 2
+      input_ids:
+      - 2
+      op_desc: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+        affine: true
+        ch_in: 64
+        ch_out: 64
+        name: skip_connect
+        run_mode: true
+        stride: 1
+      to_state: 2
+  run_mode: *id001
+  s0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 256
+    ch_out: 64
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+  s1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+    affine: false
+    ch_in: 256
+    ch_out: 64
+    name: prepr_normal
+    run_mode: *id001
+    stride: null
+ch_in: 3
+n_classes: 10
+pool_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+  affine: null
+  ch_in: 256
+  ch_out: 256
+  name: pool_cifar
+  run_mode: *id001
+  stride: null
+stem0_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+  affine: false
+  ch_in: 3
+  ch_out: 48
+  name: stem_cifar
+  run_mode: *id001
+  stride: null
+stem1_op: !!python/object:FastAutoAugment.nas.model_desc.OpDesc
+  affine: false
+  ch_in: 3
+  ch_out: 48
+  name: stem_cifar
+  run_mode: *id001
+  stride: null

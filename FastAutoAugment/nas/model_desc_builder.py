@@ -76,7 +76,7 @@ class ModelDescBuilder(EnforceOverrides):
                 ch_out, p_ch_out, pp_ch_out, reduction_p)
 
             nodes:List[NodeDesc] = [NodeDesc(edges=[]) for _ in range(self.n_nodes)]
-            aux_tower_desc = self._get_aux_tower_desc(ci)
+            aux_tower_desc = self._get_aux_tower_desc(ci, self.n_out_nodes*ch_out)
 
             cell_descs.append(CellDesc(
                 cell_type=cell_type, index=ci,
@@ -87,7 +87,7 @@ class ModelDescBuilder(EnforceOverrides):
                 alphas_from=alphas_from,
                 run_mode=self.run_mode
             ))
-
+            print(pp_ch_out, p_ch_out, ch_out)
             self._add_template_nodes(cell_descs[-1])
 
             # we concate all channels so next cell node gets channels from all nodes
@@ -122,7 +122,7 @@ class ModelDescBuilder(EnforceOverrides):
                 node.edges.append(edge)
 
     def _is_reduction(self, cell_index:int)->bool:
-        return (cell_index+1) % 3 == 0
+        return cell_index in [self.n_cells//3, 2*self.n_cells//3]
 
     def _update_cell_vars(self, cell_index:int, reduction:bool, ch_out:int,
                        first_normal:int, first_reduction:int)\
@@ -160,13 +160,13 @@ class ModelDescBuilder(EnforceOverrides):
 
         return s0_op, s1_op
 
-    def _get_aux_tower_desc(self, cell_index:int) -> Optional[AuxTowerDesc]:
+    def _get_aux_tower_desc(self, cell_index:int, ch_in:int) -> Optional[AuxTowerDesc]:
         aux_tower_desc = None
         # TODO: shouldn't we adding aux tower at *every* 1/3rd?
         if self.run_mode==RunMode.EvalTrain                        \
                 and self.aux_weight > 0.            \
                 and cell_index == 2*self.n_cells//3:
-            aux_tower_desc = AuxTowerDesc(self.n_classes, self.aux_weight)
+            aux_tower_desc = AuxTowerDesc(ch_in, self.n_classes, self.aux_weight)
         return aux_tower_desc
 
     def _get_stem_ops(self)->Tuple[OpDesc, OpDesc]:

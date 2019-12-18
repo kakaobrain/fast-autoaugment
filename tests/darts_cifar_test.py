@@ -1,7 +1,7 @@
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas.test import test_arch
 from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
-from FastAutoAugment.nas.model_desc import RunMode
+from FastAutoAugment.nas.model_desc import RunMode, ModelDesc
 
 import os
 
@@ -18,7 +18,7 @@ if __name__ == '__main__':
     logdir          = conf['logdir']
 
     with open(os.path.join(logdir, model_desc_file), 'r') as f:
-        found_model_desc = yaml.safe_load(f)
+        found_model_desc = yaml.load(f, Loader=yaml.Loader)
 
     builder = ModelDescBuilder(conf_ds, conf_model_desc,
                                 run_mode=RunMode.EvalTrain, template=found_model_desc)
