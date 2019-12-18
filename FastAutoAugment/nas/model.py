@@ -89,7 +89,7 @@ class Model(nn.Module):
                          n_classes=self.desc.n_classes,
                          cell_descs=cell_descs)
 
-    def drop_path_prob(self, p):
+    def drop_path_prob(self, p:float):
         """ Set drop path probability
         This will be called exteranlly so any DropPath_ modules get
         new probability. Typically, every epoch we will reduce this probability.

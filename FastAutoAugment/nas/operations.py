@@ -319,7 +319,7 @@ class PoolCifar(Op):
 class DropPath_(nn.Module):
     """Replace values in tensor by 0. with probability p"""
 
-    def __init__(self, p=0.):
+    def __init__(self, p:float=0.):
         """ [!] DropPath is inplace module
         Args:
             p: probability of an path to be zeroed.
