@@ -1,10 +1,21 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import setuptools
+import setuptools, platform
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+install_requires=[
+    'warmup-scheduler @ git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git@v0.2',
+    'pystopwatch2 @ git+https://github.com/ildoonet/pystopwatch2.git',
+    'hyperopt', #  @ git+https://github.com/hyperopt/hyperopt.git
+    'pretrainedmodels', 'tqdm', 'tensorboardx', 'sklearn', 'matplotlib', 'psutil',
+    'requests', 'tensorwatch', 'gorilla', 'pyyaml', 'timebudget', 'overrides'
+]
+
+if platform.system()!='Windows':
+    install_requires.append('ray')
 
 setuptools.setup(
     name="PetriDishNas",
@@ -23,12 +34,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ),
     include_package_data=True,
-    install_requires=[
-        'warmup-scheduler @ git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git@v0.2',
-        'pystopwatch2 @ git+https://github.com/ildoonet/pystopwatch2.git',
-        'hyperopt', #  @ git+https://github.com/hyperopt/hyperopt.git
-        'pretrainedmodels', 'tqdm', 'tensorboardx', 'sklearn', 'ray', 'matplotlib', 'psutil',
-        'requests', 'tensorwatch', 'gorilla', 'pyyaml', 'timebudget', 'overrides'
-    ]
+    install_requires=install_requires
 )
 

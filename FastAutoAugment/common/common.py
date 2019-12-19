@@ -3,7 +3,6 @@ import numpy as np
 import os
 from typing import List, Iterable, Union, Optional
 
-from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import yaml
 
 import torch
@@ -72,6 +71,13 @@ def common_init(config_filepath:Optional[str], defaults_filepath:Optional[str],
 
     logger = _setup_logger(experiment_name)
 
+    if conf['gpus'] is not None:
+        csv = str(conf['gpus'])
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(conf['gpus'])
+        torch.cuda.set_device(int(csv.split(',')[0]))
+        logger.info('Only these GPUs will be used: {}'.format(conf['gpus']))
+        # alternative: torch.cuda.set_device(config.gpus[0])
+
     cudnn.enabled = True
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -112,11 +118,6 @@ def common_init(config_filepath:Optional[str], defaults_filepath:Optional[str],
     logger.info('Machine has {} gpus.'.format(torch.cuda.device_count()))
     logger.info('Original CUDA_VISIBLE_DEVICES: {}'.format( \
             os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ else 'NotSet'))
-
-    if conf['gpus'] is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(conf['gpus'])
-        logger.info('Only these GPUs will be used: {}'.format(conf['gpus']))
-        # alternative: torch.cuda.set_device(config.gpus[0])
 
     gpu_usage = os.popen(
         'nvidia-smi --query-gpu=memory.total,memory.used --format=csv,nounits,noheader'
