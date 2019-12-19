@@ -1,4 +1,5 @@
 from __future__ import print_function
+from ..common.common import get_logger
 import os
 import shutil
 import torch
@@ -100,6 +101,7 @@ class ImageNet(torchvision.datasets.ImageFolder):
                              for cls in clss}
 
     def download(self):
+        logger = get_logger()
         if not check_integrity(self.meta_file):
             tmpdir = os.path.join(self.root, 'tmp')
 
@@ -125,10 +127,10 @@ class ImageNet(torchvision.datasets.ImageFolder):
                 val_wnids = self._load_meta_file()[1]
                 prepare_val_folder(self.split_folder, val_wnids)
         else:
-            msg = ("You set download=True, but a folder '{}' already exist in "
+            logger.info("download=True, but a folder '{}' already exist in "
                    "the root directory. If you want to re-download or re-extract the "
-                   "archive, delete the folder.")
-            print(msg.format(self.split))
+                   "archive, delete the folder.".format(self.split_folder))
+
 
     @property
     def meta_file(self):

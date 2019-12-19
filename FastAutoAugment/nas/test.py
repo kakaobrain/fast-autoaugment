@@ -60,7 +60,6 @@ def test_arch(conf, model_desc:ModelDesc, save_model:bool=True):
 
     # create model
     model = Model(model_desc)
-    logger.info("Model size = {:.3f} MB".format(utils.param_size(model)))
     if data_parallel:
         model = nn.DataParallel(model).to(device)
     else:

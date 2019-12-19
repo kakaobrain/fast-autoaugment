@@ -1,21 +1,25 @@
 import torch
 from torch import nn, Tensor
 
-from typing import List, Optional, Iterable, Tuple
-
 from overrides import overrides
+
+from typing import Iterable, Tuple, Optional
 
 from .cell import Cell
 from .operations import Op, DropPath_
 from .model_desc import ModelDesc
+from ..common.common import get_logger
+from ..common import utils
 
 class Model(nn.Module):
     def __init__(self, model_desc:ModelDesc):
         super().__init__()
 
+        logger = get_logger()
+
         self.desc = model_desc
-        self._stem0_op = Op.create(model_desc.stem0_op, None)
-        self._stem1_op = Op.create(model_desc.stem1_op, None)
+        self._stem0_op = Op.create(model_desc.stem0_op)
+        self._stem1_op = Op.create(model_desc.stem1_op)
 
         self._cells = nn.ModuleList()
 
@@ -31,6 +35,9 @@ class Model(nn.Module):
         # it indicates the input channel number
         self.linear = nn.Linear(model_desc.cell_descs[-1].get_ch_out(),
                                 model_desc.n_classes)
+
+        logger.info("Total param size = %f MB", utils.param_size(self))
+        logger.info("Alphas count = %f MB", len(list(self.alphas())))
 
     def alphas(self)->Iterable[nn.Parameter]:
         for cell in self._cells:

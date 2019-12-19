@@ -15,7 +15,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from .aug_policies import arsaug_policy, autoaug_policy, autoaug_paper_cifar10,\
     fa_reduced_cifar10, fa_reduced_svhn, fa_resnet50_rimagenet
 from .augmentations import *
-from .common import get_logger
+from ..common.common import get_logger
 from .imagenet import ImageNet
 
 DatasetLike = Union[Dataset, Subset, ConcatDataset]
@@ -378,7 +378,7 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     # TODO: below will never get executed, set_preaug does not exist in PyTorch
     # if total_aug is not None and augs is not None:
     #     trainset.set_preaug(augs, total_aug)
-    #     print('set_preaug-')
+    #     logger.info('set_preaug-')
 
     trainloader, validloader, testloader = None, None, None
 

@@ -87,7 +87,7 @@ class ModelDescBuilder(EnforceOverrides):
                 alphas_from=alphas_from,
                 run_mode=self.run_mode
             ))
-            print(pp_ch_out, p_ch_out, ch_out)
+
             self._add_template_nodes(cell_descs[-1])
 
             # we concate all channels so next cell node gets channels from all nodes

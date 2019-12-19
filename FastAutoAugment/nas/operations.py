@@ -35,7 +35,7 @@ _ops_factory:Dict[str, Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']] = {
                         FacConv(op_desc.ch_in, op_desc.ch_out, 7, op_desc.stride, 3, affine=op_desc.affine),
     'mixed_op':         lambda op_desc, alphas:
                         MixedOp(op_desc.ch_in, op_desc.ch_out, op_desc.stride,
-                                op_desc.affine, alphas, op_desc.run_mode==RunMode.Search),
+                                op_desc.affine, alphas, op_desc.run_mode),
     'prepr_reduce':     lambda op_desc, alphas:
                         FactorizedReduce(op_desc.ch_in, op_desc.ch_out,
                                 affine=op_desc.affine or op_desc.run_mode!=RunMode.Search),
@@ -356,7 +356,7 @@ class MixedOp(Op):
     ]
 
     def __init__(self, ch_in, ch_out, stride, affine,
-                 alphas:Iterable[nn.Parameter], training:bool):
+                 alphas:Iterable[nn.Parameter], run_mode:RunMode):
         super().__init__()
 
         assert MixedOp.PRIMITIVES[-1] == 'none' # assume last PRIMITIVE is 'none'
@@ -374,7 +374,7 @@ class MixedOp(Op):
         for primitive in MixedOp.PRIMITIVES:
             # create corresponding layer
             op = Op.create(
-                OpDesc(primitive, training, ch_in, ch_out, stride, affine), alphas)
+                OpDesc(primitive, run_mode, ch_in, ch_out, stride, affine), alphas)
             self._ops.append(op)
 
     @overrides

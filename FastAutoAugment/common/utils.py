@@ -1,3 +1,4 @@
+
 import  os
 from typing import Iterable
 import  numpy as np
@@ -5,7 +6,6 @@ import  torch
 import  shutil
 from torch import nn
 from torch.optim.optimizer import Optimizer
-import  torchvision.transforms as transforms
 
 
 class AverageMeter:
@@ -90,14 +90,12 @@ def save_checkpoint(model:nn.Module, optim:Optimizer, best_top1:float,
 
 
 def save(model, model_path):
-    print('saved to model:', model_path)
+    #logger.info('saved to model: {}'.format(model_path))
     torch.save(model.state_dict(), model_path)
 
-
 def load(model, model_path):
-    print('load from model:', model_path)
+    #logger.info('load from model: {}'.format(model_path))
     model.load_state_dict(torch.load(model_path))
-
 
 def drop_path_(x, drop_prob, training):
     if training and drop_prob > 0.:

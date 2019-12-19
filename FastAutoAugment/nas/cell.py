@@ -16,8 +16,8 @@ class Cell(nn.Module, ABC, EnforceOverrides):
 
         self.shared_alphas = alphas_cell is not None
         self.desc = desc
-        self._preprocess0 = Op.create(desc.s0_op, None)
-        self._preprocess1 = Op.create(desc.s1_op, None)
+        self._preprocess0 = Op.create(desc.s0_op)
+        self._preprocess1 = Op.create(desc.s1_op)
 
         self._dag =  Cell._create_dag(desc.nodes, alphas_cell)
 

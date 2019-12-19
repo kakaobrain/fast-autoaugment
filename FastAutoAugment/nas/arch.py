@@ -181,6 +181,4 @@ class Arch:
 
         # apply eq 8, final difference to compute hessian
         h= [(p - m) / (2. * epsilon) for p, m in zip(dalpha_plus, dalpha_minus)]
-        # h len: 2 h0 torch.Size([14, 8])
-        # print('h len:', len(h), 'h0', h[0].shape)
         return h

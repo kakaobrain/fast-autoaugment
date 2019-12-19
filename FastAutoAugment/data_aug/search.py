@@ -28,6 +28,8 @@ from ..common.stopwatch import StopWatch
 
 # this method is overriden version of ray.tune.trial_runner.TrialRunner.step using monkey patching
 def _step_w_log(self):
+    logger = get_logger()
+
     original = gorilla.get_original_attribute(ray.tune.trial_runner.TrialRunner,
         'step')
 
@@ -46,7 +48,7 @@ def _step_w_log(self):
         best_top1_acc = max(best_top1_acc, trial.last_result['top1_valid'])
 
     # display best accuracy from all finished trial
-    print('iter', self._iteration, 'top1_acc=%.3f' % best_top1_acc, cnts, end='\r')
+    logger.info('iter', self._iteration, 'top1_acc=%.3f' % best_top1_acc, cnts, end='\r')
 
     # call original step method
     return original(self)
@@ -207,7 +209,7 @@ def search(conf):
         for val_fold in range(cv_num):
             name = "search_%s_%s_fold%d_ratio%.1f" % (ds_name,
                 model_type, val_fold, val_ratio)
-            print(name)
+            #logger.info(name)
             register_trainable(name, (lambda augs,
                 rpt: _eval_tta(copy.deepcopy(copied_c), augs, rpt)))
             algo = HyperOptSearch(space, max_concurrent=4*20,
@@ -229,7 +231,7 @@ def search(conf):
             results = run_experiments(exp_config, search_alg=algo,
                 scheduler=None, verbose=0, queue_trials=True,
                 resume=resume, raise_on_failed_trial=False)
-            print()
+
             results = [x for x in results if x.last_result is not None]
             results = sorted(results, key=lambda x: x.last_result[reward_attr],
                 reverse=True)

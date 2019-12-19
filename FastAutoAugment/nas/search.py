@@ -57,7 +57,6 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
     lossfn = get_lossfn(conf_lossfn, conf_ds).to(device)
 
     model = Model(model_desc)
-    logger.info("Total param size = %f MB", utils.param_size(model))
     if data_parallel:
         model = nn.DataParallel(model).to(device)
     else:
