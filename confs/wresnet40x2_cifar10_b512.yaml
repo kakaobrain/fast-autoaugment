@@ -1,11 +1,11 @@
 dataset:
-  name: cifar10
+  name: 'cifar10'
 
 autoaug:
   model:
-    type: wresnet40_2
+    type: 'wresnet40_2'
   loader:
-    aug: fa_reduced_cifar10
+    aug: 'fa_reduced_cifar10'
     cutout: 16
     batch: 512
     epochs: 200
@@ -16,6 +16,6 @@ autoaug:
       epochs: 5
   optimizer:
     lr: 0.1
-    type: sgd
+    type: 'sgd'
     nesterov: True
     decay: 0.0002

@@ -7,7 +7,9 @@ import torch.nn.functional as F
 import torch
 from torch import nn
 
-def get_optimizer(conf:dict, params)->Optimizer:
+from .config import Config
+
+def get_optimizer(conf_opt:Config, params)->Optimizer:
     if conf['type'] == 'sgd':
         return SGD(
            params,
@@ -29,7 +31,7 @@ def get_optim_lr(optimizer:Optimizer)->float:
         return param_group['lr']
     raise RuntimeError('optimizer did not had any param_group named lr!')
 
-def get_lr_scheduler(conf_lrs:dict, epochs:int, optimizer:Optimizer)-> \
+def get_lr_scheduler(conf_lrs:Config, epochs:int, optimizer:Optimizer)-> \
         _LRScheduler:
 
     scheduler:_LRScheduler = None
@@ -121,7 +123,7 @@ class SmoothCrossEntropyLoss(_WeightedLoss):
 
         return loss
 
-def get_lossfn(conf_lossfn:dict, conf_dataset:dict)->_Loss:
+def get_lossfn(conf_lossfn:Config)->_Loss:
     type = conf_lossfn['type']
     if type == 'CrossEntropyLoss':
         return nn.CrossEntropyLoss()

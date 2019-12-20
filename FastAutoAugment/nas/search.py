@@ -1,8 +1,6 @@
 from typing import Tuple, Any, Iterable, Optional
 import  torch.nn as nn
 import torch
-from torch.optim.optimizer import Optimizer
-from  torch.utils.data import DataLoader
 import os
 import yaml
 
@@ -11,25 +9,28 @@ from .model import Model
 from .arch import Arch
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, get_tb_writer
-from ..common import utils
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
 from .vis_genotype import draw_model_desc
 from ..common.train_test_utils import train_test
-from .model_desc import ModelDesc
+from .model_desc import ModelDesc, RunMode
+from .model_desc_builder import ModelDescBuilder
+from .strategy import Strategy
 
-def search_arch(conf:Config, model_desc:ModelDesc)->None:
+def search_arch(conf_common:Config, conf_data:Config, conf_search:Config,
+                strategy:Strategy)->ModelDesc:
     logger = get_logger()
 
     # region conf vars
-    conf_search   = conf['darts']['search']
-    conf_loader   = conf['darts']['search']['loader']
-    conf_ds       = conf['dataset']
-    conf_w_opt    = conf_search['weights']['optimizer']
-    conf_w_sched  = conf_search['weights']['lr_schedule']
-    ds_name       = conf_ds['name']
-    max_batches     = conf_ds['max_batches']
-    conf_lossfn   = conf_search['lossfn']
-    dataroot      = conf['dataroot']
+    horovod       = conf_common['horovod']
+    report_freq   = conf_common['report_freq']
+    plotsdir      = conf_common['plotsdir']
+    chkptdir      = conf_common['chkptdir']
+    # dataset
+    ds_name       = conf_data['name']
+    max_batches   = conf_data['max_batches']
+    dataroot      = conf_data['dataroot']
+    # data loader
+    conf_loader   = conf_search['loader']
     aug           = conf_loader['aug']
     cutout        = conf_loader['cutout']
     val_ratio     = conf_loader['val_ratio']
@@ -37,13 +38,24 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
     epochs        = conf_loader['epochs']
     val_fold      = conf_loader['val_fold']
     n_workers     = conf_loader['n_workers']
-    horovod       = conf['horovod']
-    report_freq   = conf['report_freq']
+     # search
+    conf_lossfn   = conf_search['lossfn']
+    data_parallel = conf_search['data_parallel']
+    bilevel       = conf_search['bilevel']
+    conf_model_desc = conf_search['model_desc']
+    max_final_edges = conf_search['max_final_edges']
+    # optimizers
+    conf_w_opt    = conf_search['weights']['optimizer']
+    w_momentum    = conf_w_opt['momentum']
+    w_decay       = conf_w_opt['decay']
     grad_clip     = conf_w_opt['clip']
-    plotsdir      = conf['plotsdir']
-    chkptdir      = conf['chkptdir']
-    data_parallel     = conf_search['data_parallel']
+    conf_w_sched  = conf_search['weights']['lr_schedule']
+    conf_a_opt    = conf_search['alphas']['optimizer']
     # endregion
+
+    builder = ModelDescBuilder(conf_data, conf_model_desc, run_mode=RunMode.Search)
+    model_desc = builder.get_model_desc()
+    strategy.apply(model_desc)
 
     # get data
     train_dl, val_dl, *_ = get_dataloaders(
@@ -54,7 +66,7 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
 
     device = torch.device('cuda')
 
-    lossfn = get_lossfn(conf_lossfn, conf_ds).to(device)
+    lossfn = get_lossfn(conf_lossfn).to(device)
 
     model = Model(model_desc)
     if data_parallel:
@@ -62,12 +74,13 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
     else:
         model = model.to(device)
 
-    # trainer for alphas
-    arch = Arch(conf, model, lossfn)
-
-    # optimizer for w
+    # optimizer for w and alphas
     w_optim = get_optimizer(conf_w_opt, model.weights())
+    alpha_optim = get_optimizer(conf_a_opt, model.alphas())
     lr_scheduler = get_lr_scheduler(conf_w_sched, epochs, w_optim)
+
+    # trainer for alphas
+    arch = Arch(w_momentum, w_decay, alpha_optim, bilevel, model, lossfn)
 
     # in search phase we typically only run 50 epochs
     best_model_desc:Optional[ModelDesc] = None
@@ -80,7 +93,7 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
         nonlocal best_model_desc
 
         # log results of this epoch
-        model_desc = model.finalize(max_edges=2) # TODO: add config max_edges
+        model_desc = model.finalize(max_edges=max_final_edges)
         logger.info("model_desc = {}".format(model_desc))
         # model_desc as a image
         plot_filepath = os.path.join(plotsdir, "EP{:03d}".format(epoch+1))
@@ -112,6 +125,7 @@ def search_arch(conf:Config, model_desc:ModelDesc)->None:
 
     logger.info("Best architecture\n{}".format(yaml.dump(best_model_desc)))
 
+    assert best_model_desc is not None
     return best_model_desc
 
 

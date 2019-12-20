@@ -11,7 +11,7 @@ if __name__ == '__main__':
     conf = common_init(config_filepath=None,
         defaults_filepath='confs/defaults.yaml', experiment_name='cifar_test')
 
-    conf_ds         = conf['dataset']
+    conf_data         = conf['dataset']
     conf_test       = conf['darts']['test']
     model_desc_file = conf_test['model_desc_file']
     conf_model_desc = conf_test['model_desc']
@@ -20,7 +20,7 @@ if __name__ == '__main__':
     with open(os.path.join(logdir, model_desc_file), 'r') as f:
         found_model_desc = yaml.load(f, Loader=yaml.Loader)
 
-    builder = ModelDescBuilder(conf_ds, conf_model_desc,
+    builder = ModelDescBuilder(conf_data, conf_model_desc,
                                 run_mode=RunMode.EvalTrain, template=found_model_desc)
     model_desc = builder.get_model_desc()
 

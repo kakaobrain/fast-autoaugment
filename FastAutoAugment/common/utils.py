@@ -1,6 +1,6 @@
 
 import  os
-from typing import Iterable
+from typing import Iterable, Type, MutableMapping, Mapping
 import  numpy as np
 import  torch
 import  shutil
@@ -114,3 +114,12 @@ def first_or_default(it:Iterable, default=None):
     for i in it:
         return i
     return default
+
+def deep_update(d:MutableMapping, u:Mapping, map_type:Type[MutableMapping]=dict)\
+        ->MutableMapping:
+    for k, v in u.items():
+        if isinstance(v, Mapping):
+            d[k] = deep_update(d.get(k, map_type()), v)
+        else:
+            d[k] = v
+    return d

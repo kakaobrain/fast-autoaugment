@@ -57,7 +57,8 @@ def common_init(config_filepath:Optional[str], defaults_filepath:Optional[str],
     _app_name = experiment_name
 
     conf = Config(config_filepath=config_filepath,
-                  defaults_filepath=defaults_filepath)
+                  defaults_filepath=defaults_filepath,
+                  use_args=True)
 
     assert not (conf['horovod'] and conf['only_eval']),  \
         'can not use horovod when evaluation mode is enabled.'

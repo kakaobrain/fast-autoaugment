@@ -11,18 +11,13 @@ if __name__ == '__main__':
     conf = common_init(config_filepath=None,
         defaults_filepath='confs/defaults.yaml', experiment_name='cifar_search')
 
-    conf_ds = conf['dataset']
+    conf_common = conf['common']
+    logdir = conf_common['logdir']
+    conf_data = conf['dataset']
     conf_search = conf['darts']['search']
-    conf_model_desc = conf_search['model_desc']
-    logdir = conf['logdir']
-
-    builder = ModelDescBuilder(conf_ds, conf_model_desc, run_mode=RunMode.Search)
-    model_desc = builder.get_model_desc()
 
     strategy = DartsStrategy()
-    strategy.apply(model_desc)
-
-    found_model_desc = search_arch(conf, model_desc)
+    found_model_desc = search_arch(conf_common, conf_data, conf_search, strategy)
 
     found_model_yaml = yaml.dump(found_model_desc)
     with open(os.path.join(logdir, 'model_desc.yaml'), 'w') as f:

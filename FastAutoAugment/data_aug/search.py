@@ -75,14 +75,14 @@ def _train_no_aug(conf):
     logger, sw = get_logger(), StopWatch.get()
 
     # region conf vars
-    conf_ds     = conf['dataset']
+    conf_data     = conf['dataset']
     dataroot    = conf['dataroot']
     logdir      = conf['logdir']
     redis_ip    = conf['redis']
     conf_loader = conf['autoaug']['loader']
     conf_model  = conf['autoaug']['model']
     model_type  = conf_model['type']
-    ds_name     = conf_ds['name']
+    ds_name     = conf_data['name']
     aug         = conf_loader['aug']
     cutout      = conf_loader['cutout']
     val_ratio   = conf_loader['val_ratio']
@@ -152,14 +152,14 @@ def search(conf):
     logger, sw = get_logger(), StopWatch.get()
 
     # region conf vars
-    conf_ds     = conf['dataset']
+    conf_data     = conf['dataset']
     dataroot    = conf['dataroot']
     logdir      = conf['logdir']
     redis_ip    = conf['redis']
     conf_loader = conf['autoaug']['loader']
     conf_model  = conf['autoaug']['model']
     model_type  = conf_model['type']
-    ds_name     = conf_ds['name']
+    ds_name     = conf_data['name']
     aug         = conf_loader['aug']
     val_ratio   = conf_loader['val_ratio']
     epochs      = conf_loader['epochs']
@@ -314,10 +314,10 @@ def _eval_tta(conf, augment, reporter):
     Config.set(conf)
 
     # region conf vars
-    conf_ds     = conf['dataset']
+    conf_data     = conf['dataset']
     conf_loader = conf['autoaug']['loader']
     conf_model  = conf['autoaug']['model']
-    ds_name     = conf_ds['name']
+    ds_name     = conf_data['name']
     cutout   = conf_loader['cutout']
     batch_size   = conf_loader['batch_size']
     n_workers     = conf_loader['n_workers']

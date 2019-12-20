@@ -1,5 +1,5 @@
+from FastAutoAugment.common.config import Config
 import os
-from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -12,38 +12,41 @@ from .model import Model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
 from .model_desc import ModelDesc
 
-def test_arch(conf, model_desc:ModelDesc, save_model:bool=True):
+def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
+              model_desc:ModelDesc, save_model:bool=True):
 
     logger, writer = get_logger(), get_tb_writer()
 
     # region conf vars
-    conf_ds           = conf['dataset']
-    dataroot          = conf['dataroot']
-    chkptdir          = conf['chkptdir']
-    conf_test         = conf['darts']['test']
-    conf_model_desc   = conf_test['model_desc']
-    conf_train_lossfn = conf_test['train_lossfn']
-    conf_test_lossfn  = conf_test['test_lossfn']
+    chkptdir          = conf_common['chkptdir']
+    report_freq       = conf_common['report_freq']
+    horovod           = conf_common['horovod']
+    logdir            = conf_common['logdir']
+    # dataset
+    ds_name           = conf_data['name']
+    max_batches       = conf_data['max_batches']
+    dataroot          = conf_data['dataroot']
+    # dataloader
     conf_loader       = conf_test['loader']
     cutout            = conf_loader['cutout']
-    model_save_file    = conf_test['model_save_file']
-    aux_weight        = conf_model_desc['aux_weight']
-    drop_path_prob    = conf_model_desc['drop_path_prob']
-    ds_name           = conf_ds['name']
-    max_batches       = conf_ds['max_batches']
     aug               = conf_loader['aug']
     cutout            = conf_loader['cutout']
     batch_size        = conf_loader['batch']
     epochs            = conf_loader['epochs']
     n_workers         = conf_loader['n_workers']
-    conf_opt          = conf_test['optimizer']
-    conf_lr_sched     = conf_test['lr_schedule']
-    report_freq       = conf['report_freq']
-    horovod           = conf['horovod']
-    grad_clip         = conf_opt['clip']
     data_parallel     = conf_test['data_parallel']
+    # loss functions
+    conf_train_lossfn = conf_test['train_lossfn']
+    conf_test_lossfn  = conf_test['test_lossfn']
+    # test model
     model_save_file    = conf_test['model_save_file']
-    logdir            = conf['logdir']
+    conf_model_desc   = conf_test['model_desc']
+    aux_weight        = conf_model_desc['aux_weight']
+    drop_path_prob    = conf_model_desc['drop_path_prob']
+    # optimizer
+    conf_opt          = conf_test['optimizer']
+    grad_clip         = conf_opt['clip']
+    conf_lr_sched     = conf_test['lr_schedule']
     # endregion
 
     # get data
@@ -55,8 +58,8 @@ def test_arch(conf, model_desc:ModelDesc, save_model:bool=True):
 
     device = torch.device("cuda")
 
-    train_lossfn = get_lossfn(conf_train_lossfn, conf_ds).to(device)
-    test_lossfn = get_lossfn(conf_test_lossfn, conf_ds).to(device)
+    train_lossfn = get_lossfn(conf_train_lossfn, conf_data).to(device)
+    test_lossfn = get_lossfn(conf_test_lossfn, conf_data).to(device)
 
     # create model
     model = Model(model_desc)

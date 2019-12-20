@@ -112,13 +112,13 @@ def train_and_eval(conf, val_ratio, val_fold, save_path, only_eval,
     logger, writer = get_logger(), get_tb_writer()
 
     # region conf vars
-    conf_ds         = conf['dataset']
+    conf_data         = conf['dataset']
     dataroot        = conf['dataroot']
     horovod         = conf['horovod']
     checkpoint_freq = conf['checkpoint_freq']
     conf_loader     = conf['autoaug']['loader']
     conf_model      = conf['autoaug']['model']
-    ds_name         = conf_ds['name']
+    ds_name         = conf_data['name']
     aug             = conf_loader['aug']
     cutout          = conf_loader['cutout']
     batch_size      = conf_loader['batch']

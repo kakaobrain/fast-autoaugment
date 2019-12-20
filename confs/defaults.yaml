@@ -1,26 +1,27 @@
-dataroot: '~/torchvision_data_dir' #torchvision data folder
-logdir: '~/logdir'
-plotsdir: null # use default subfolder in logdir
-chkptdir: null # use default subfolder in logdir
-seed: 42
-enable_tb: True # if False then TensorBoard logging is ignored
-horovod: False
-checkpoint_freq: 10
-report_freq: 10 # after every N updates dump loss and other metrics in logger
-detect_anomaly: False # if True, PyTorch code will run 6X slower
-# TODO: workers setting
+common:
+  logdir: '~/logdir'
+  plotsdir: null # use default subfolder in logdir
+  chkptdir: null # use default subfolder in logdir
+  seed: 42
+  enable_tb: True # if False then TensorBoard logging is ignored
+  horovod: False
+  checkpoint_freq: 10
+  report_freq: 10 # after every N updates dump loss and other metrics in logger
+  detect_anomaly: False # if True, PyTorch code will run 6X slower
+  # TODO: workers setting
 
-# reddis address of Ray cluster. Use None for single node run
-# otherwise it should something like host:6379. Make sure to run on head node:
-# "ray start --head --redis-port=6379"
-redis: null
-gpus: null # use GPU IDs specified here (comma separated), if null then use all GPUs
+  # reddis address of Ray cluster. Use None for single node run
+  # otherwise it should something like host:6379. Make sure to run on head node:
+  # "ray start --head --redis-port=6379"
+  redis: null
+  gpus: null # use GPU IDs specified here (comma separated), if null then use all GPUs
 
-smoke_test: False
-only_eval: False
-resume: False
+  smoke_test: False
+  only_eval: False
+  resume: False
 
 dataset:
+  dataroot: '~/torchvision_data_dir' #torchvision data folder
   name: 'cifar10'
   n_classes: 10
   ch_in: 3 # number of channels in image
@@ -94,6 +95,7 @@ darts:
   search:
     bilevel: True
     data_parallel: False
+    max_final_edges: 2 # max edge that can be in final arch per node
     model_desc:
       init_ch_out: 16 # num of channels for stem outpt node
       n_cells: 8 # number of cells

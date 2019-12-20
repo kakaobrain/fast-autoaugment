@@ -23,17 +23,9 @@ def _get_loss(model, lossfn, x, y):
 #   alphas - arch parameters
 #   w' - updated w using grads from the loss
 class Arch:
-    def __init__(self, conf:Config, model:Union[nn.DataParallel, Model],
+    def __init__(self, w_momentum:float, w_decay:float, alpha_optim:Optimizer,
+                 bilevel:bool, model:Union[nn.DataParallel, Model],
                  lossfn:_Loss)->None:
-        # region conf vars
-        conf_search = conf['darts']['search']
-        conf_w_opt  = conf_search['weights']['optimizer']
-        conf_a_opt  = conf_search['alphas']['optimizer']
-        w_momentum  = conf_w_opt['momentum']
-        w_decay     = conf_w_opt['decay']
-        bilevel     = conf_search['bilevel']
-        # endregion
-
         self._w_momentum = w_momentum # momentum for w
         self._w_weight_decay = w_decay # weight decay for w
         self._lossfn = lossfn

@@ -2,15 +2,16 @@ from typing import Optional, Tuple, List
 
 from overrides import EnforceOverrides
 
+from ..common.config import Config
 from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
                         EdgeDesc, CellDesc, AuxTowerDesc, RunMode
 
 class ModelDescBuilder(EnforceOverrides):
-    def __init__(self, conf_ds: dict, conf_model_desc: dict,
+    def __init__(self, conf_data: Config, conf_model_desc: Config,
                  run_mode:RunMode, template:Optional[ModelDesc]=None)->None:
-        self.ds_name = conf_ds['name']
-        self.ch_in = conf_ds['ch_in']
-        self.n_classes = conf_ds['n_classes']
+        self.ds_name = conf_data['name']
+        self.ch_in = conf_data['ch_in']
+        self.n_classes = conf_data['n_classes']
 
         self.init_ch_out = conf_model_desc['init_ch_out']
         self.n_cells = conf_model_desc['n_cells']

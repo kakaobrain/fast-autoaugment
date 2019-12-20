@@ -87,8 +87,7 @@ class Model(nn.Module):
         return logits, logits_aux
 
     def finalize(self, max_edges)->ModelDesc:
-        # TODO: move max_edges to config
-        cell_descs = [cell.finalize(max_edges=2) for cell in self._cells]
+        cell_descs = [cell.finalize(max_edges=max_edges) for cell in self._cells]
         return ModelDesc(stem0_op=self.desc.stem0_op,
                          stem1_op=self.desc.stem1_op,
                          pool_op=self.desc.pool_op,

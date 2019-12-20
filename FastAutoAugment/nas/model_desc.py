@@ -3,9 +3,9 @@ from typing import Optional, List
 import yaml
 
 class DescBase:
-    def serialize(self)->dict:
+    def serialize(self)->str:
         return yaml.dump(self)
-    def deserialize(self, v:dict)->'DescBase':
+    def deserialize(self, v:str)->'DescBase':
         return yaml.load(v, Loader=yaml.Loader)
 
 
@@ -13,7 +13,6 @@ class RunMode(Enum):
     Search = 'search'
     EvalTrain = 'eval_train'
     EvalTest = 'eval_test'
-
 
 class OpDesc(DescBase):
     """Op description that is in each edge

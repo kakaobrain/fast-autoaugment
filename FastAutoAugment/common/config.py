@@ -5,20 +5,20 @@ from typing import Sequence
 from argparse import ArgumentError
 from collections.abc import Mapping, MutableMapping
 
-def deep_update(d:MutableMapping, u:Mapping)->Mapping:
+# global config instance
+_config:'Config' = None
+
+def deep_update(d:MutableMapping, u:Mapping, map_type:Type[MutableMapping]=dict)\
+        ->MutableMapping:
     for k, v in u.items():
         if isinstance(v, Mapping):
-            d[k] = deep_update(d.get(k, {}), v)
+            d[k] = deep_update(d.get(k, map_type()), v)
         else:
             d[k] = v
     return d
 
-
-# global config instance
-_config:'Config' = None
-
 class Config(UserDict):
-    def __init__(self, config_filepath=None, app_desc=None, use_args=True,
+    def __init__(self, config_filepath=None, app_desc=None, use_args=False,
         defaults_filepath=None, param_args:Sequence[str]=[])->None:
 
         super(Config, self).__init__()
@@ -41,12 +41,12 @@ class Config(UserDict):
             defaults_filepath = self.args.defaults_filepath or defaults_filepath
 
         # get defaults
-        default_yaml = {}
         if defaults_filepath:
+            default_yaml = {}
             with open(defaults_filepath, 'r') as f:
                 default_yaml = yaml.load(f, Loader=yaml.Loader)
                 print('defaults config loaded from: ', config_filepath)
-        self.update(default_yaml)
+            deep_update(self, default_yaml, map_type=Config)
 
         # get main config that would override defaults
         main_yaml = {}
@@ -61,7 +61,7 @@ class Config(UserDict):
         Config._update_config_from_args(main_yaml, self.extra_args)
 
         # override defaults with main
-        deep_update(self, main_yaml)
+        deep_update(self, main_yaml, map_type=Config)
 
 
     @staticmethod
