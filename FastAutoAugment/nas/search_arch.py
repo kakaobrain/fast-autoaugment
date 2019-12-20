@@ -6,7 +6,7 @@ import yaml
 
 from ..common.config import Config
 from .model import Model
-from .arch import Arch
+from .arch import BilevelOptimizer
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, get_tb_writer
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
@@ -80,7 +80,7 @@ def search_arch(conf_common:Config, conf_data:Config, conf_search:Config,
     lr_scheduler = get_lr_scheduler(conf_w_sched, epochs, w_optim)
 
     # trainer for alphas
-    arch = Arch(w_momentum, w_decay, alpha_optim, bilevel, model, lossfn)
+    arch = BilevelOptimizer(w_momentum, w_decay, alpha_optim, bilevel, model, lossfn)
 
     # in search phase we typically only run 50 epochs
     best_model_desc:Optional[ModelDesc] = None

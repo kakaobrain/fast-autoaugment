@@ -22,7 +22,7 @@ def _get_loss(model, lossfn, x, y):
 #   w - model parameters
 #   alphas - arch parameters
 #   w' - updated w using grads from the loss
-class Arch:
+class BilevelOptimizer:
     def __init__(self, w_momentum:float, w_decay:float, alpha_optim:Optimizer,
                  bilevel:bool, model:Union[nn.DataParallel, Model],
                  lossfn:_Loss)->None:

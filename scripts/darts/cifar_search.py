@@ -1,6 +1,6 @@
 from FastAutoAugment.nas.model_desc import RunMode
 from FastAutoAugment.common.common import common_init
-from FastAutoAugment.nas.search import search_arch
+from FastAutoAugment.nas.search_arch import search_arch
 from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
 from FastAutoAugment.darts.darts_strategy import DartsStrategy
 
