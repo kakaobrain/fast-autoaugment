@@ -17,7 +17,7 @@ _ops_factory:Dict[str, Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']] = {
     'avg_pool_3x3':     lambda op_desc, alphas:
                         PoolBN('avg', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
     'skip_connect':     lambda op_desc, alphas:
-                        Identity(op_desc.run_mode==RunMode.Search) if op_desc.stride == 1 else \
+                        Identity() if op_desc.stride == 1 else \
                             FactorizedReduce(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
     'sep_conv_3x3':     lambda op_desc, alphas:
                         SepConv(op_desc.ch_in, op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
@@ -76,6 +76,10 @@ class Op(nn.Module, ABC, EnforceOverrides):
     def finalize(self)->Tuple[OpDesc, Optional[float]]:
         """for trainable op, return final op and its rank"""
         return self._desc, None
+
+    # if op should not be dropped during drop path then return False
+    def can_drop_path(self)->bool:
+        return True
 
 class PoolBN(Op):
     """AvgPool or MaxPool - BN """
@@ -197,16 +201,16 @@ class SepConv(Op):
 
 
 class Identity(Op):
-    def __init__(self, training:bool):
+    def __init__(self):
         super().__init__()
-        self._drop_op = DropPath_() if not training else None
 
     @overrides
     def forward(self, x):
-        # TODO: investigate need for drop path
-        if self._drop_op is not None:
-            x = self._drop_op(x)
         return x
+
+    @overrides
+    def can_drop_path(self)->bool:
+        return False
 
 
 class Zero(Op):
@@ -270,6 +274,10 @@ class StemCifar(Op):
     def forward(self, x):
         return self._op(x)
 
+    @overrides
+    def can_drop_path(self)->bool:
+        return False
+
 class Stem0Imagenet(Op):
     def __init__(self, ch_in, ch_out, affine)->None:
         super().__init__()
@@ -285,6 +293,10 @@ class Stem0Imagenet(Op):
     def forward(self, x):
         return self._op(x)
 
+    @overrides
+    def can_drop_path(self)->bool:
+        return False
+
 class Stem1Imagenet(Op):
     def __init__(self, ch_in, ch_out, affine)->None:
         super().__init__()
@@ -298,6 +310,10 @@ class Stem1Imagenet(Op):
     def forward(self, x):
         return self._op(x)
 
+    @overrides
+    def can_drop_path(self)->bool:
+        return False
+
 class PoolImagenet(Op):
     def __init__(self)->None:
         super().__init__()
@@ -306,6 +322,10 @@ class PoolImagenet(Op):
     @overrides
     def forward(self, x):
         return self._op(x)
+
+    @overrides
+    def can_drop_path(self)->bool:
+        return False
 
 class PoolCifar(Op):
     def __init__(self)->None:
@@ -316,8 +336,14 @@ class PoolCifar(Op):
     def forward(self, x):
         return self._op(x)
 
+    @overrides
+    def can_drop_path(self)->bool:
+        return False
+
 class DropPath_(nn.Module):
-    """Replace values in tensor by 0. with probability p"""
+    """Replace values in tensor by 0. with probability p
+        Ref: https://arxiv.org/abs/1605.07648
+    """
 
     def __init__(self, p:float=0.):
         """ [!] DropPath is inplace module
@@ -399,3 +425,7 @@ class MixedOp(Op):
         with torch.no_grad():
             val, i = torch.topk(self._alphas[0][:-1], 1)
         return self._ops[i].desc, float(val.item())
+
+    @overrides
+    def can_drop_path(self)->bool:
+        return False

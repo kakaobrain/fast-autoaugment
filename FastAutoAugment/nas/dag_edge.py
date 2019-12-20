@@ -4,26 +4,28 @@ import torch
 from torch import nn
 from overrides import overrides
 
-from .operations import Op
-from .model_desc import EdgeDesc
+from .operations import Op, DropPath_
+from .model_desc import EdgeDesc, RunMode
 
 class DagEdge(nn.Module):
     def __init__(self, desc:EdgeDesc,
                  alphas_edge:Optional['DagEdge'])->None:
         super().__init__()
-        self._op = Op.create(desc.op_desc,
-                             alphas_edge.alphas() if alphas_edge else [])
+        self._wrapped = self._op = Op.create(desc.op_desc,
+                        alphas_edge.alphas() if alphas_edge else [])
+        if desc.op_desc.run_mode == RunMode.EvalTrain and self._op.can_drop_path():
+            self._wrapped = nn.Sequential(self._op, DropPath_())
         self._input_ids = desc.input_ids
         self.desc = desc
 
     @overrides
     def forward(self, inputs:List[torch.Tensor]):
         if len(self._input_ids)==1:
-            return self._op(inputs[self._input_ids[0]])
+            return self._wrapped(inputs[self._input_ids[0]])
         elif len(self._input_ids) == len(inputs): # for perf
-            return self._op(inputs)
+            return self._wrapped(inputs)
         else:
-            return self._op([inputs[i] for i in self._input_ids])
+            return self._wrapped([inputs[i] for i in self._input_ids])
 
     def finalize(self)->Tuple[EdgeDesc, Optional[float]]:
         op_desc, rank = self._op.finalize()
