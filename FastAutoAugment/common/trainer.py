@@ -13,12 +13,13 @@ from .metrics import Metrics
 from .tester import Tester
 
 class Trainer(EnforceOverrides):
-    def __init__(self, model:nn.Module,
+    def __init__(self, model:nn.Module, device,
                  train_lossfn:_Loss, test_lossfn:_Loss,
                  aux_weight=0., grad_clip=0., drop_path_prob=0.,
                  logger_freq=10, tb_tag='',
                  val_logger_freq=10, val_tb_tag='')->None:
         self.model = model
+        self.device = device
         self.train_lossfn = train_lossfn
         self.aux_weight, self.grad_clip = aux_weight, grad_clip
         self.drop_path_prob = drop_path_prob
@@ -51,7 +52,7 @@ class Trainer(EnforceOverrides):
                    train_metrics:Metrics, val_metrics:Optional[Metrics])->None:
         train_metrics.post_epoch()
         self.test_epoch(val_dl, val_metrics)
-    def pre_step(self, x:Tensor, y:Tensor, train_metrics:Metrics)->None:
+    def pre_step(self, x:Tensor, y:Tensor, optim:Optimizer, train_metrics:Metrics)->None:
         train_metrics.pre_step(x, y)
     def post_step(self, x:Tensor, y:Tensor, logits:Tensor, loss:Tensor,
                   steps:int, train_metrics:Metrics)->None:
@@ -70,7 +71,7 @@ class Trainer(EnforceOverrides):
             # enable non-blocking on 2nd part so its ready when we get to it
             x, y = x.to(self.device), y.to(self.device, non_blocking=True)
 
-            self.pre_step(x, y, train_metrics)
+            self.pre_step(x, y, optim, train_metrics)
 
             optim.zero_grad()
             if self.aux_weight > 0.:

@@ -25,21 +25,21 @@
             "name": "SearchDarts cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/tests/darts_cifar_search.py",
+            "program": "${cwd}/scripts/darts/cifar_search.py",
             "console": "integratedTerminal"
         },
         {
             "name": "TestDarts cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/tests/darts_cifar_test.py",
+            "program": "${cwd}/scripts/darts/cifar_test.py",
             "console": "integratedTerminal"
         },
         {
             "name": "TestDarts imagenet",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/tests/darts_imagenet_test.py",
+            "program": "${cwd}/tests/scripts/imagenet_test.py",
             "console": "integratedTerminal"
         },
         {

@@ -15,7 +15,7 @@ from ..nas.model_desc import ModelDesc
 
 class DartsArchTrainer(ArchTrainer):
     @overrides
-    def fit(self, conf_search:Config, model:Model,
+    def fit(self, conf_search:Config, model:Model, device,
             train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
             plotsdir:str, report_freq:int)->Tuple[ModelDesc, Metrics, Optional[Metrics]]:
         # region conf vars
@@ -32,7 +32,7 @@ class DartsArchTrainer(ArchTrainer):
         conf_a_opt    = conf_search['alphas']['optimizer']
         # endregion
 
-        lossfn = get_lossfn(conf_lossfn).to(model.device)
+        lossfn = get_lossfn(conf_lossfn).to(device)
 
         # optimizer for w and alphas
         w_optim = get_optimizer(conf_w_opt, model.weights())
@@ -40,7 +40,7 @@ class DartsArchTrainer(ArchTrainer):
         lr_scheduler = get_lr_scheduler(conf_w_sched, epochs, w_optim)
 
         trainer = BilevelTrainer(w_momentum, w_decay, alpha_optim,
-            max_final_edges, plotsdir, model, lossfn,
+            max_final_edges, plotsdir, model, device, lossfn, lossfn,
             aux_weight=0.0, grad_clip=grad_clip, drop_path_prob=0.0,
             logger_freq=report_freq, tb_tag='search_train',
             val_logger_freq=1000, val_tb_tag='search_val')

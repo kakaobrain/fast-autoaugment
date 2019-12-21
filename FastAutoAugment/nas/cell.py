@@ -36,12 +36,6 @@ class Cell(nn.Module, ABC, EnforceOverrides):
             edges:nn.ModuleList = nn.ModuleList()
             dag.append(edges)
             for j, edge_desc in enumerate(node_desc.edges):
-                # TODO: optimize this
-                alphas = None
-                if alphas_cell is not None:
-                    alphas_l = [alphas_cell._dag[i][j].alphas()]
-                    if len(alphas_l):
-                        alphas = alphas_l[0]
                 edges.append(DagEdge(edge_desc,
                     alphas_edge=alphas_cell._dag[i][j] if alphas_cell else None))
         return dag

@@ -3,6 +3,7 @@ from typing import Tuple
 import torch
 from torch import nn, Tensor
 from torch.nn.modules.loss import _Loss
+from torch.optim.optimizer import Optimizer
 from torch.utils.data import DataLoader
 
 from overrides import EnforceOverrides
@@ -12,9 +13,10 @@ from .metrics import Metrics
 class Tester(EnforceOverrides):
     """Evaluate model on given data"""
 
-    def __init__(self, model:nn.Module, lossfn:_Loss,
+    def __init__(self, model:nn.Module, device, lossfn:_Loss,
                  logger_freq:int=10, tb_tag:str='')->None:
         self.model = model
+        self.device = device
         self.lossfn = lossfn
         self.tb_tag = tb_tag
         self.logger_freq = logger_freq

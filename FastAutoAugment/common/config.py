@@ -1,9 +1,10 @@
-import yaml
 import argparse
+from typing import Type
 from collections import UserDict
 from typing import Sequence
 from argparse import ArgumentError
 from collections.abc import Mapping, MutableMapping
+import yaml
 
 # global config instance
 _config:'Config' = None

@@ -39,7 +39,7 @@ class BilevelOptimizer:
         self._vmodel = copy.deepcopy(model)
 
         # this is the optimizer to optimize alphas parameter
-        self._alpha_optim = get_optimizer(conf_a_opt, model.alphas())
+        self._alpha_optim = alpha_optim
 
     def _update_vmodel(self, x, y, lr:float, w_optim:Optimizer)->None:
         """ Update vmodel with w' (main model has w) """
