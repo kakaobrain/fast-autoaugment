@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from ..common import utils
 from .model_desc import OpDesc, RunMode
 
-# Each op is a uninary tensor operator, all take same constructor params
+# Each op is a unary tensor operator, all take same constructor params
 _ops_factory:Dict[str, Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']] = {
     'max_pool_3x3':     lambda op_desc, alphas:
                         PoolBN('max', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
