@@ -1,4 +1,4 @@
-from typing import Callable, Iterable, Optional, Tuple, Dict, Optional
+from typing import Callable, Iterable, Tuple, Dict, Optional
 from abc import ABC, abstractmethod
 
 from overrides import overrides, EnforceOverrides
