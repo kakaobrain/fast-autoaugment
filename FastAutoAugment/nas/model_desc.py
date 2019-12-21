@@ -68,7 +68,7 @@ class CellDesc(DescBase):
         self.alphas_from = alphas_from
 
     def get_ch_out(self)->int:
-        # cell output is concate of output nodes and output channels
+        # cell output is concatenation of output nodes and output channels
         return self.n_out_nodes * self.n_node_channels
 
 class ModelDesc(DescBase):
