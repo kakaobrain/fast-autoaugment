@@ -12,7 +12,7 @@ if __name__ == '__main__':
 
     conf_common = conf['common']
     conf_data         = conf['dataset']
-    logdir          = conf['logdir']
+    logdir          = conf_common['logdir']
     conf_test       = conf['darts']['test']
     model_desc_file = conf_test['model_desc_file']
     conf_model_desc = conf_test['model_desc']
