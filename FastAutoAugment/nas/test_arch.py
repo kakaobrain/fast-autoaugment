@@ -1,4 +1,3 @@
-from FastAutoAugment.common.config import Config
 import os
 
 import torch
@@ -6,7 +5,8 @@ import torch.nn as nn
 
 from ..common import utils
 from ..common.common import get_logger, get_tb_writer
-from ..common.train_test_utils import train_test
+from FastAutoAugment.common.trainer import Trainer
+from FastAutoAugment.common.config import Config
 from ..common.data import get_dataloaders
 from .model import Model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
@@ -71,16 +71,17 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     optim = get_optimizer(conf_opt, model.parameters())
     lr_scheduler = get_lr_scheduler(conf_lr_sched, epochs, optim)
 
-    best_top1 = train_test(train_dl, test_dl, model, device,
-        train_lossfn, test_lossfn, optim,
-        aux_weight, lr_scheduler, drop_path_prob, chkptdir, grad_clip,
-        report_freq, epochs)
-    logger.info('best_top1 %f', best_top1)
+    trainer = Trainer(model, train_lossfn, aux_weight, grad_clip, drop_path_prob,
+        report_freq, tb_tag='eval_train',
+        val_logger_freq=1000, val_tb_tag='eval_test')
+    train_metrics, test_metrics = trainer.fit(train_dl, test_dl, epochs,
+                                              optim, lr_scheduler)
+    test_metrics.report_best()
 
     if save_model:
         utils.save(model, os.path.join(logdir, model_save_file))
 
-    return best_top1, model
+    return test_metrics.best_top1, model
 
 
 

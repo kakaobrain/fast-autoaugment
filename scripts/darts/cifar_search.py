@@ -1,11 +1,10 @@
-from FastAutoAugment.nas.model_desc import RunMode
-from FastAutoAugment.common.common import common_init
-from FastAutoAugment.nas.search_arch import search_arch
-from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
-from FastAutoAugment.darts.darts_strategy import DartsStrategy
-
 import yaml
 import os
+
+from FastAutoAugment.darts.darts_arch_trainer import DartsArchTrainer
+from FastAutoAugment.common.common import common_init
+from FastAutoAugment.nas.search_arch import search_arch
+from FastAutoAugment.darts.darts_dag_mutator import DartsDagMutator
 
 if __name__ == '__main__':
     conf = common_init(config_filepath=None,
@@ -16,9 +15,12 @@ if __name__ == '__main__':
     conf_data = conf['dataset']
     conf_search = conf['darts']['search']
 
-    strategy = DartsStrategy()
-    found_model_desc = search_arch(conf_common, conf_data, conf_search, strategy)
+    dag_mutator = DartsDagMutator()
+    arch_trainer = DartsArchTrainer()
+    found_model_desc = search_arch(conf_common, conf_data, conf_search,
+                                   dag_mutator, arch_trainer)
 
+    # log the model we found
     found_model_yaml = yaml.dump(found_model_desc)
     with open(os.path.join(logdir, 'model_desc.yaml'), 'w') as f:
         f.write(found_model_yaml)

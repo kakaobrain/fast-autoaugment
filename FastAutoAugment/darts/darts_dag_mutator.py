@@ -1,17 +1,22 @@
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
+from torch.utils.data import DataLoader
 from overrides import overrides
 
-from ..nas.strategy import Strategy
-from ..nas.model_desc import CellDesc, CellType, RunMode, OpDesc, EdgeDesc
+from ..nas.dag_mutator import DagMutator
+from ..nas.model_desc import ModelDesc, CellDesc, CellType, RunMode, OpDesc, EdgeDesc
 
-
-class DartsStrategy(Strategy):
+class DartsDagMutator(DagMutator):
     @overrides
-    def _add_edges(self, cell_desc:CellDesc)->None:
+    def mutate(self, model_desc:ModelDesc)->None:
+        for cell_desc in model_desc.cell_descs:
+            self._mutate_cell(cell_desc)
+
+    def _mutate_cell(self, cell_desc:CellDesc)->None:
         ch_out = cell_desc.n_node_channels
         reduction = (cell_desc.cell_type==CellType.Reduction)
 
+        # add mixed op for each edge
         for i, node in enumerate(cell_desc.nodes):
             for j in range(i+2):
                 op_desc = OpDesc('mixed_op',
@@ -25,7 +30,6 @@ class DartsStrategy(Strategy):
                                 from_node=i,
                                 to_state=j)
                 node.edges.append(edge)
-
 
 
 

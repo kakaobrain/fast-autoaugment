@@ -11,18 +11,22 @@ if __name__ == '__main__':
     conf = common_init(config_filepath=None,
         defaults_filepath='confs/defaults.yaml', experiment_name='cifar_test')
 
+    conf_common = conf['common']
     conf_data         = conf['dataset']
+    logdir          = conf['logdir']
     conf_test       = conf['darts']['test']
     model_desc_file = conf_test['model_desc_file']
     conf_model_desc = conf_test['model_desc']
-    logdir          = conf['logdir']
 
+    # open the model description we want to test
     with open(os.path.join(logdir, model_desc_file), 'r') as f:
         found_model_desc = yaml.load(f, Loader=yaml.Loader)
 
+    # compile to PyTorch model
     builder = ModelDescBuilder(conf_data, conf_model_desc,
-                                run_mode=RunMode.EvalTrain, template=found_model_desc)
+                                run_mode=RunMode.EvalTrain,
+                                template=found_model_desc)
     model_desc = builder.get_model_desc()
 
-    best_top1, model = test_arch(conf, model_desc)
+    best_top1, model = test_arch(conf_common, conf_data, conf_test, model_desc)
 

@@ -12,8 +12,9 @@ from tqdm import tqdm
 from ..common.common import get_logger, get_tb_writer
 from ..common.optimizer import get_lr_scheduler, get_optimizer
 from ..common.data import get_dataloaders
-from ..common.metrics import accuracy, Accumulator
+from ..common.metrics import Accumulator
 from ..networks import get_model, num_class
+from ..common.utils import accuracy
 
 
 # TODO: remove scheduler parameter?
