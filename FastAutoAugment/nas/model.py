@@ -37,7 +37,7 @@ class Model(nn.Module):
                                 model_desc.n_classes)
 
         logger.info("Total param size = %f MB", utils.param_size(self))
-        logger.info("Alphas count = %f MB", len(list(self.alphas())))
+        logger.info("Alphas count = %f", len(set(a for a in self.alphas())))
 
     def alphas(self)->Iterable[nn.Parameter]:
         for cell in self._cells:

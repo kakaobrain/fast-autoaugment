@@ -148,10 +148,3 @@ class Accumulator:
                 newone[key] = value / other
         return newone
 
-
-class SummaryWriterDummy:
-    def __init__(self, log_dir):
-        pass
-
-    def add_scalar(self, *args, **kwargs):
-        pass

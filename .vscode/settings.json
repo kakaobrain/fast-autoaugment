@@ -4,6 +4,5 @@
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.nosetestsEnabled": false,
-    "python.testing.pytestEnabled": true,
-    "python.pythonPath": "/home/dedey/miniconda3/envs/petridishpytorch/bin/python"
+    "python.testing.pytestEnabled": true
 }

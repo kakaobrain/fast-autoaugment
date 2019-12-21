@@ -10,21 +10,21 @@ from torch import nn
 from .config import Config
 
 def get_optimizer(conf_opt:Config, params)->Optimizer:
-    if conf['type'] == 'sgd':
+    if conf_opt['type'] == 'sgd':
         return SGD(
            params,
-            lr=conf['lr'],
-            momentum=conf['momentum'],
-            weight_decay=conf['decay'],
-            nesterov=conf['nesterov']
+            lr=conf_opt['lr'],
+            momentum=conf_opt['momentum'],
+            weight_decay=conf_opt['decay'],
+            nesterov=conf_opt['nesterov']
         )
-    elif conf['type'] == 'adam':
+    elif conf_opt['type'] == 'adam':
          return Adam(params,
-            lr=conf['lr'],
-            betas=conf['betas'],
-            weight_decay=conf['decay'])
+            lr=conf_opt['lr'],
+            betas=conf_opt['betas'],
+            weight_decay=conf_opt['decay'])
     else:
-        raise ValueError('invalid optimizer type=%s' % conf['type'])
+        raise ValueError('invalid optimizer type=%s' % conf_opt['type'])
 
 def get_optim_lr(optimizer:Optimizer)->float:
     for param_group in optimizer.param_groups:

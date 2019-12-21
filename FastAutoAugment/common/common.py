@@ -11,8 +11,14 @@ from torch.utils.tensorboard import SummaryWriter
 
 from .config import Config
 from .stopwatch import StopWatch
-from .metrics import SummaryWriterDummy
-from . import utils
+
+
+class SummaryWriterDummy:
+    def __init__(self, log_dir):
+        pass
+
+    def add_scalar(self, *args, **kwargs):
+        pass
 
 SummaryWriterAny = Union[SummaryWriterDummy, SummaryWriter]
 
@@ -60,23 +66,24 @@ def common_init(config_filepath:Optional[str], defaults_filepath:Optional[str],
                   defaults_filepath=defaults_filepath,
                   use_args=True)
 
-    assert not (conf['horovod'] and conf['only_eval']),  \
-        'can not use horovod when evaluation mode is enabled.'
-    assert (conf['only_eval'] and conf['logdir']) or not conf['only_eval'], \
-        'checkpoint path not provided in evaluation mode.'
-
     Config.set(conf)
 
     sw = StopWatch()
     StopWatch.set(sw)
 
     logger = _setup_logger(experiment_name)
+    conf_common = conf['common']
 
-    if conf['gpus'] is not None:
-        csv = str(conf['gpus'])
-        os.environ['CUDA_VISIBLE_DEVICES'] = str(conf['gpus'])
+    assert not (conf_common['horovod'] and conf_common['only_eval']),  \
+        'can not use horovod when evaluation mode is enabled.'
+    assert (conf_common['only_eval'] and conf_common['logdir']) or not conf_common['only_eval'], \
+        'checkpoint path not provided in evaluation mode.'
+
+    if conf_common['gpus'] is not None:
+        csv = str(conf_common['gpus'])
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(conf_common['gpus'])
         torch.cuda.set_device(int(csv.split(',')[0]))
-        logger.info('Only these GPUs will be used: {}'.format(conf['gpus']))
+        logger.info('Only these GPUs will be used: {}'.format(conf_common['gpus']))
         # alternative: torch.cuda.set_device(config.gpus[0])
 
     cudnn.enabled = True
@@ -87,24 +94,24 @@ def common_init(config_filepath:Optional[str], defaults_filepath:Optional[str],
     # torch.cuda.empty_cache()
     # torch.cuda.synchronize()
 
-    if conf['detect_anomaly']:
+    if conf_common['detect_anomaly']:
         logger.warn('PyTorch code will be 6X slower because detect_anomaly=True.')
         torch.autograd.set_detect_anomaly(True)
 
-    logdir = os.path.expanduser(conf['logdir'])
-    dataroot = os.path.expanduser(conf['dataroot'])
+    logdir = os.path.expanduser(conf_common['logdir'])
+    dataroot = os.path.expanduser(conf['dataset']['dataroot'])
     logdir = os.path.join(logdir, experiment_name)
-    plotsdir = os.path.join(logdir, 'plots') if not conf['plotsdir'] \
-        else os.path.expanduser(conf['plotsdir'])
-    chkptdir = os.path.join(logdir, 'chkpt') if not conf['chkptdir'] \
-        else os.path.expanduser(conf['chkptdir'])
+    plotsdir = os.path.join(logdir, 'plots') if not conf_common['plotsdir'] \
+        else os.path.expanduser(conf_common['plotsdir'])
+    chkptdir = os.path.join(logdir, 'chkpt') if not conf_common['chkptdir'] \
+        else os.path.expanduser(conf_common['chkptdir'])
     os.makedirs(logdir, exist_ok=True)
     os.makedirs(dataroot, exist_ok=True)
     os.makedirs(plotsdir, exist_ok=True)
     os.makedirs(chkptdir, exist_ok=True)
 
-    conf['logdir'], conf['dataroot'] = logdir, dataroot
-    conf['plotsdir'], conf['chkptdir'] = plotsdir, chkptdir
+    conf_common['logdir'], conf['dataset']['dataroot'] = logdir, dataroot
+    conf_common['plotsdir'], conf_common['chkptdir'] = plotsdir, chkptdir
 
     # copy net config to experiment folder for reference
     with open(os.path.join(logdir, 'full_config.yaml'), 'w') as f:
@@ -129,7 +136,7 @@ def common_init(config_filepath:Optional[str], defaults_filepath:Optional[str],
             logger.info('GPU {} mem: {}, used: {}'.format(i, vals[0], vals[1]))
 
     global _tb_writer
-    _tb_writer = _create_tb_writer(conf, is_master, tb_names)
+    _tb_writer = _create_tb_writer(conf_common, is_master, tb_names)
 
     return conf
 
@@ -137,9 +144,9 @@ def get_model_savepath(logdir, dataset, model, tag):
     return os.path.join(logdir, '%s_%s_%s.model' \
         % (dataset, model, tag))
 
-def _create_tb_writer(conf:Config, is_master=True,
+def _create_tb_writer(conf_common:Config, is_master=True,
         tb_names:Iterable[str]=['0'])->SummaryWriterAny:
-    WriterClass = SummaryWriterDummy if not conf['enable_tb'] or not is_master \
+    WriterClass = SummaryWriterDummy if not conf_common['enable_tb'] or not is_master \
             else SummaryWriter
 
-    return WriterClass(log_dir=os.path.join(conf['logdir'], 'tb'))
+    return WriterClass(log_dir=os.path.join(conf_common['logdir'], 'tb'))

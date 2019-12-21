@@ -63,8 +63,9 @@ def search_arch(conf_common:Config, conf_data:Config, conf_search:Config,
     # TODO: enable DataParallel
     model = model.to(device)
 
-    found_model_desc, *_ = arch_trainer.fit(conf_search, train_dl, val_dl,
-                            model, epochs, plotsdir, report_freq)
+    found_model_desc, *_ = arch_trainer.fit(conf_search, model, device,
+                                            train_dl, val_dl,
+                                            epochs, plotsdir, report_freq)
 
     logger.info("Best architecture\n{}".format(yaml.dump(found_model_desc)))
     return found_model_desc

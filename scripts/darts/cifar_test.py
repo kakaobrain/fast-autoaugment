@@ -1,11 +1,10 @@
+import os
+import yaml
+
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas.test_arch import test_arch
 from FastAutoAugment.nas.model_desc_builder import ModelDescBuilder
 from FastAutoAugment.nas.model_desc import RunMode, ModelDesc
-
-import os
-
-import yaml
 
 if __name__ == '__main__':
     conf = common_init(config_filepath=None,
