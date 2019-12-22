@@ -12,7 +12,6 @@ if __name__ == '__main__':
                        experiment_name='cifar_search')
 
     conf_common = conf['common']
-    logdir = conf_common['logdir']
     conf_data = conf['dataset']
     conf_search = conf['darts']['search']
 

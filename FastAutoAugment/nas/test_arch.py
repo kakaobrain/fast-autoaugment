@@ -1,3 +1,5 @@
+from typing import Optional
+from FastAutoAugment.common.utils import save
 import os
 
 import torch
@@ -15,6 +17,7 @@ from .model_desc import ModelDesc, RunMode
 from .model_desc_builder import ModelDescBuilder
 
 def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
+              template_model_desc:Optional[ModelDesc]=None,
               save_model:bool=True):
 
     logger, writer = get_logger(), get_tb_writer()
@@ -51,14 +54,21 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     conf_lr_sched     = conf_test['lr_schedule']
     # endregion
 
-    # open the model description we want to test
-    with open(os.path.join(logdir, model_desc_file), 'r') as f:
-        found_model_desc = yaml.load(f, Loader=yaml.Loader)
+    if logdir and not template_model_desc:
+        # open the model description we want to test
+        with open(os.path.join(logdir, model_desc_file), 'r') as f:
+            template_model_desc = yaml.load(f, Loader=yaml.Loader)
 
-    # compile to PyTorch model
+    # template desc must be supplied either via parameter of config
+    assert template_model_desc is not None
+    # if save_model is true then logdir must be specified
+    assert (save_model and not logdir) or not save_model
+
+    # Use template_model_desc to create new model description that has
+    # structure as specified in config
     builder = ModelDescBuilder(conf_data, conf_model_desc,
                                run_mode=RunMode.EvalTrain,
-                               template=found_model_desc)
+                               template=template_model_desc)
     model_desc = builder.get_model_desc()
 
     # get data

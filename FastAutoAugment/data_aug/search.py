@@ -92,8 +92,6 @@ def _train_no_aug(conf):
     cv_num      = conf_loader['cv_num']
     # endregion
 
-    dataroot, logdir, cv_num, val_ratio = dataroot, logdir, cv_num, val_fold
-
     logger.info('----- Train without Augmentations cv=%d ratio(test)=%.1f -----'\
          % (cv_num, val_ratio))
     sw.start(tag='train_no_aug')
