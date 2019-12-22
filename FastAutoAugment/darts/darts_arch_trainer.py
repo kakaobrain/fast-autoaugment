@@ -17,7 +17,7 @@ class DartsArchTrainer(ArchTrainer):
     @overrides
     def fit(self, conf_search:Config, model:Model, device,
             train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
-            plotsdir:str, report_freq:int)->Tuple[ModelDesc, Metrics, Optional[Metrics]]:
+            plotsdir:str, logger_freq:int)->Tuple[ModelDesc, Metrics, Optional[Metrics]]:
         # region conf vars
         # search
         bilevel       = conf_search['bilevel']
@@ -42,7 +42,7 @@ class DartsArchTrainer(ArchTrainer):
         trainer = BilevelTrainer(w_momentum, w_decay, alpha_optim,
             max_final_edges, plotsdir, model, device, lossfn, lossfn,
             aux_weight=0.0, grad_clip=grad_clip, drop_path_prob=0.0,
-            logger_freq=report_freq, tb_tag='search_train',
+            logger_freq=logger_freq, tb_tag='search_train',
             val_logger_freq=1000, val_tb_tag='search_val')
 
         train_metrics, val_metrics = trainer.fit(train_dl, val_dl, epochs,

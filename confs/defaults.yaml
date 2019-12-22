@@ -6,7 +6,7 @@ common:
   enable_tb: True # if False then TensorBoard logging is ignored
   horovod: False
   checkpoint_freq: 10
-  report_freq: 10 # after every N updates dump loss and other metrics in logger
+  logger_freq: 10 # after every N updates dump loss and other metrics in logger
   detect_anomaly: False # if True, PyTorch code will run 6X slower
   # TODO: workers setting
 
@@ -57,8 +57,8 @@ autoaug:
 
 darts:
   test:
-    model_desc_file: 'model_desc.yaml'
-    model_save_file: 'cifar_model.pt'
+    model_desc_file: 'best_model_desc.yaml'
+    model_file: 'cifar_model.pt'
     data_parallel: False
     model_desc:
       init_ch_out: 36 # num of channels for stem outpt node
@@ -96,6 +96,7 @@ darts:
     bilevel: True
     data_parallel: False
     max_final_edges: 2 # max edge that can be in final arch per node
+    model_desc_file: 'best_model_desc.yaml' # found arch is saved in this file
     model_desc:
       init_ch_out: 16 # num of channels for stem outpt node
       n_cells: 8 # number of cells

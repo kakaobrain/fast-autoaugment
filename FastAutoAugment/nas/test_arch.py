@@ -2,24 +2,25 @@ import os
 
 import torch
 import torch.nn as nn
+import yaml
 
 from ..common import utils
 from ..common.common import get_logger, get_tb_writer
-from FastAutoAugment.common.trainer import Trainer
-from FastAutoAugment.common.config import Config
+from ..common.trainer import Trainer
+from ..common.config import Config
 from ..common.data import get_dataloaders
 from .model import Model
 from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
-from .model_desc import ModelDesc
+from .model_desc import ModelDesc, RunMode
+from .model_desc_builder import ModelDescBuilder
 
 def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
-              model_desc:ModelDesc, save_model:bool=True):
+              save_model:bool=True):
 
     logger, writer = get_logger(), get_tb_writer()
 
     # region conf vars
-    chkptdir          = conf_common['chkptdir']
-    report_freq       = conf_common['report_freq']
+    logger_freq       = conf_common['logger_freq']
     horovod           = conf_common['horovod']
     logdir            = conf_common['logdir']
     # dataset
@@ -39,7 +40,8 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     conf_train_lossfn = conf_test['train_lossfn']
     conf_test_lossfn  = conf_test['test_lossfn']
     # test model
-    model_save_file    = conf_test['model_save_file']
+    model_desc_file = conf_test['model_desc_file']
+    model_file    = conf_test['model_file']
     conf_model_desc   = conf_test['model_desc']
     aux_weight        = conf_model_desc['aux_weight']
     drop_path_prob    = conf_model_desc['drop_path_prob']
@@ -48,6 +50,16 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     grad_clip         = conf_opt['clip']
     conf_lr_sched     = conf_test['lr_schedule']
     # endregion
+
+    # open the model description we want to test
+    with open(os.path.join(logdir, model_desc_file), 'r') as f:
+        found_model_desc = yaml.load(f, Loader=yaml.Loader)
+
+    # compile to PyTorch model
+    builder = ModelDescBuilder(conf_data, conf_model_desc,
+                               run_mode=RunMode.EvalTrain,
+                               template=found_model_desc)
+    model_desc = builder.get_model_desc()
 
     # get data
     train_dl, _, test_dl, _ = get_dataloaders(
@@ -72,14 +84,14 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     lr_scheduler = get_lr_scheduler(conf_lr_sched, epochs, optim)
 
     trainer = Trainer(model, device, train_lossfn, test_lossfn,
-        aux_weight, grad_clip, drop_path_prob, report_freq,
+        aux_weight, grad_clip, drop_path_prob, logger_freq,
         tb_tag='eval_train', val_logger_freq=1000, val_tb_tag='eval_test')
     train_metrics, test_metrics = trainer.fit(train_dl, test_dl, epochs,
                                               optim, lr_scheduler)
     test_metrics.report_best()
 
     if save_model:
-        utils.save(model, os.path.join(logdir, model_save_file))
+        utils.save(model, os.path.join(logdir, model_file))
 
     return test_metrics.best_top1, model
 
