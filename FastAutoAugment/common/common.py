@@ -23,8 +23,71 @@ class SummaryWriterDummy:
 
 SummaryWriterAny = Union[SummaryWriterDummy, SummaryWriter]
 
-_app_name = 'DefaultApp'
+_logger: Optional[logging.Logger] = None
 _tb_writer: SummaryWriterAny = None
+
+
+def get_logger() -> logging.Logger:
+    global _logger
+    if _logger is None:
+        raise RuntimeError('get_logger call made before logger was setup!')
+    return _logger
+
+def get_tb_writer() -> SummaryWriterAny:
+    global _tb_writer
+    return _tb_writer
+
+# initializes random number gen, debugging etc
+def common_init(config_filepath: Optional[str]=None,
+                defaults_filepath: Optional[str]=None,
+                param_args: List[Optional[str]] = [], experiment_name='',
+                log_level=logging.DEBUG, is_master=True) \
+        -> Config:
+
+    global _experiment_name
+    _experiment_name = experiment_name
+
+    conf = Config(config_filepath=config_filepath,
+                  defaults_filepath=defaults_filepath,
+                  use_args=True)
+
+    Config.set(conf)
+
+    sw = StopWatch()
+    StopWatch.set(sw)
+
+    _setup_logger(experiment_name)
+    conf_common = conf['common']
+    conf_data = conf['dataset']
+    _setup_dirs(conf_common, conf_data, experiment_name)
+    _setup_gpus(conf_common)
+
+    logdir = conf_common['logdir']
+    if logdir:
+        # copy net config to experiment folder for reference
+        with open(os.path.join(logdir, 'full_config.yaml'), 'w') as f:
+            yaml.dump(conf, f, default_flow_style=False)
+
+    global _tb_writer
+    _tb_writer = _create_tb_writer(conf_common, is_master)
+
+    return conf
+
+
+def get_model_savepath(logdir, dataset, model, tag):
+    return os.path.join(logdir, '%s_%s_%s.model'
+                        % (dataset, model, tag))
+
+
+def _create_tb_writer(conf_common: Config, is_master=True)\
+        -> SummaryWriterAny:
+    logdir = conf_common['logdir']
+    WriterClass = SummaryWriterDummy if not conf_common['enable_tb'] or \
+                                        not is_master or \
+                                        not logdir \
+        else SummaryWriter
+
+    return WriterClass(log_dir=os.path.join(logdir, 'tb'))
 
 
 def _get_formatter() -> logging.Formatter:
@@ -32,33 +95,25 @@ def _get_formatter() -> logging.Formatter:
         '[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
 
 
-def get_logger(experiment_name=None) -> logging.Logger:
-    return logging.getLogger(experiment_name or _app_name)
-
-
-def get_tb_writer() -> SummaryWriterAny:
-    global _tb_writer
-    return _tb_writer
-
-
-def _setup_logger(experiment_name, level=logging.DEBUG) -> logging.Logger:
-    logger = logging.getLogger(experiment_name)
-    logger.handlers.clear()
-    logger.setLevel(level)
+def _setup_logger(experiment_name, level=logging.DEBUG) -> None:
+    global _logger
+    if _logger is not None:
+        raise RuntimeError('_logger is already setup!')
+    _logger = logging.getLogger(experiment_name)
+    _logger.handlers.clear()
+    _logger.setLevel(level)
     ch = logging.StreamHandler()
     ch.setLevel(level)
     # warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
     ch.setFormatter(_get_formatter())
-    logger.addHandler(ch)
-    return logger
-
+    _logger.addHandler(ch)
+    _logger.propagate = False # otherwise root logger prints things again
 
 def _add_filehandler(logger, filepath):
     fh = logging.FileHandler(filename=os.path.expanduser(filepath))
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(_get_formatter())
     logger.addHandler(fh)
-
 
 def _setup_dirs(conf_common: Config, conf_data: Config, experiment_name: str):
     logger = get_logger()
@@ -84,11 +139,13 @@ def _setup_dirs(conf_common: Config, conf_data: Config, experiment_name: str):
         _add_filehandler(logger, logfile_path)
         logger.info('logdir: %s' % logdir)
     else:
-        logger.warn('logdir not specified, no logs will be created or any models saved')
+        logger.warn(
+            'logdir not specified, no logs will be created or any models saved')
         plotsdir = chkptdir = None
 
     conf_common['logdir'], conf_data['dataroot'] = logdir, dataroot
     conf_common['plotsdir'], conf_common['chkptdir'] = plotsdir, chkptdir
+
 
 def _setup_gpus(conf_common):
     logger = get_logger()
@@ -126,55 +183,3 @@ def _setup_gpus(conf_common):
         vals = line.split(',')
         if len(vals) == 2:
             logger.info('GPU {} mem: {}, used: {}'.format(i, vals[0], vals[1]))
-
-
-# initializes random number gen, debugging etc
-def common_init(config_filepath: Optional[str], defaults_filepath: Optional[str],
-                param_args: List[Optional[str]] = [], experiment_name='',
-                log_level=logging.DEBUG, is_master=True) \
-        -> Config:
-
-    global _app_name
-    _app_name = experiment_name
-
-    conf = Config(config_filepath=config_filepath,
-                  defaults_filepath=defaults_filepath,
-                  use_args=True)
-
-    Config.set(conf)
-
-    sw = StopWatch()
-    StopWatch.set(sw)
-
-    logger = _setup_logger(experiment_name)
-    conf_common = conf['common']
-    conf_data = conf['dataset']
-    _setup_dirs(conf_common, conf_data, experiment_name)
-    _setup_gpus(conf_common)
-
-    logdir = conf_common['logdir']
-    if logdir:
-        # copy net config to experiment folder for reference
-        with open(os.path.join(logdir, 'full_config.yaml'), 'w') as f:
-            yaml.dump(conf, f, default_flow_style=False)
-
-    global _tb_writer
-    _tb_writer = _create_tb_writer(conf_common, is_master)
-
-    return conf
-
-
-def get_model_savepath(logdir, dataset, model, tag):
-    return os.path.join(logdir, '%s_%s_%s.model'
-                        % (dataset, model, tag))
-
-
-def _create_tb_writer(conf_common: Config, is_master=True)\
-        -> SummaryWriterAny:
-    logdir = conf_common['logdir']
-    WriterClass = SummaryWriterDummy if not conf_common['enable_tb'] or \
-                                        not is_master or \
-                                        not logdir \
-        else SummaryWriter
-
-    return WriterClass(log_dir=os.path.join(logdir, 'tb'))

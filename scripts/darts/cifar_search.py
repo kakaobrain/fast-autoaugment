@@ -4,8 +4,7 @@ from FastAutoAugment.nas.search_arch import search_arch
 from FastAutoAugment.darts.darts_dag_mutator import DartsDagMutator
 
 if __name__ == '__main__':
-    conf = common_init(config_filepath=None,
-                       defaults_filepath='confs/defaults.yaml',
+    conf = common_init(defaults_filepath='confs/defaults.yaml',
                        experiment_name='cifar_search')
 
     conf_common = conf['common']

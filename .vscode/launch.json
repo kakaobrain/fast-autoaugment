@@ -36,6 +36,28 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "LTSearchDarts cifar10",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/scripts/darts/cifar_search.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-c",
+                "confs/laptop_defaults.yaml"
+            ]
+        },
+        {
+            "name": "LTTestDarts cifar10",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/scripts/darts/cifar_test.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-c",
+                "confs/laptop_defaults.yaml"
+            ]
+        },
+        {
             "name": "TestDarts imagenet",
             "type": "python",
             "request": "launch",
