@@ -22,9 +22,9 @@ def search_arch(conf_common:Config, conf_data:Config, conf_search:Config,
 
     # region conf vars
     horovod       = conf_common['horovod']
-    report_freq   = conf_common['report_freq']
+    logger_freq   = conf_common['logger_freq']
     plotsdir      = conf_common['plotsdir']
-    chkptdir      = conf_common['chkptdir']
+    logdir = conf_common['logdir']
     # dataset
     ds_name       = conf_data['name']
     max_batches   = conf_data['max_batches']
@@ -39,6 +39,7 @@ def search_arch(conf_common:Config, conf_data:Config, conf_search:Config,
     val_fold      = conf_loader['val_fold']
     n_workers     = conf_loader['n_workers']
     # search
+    model_desc_file = conf_search['model_desc_file']
     data_parallel = conf_search['data_parallel']
     conf_model_desc = conf_search['model_desc']
     # endregion
@@ -65,9 +66,14 @@ def search_arch(conf_common:Config, conf_data:Config, conf_search:Config,
 
     found_model_desc, *_ = arch_trainer.fit(conf_search, model, device,
                                             train_dl, val_dl,
-                                            epochs, plotsdir, report_freq)
+                                            epochs, plotsdir, logger_freq)
 
-    logger.info("Best architecture\n{}".format(yaml.dump(found_model_desc)))
+    if model_desc_file:
+        model_desc_save_path = os.path.join(logdir, model_desc_file)
+        with open(model_desc_save_path, 'w') as f:
+            f.write(found_model_desc.serialize())
+        logger.info(f"Best architecture saved in {model_desc_save_path}")
+
     return found_model_desc
 
 

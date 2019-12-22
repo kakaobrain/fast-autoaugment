@@ -38,7 +38,7 @@ class Tester(EnforceOverrides):
         metrics.post_step(x, y, logits, loss, steps)
 
     def create_metrics(self, epochs:int):
-        return Metrics(epochs, self.tb_tag, self.logger_freq)
+        return Metrics(epochs, self.tb_tag, logger_freq=self.logger_freq)
 
     def test_epoch(self, test_dl: DataLoader, metrics:Metrics)->None:
         steps = len(test_dl)

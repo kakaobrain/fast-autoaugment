@@ -17,6 +17,6 @@ class ArchTrainer(ABC, EnforceOverrides):
     @abstractmethod
     def fit(self, conf_search:Config, model:Model, device,
             train_dl:DataLoader, val_dl:Optional[DataLoader],
-            epochs:int, plotsdir:str, report_freq:int)\
+            epochs:int, plotsdir:str, logger_freq:int)\
                 ->Tuple[ModelDesc, Metrics, Optional[Metrics]]:
         pass

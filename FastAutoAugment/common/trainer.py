@@ -24,7 +24,8 @@ class Trainer(EnforceOverrides):
         self.aux_weight, self.grad_clip = aux_weight, grad_clip
         self.drop_path_prob = drop_path_prob
         self.tb_tag, self.logger_freq = tb_tag, logger_freq
-        self.tester = Tester(model, test_lossfn, val_logger_freq, val_tb_tag)
+        self.tester = Tester(model, device, test_lossfn,
+                             logger_freq=val_logger_freq, tb_tag=val_tb_tag)
 
     def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
             optim:Optimizer, lr_scheduler:_LRScheduler)\
@@ -81,6 +82,12 @@ class Trainer(EnforceOverrides):
             else:
                 logits, *_ = self.model(x)
                 loss = self.train_lossfn(logits, y)
+
+            loss.backward()
+            if self.grad_clip:
+                # TODO: original darts clips alphas as well but pt.darts doesn't
+                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+            optim.step()
 
             self.post_step(x, y, logits, loss, steps, train_metrics)
 

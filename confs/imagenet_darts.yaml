@@ -7,7 +7,7 @@ dataset:
 darts:
   test:
     model_desc_file: 'model_desc.yaml'
-    model_save_file: 'imagenet_model.pt'
+    model_file: 'imagenet_model.pt'
     data_parallel: True
     max_final_edges: 2 # max edge that can be in final arch per node
     model_desc:
