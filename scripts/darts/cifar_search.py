@@ -1,6 +1,3 @@
-import yaml
-import os
-
 from FastAutoAugment.darts.darts_arch_trainer import DartsArchTrainer
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas.search_arch import search_arch
