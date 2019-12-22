@@ -62,7 +62,7 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     # template desc must be supplied either via parameter of config
     assert template_model_desc is not None
     # if save_model is true then logdir must be specified
-    assert (save_model and not logdir) or not save_model
+    assert (save_model and logdir) or not save_model
 
     # Use template_model_desc to create new model description that has
     # structure as specified in config

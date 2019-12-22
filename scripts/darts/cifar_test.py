@@ -6,8 +6,7 @@ from FastAutoAugment.nas.test_arch import test_arch
 
 
 if __name__ == '__main__':
-    conf = common_init(config_filepath=None,
-                       defaults_filepath='confs/defaults.yaml',
+    conf = common_init(defaults_filepath='confs/defaults.yaml',
                        experiment_name='cifar_test')
 
     conf_common = conf['common']
