@@ -40,16 +40,14 @@ def get_tb_writer() -> SummaryWriterAny:
 # initializes random number gen, debugging etc
 def common_init(config_filepath: Optional[str]=None,
                 defaults_filepath: Optional[str]=None,
-                param_args: List[Optional[str]] = [], experiment_name='',
-                log_level=logging.DEBUG, is_master=True) \
+                param_args: list = [], experiment_name='',
+                log_level=logging.DEBUG, is_master=True, use_args=True) \
         -> Config:
-
-    global _experiment_name
-    _experiment_name = experiment_name
 
     conf = Config(config_filepath=config_filepath,
                   defaults_filepath=defaults_filepath,
-                  use_args=True)
+                  param_args=param_args,
+                  use_args=use_args)
 
     Config.set(conf)
 

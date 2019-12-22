@@ -8,8 +8,8 @@ from FastAutoAugment.nas.search_arch import create_model
 def test_cell_shape():
     conf = common_init(config_filepath=None,
                        defaults_filepath='confs/defaults.yaml',
-                       experiment_name=None,
-                       param_args=['--common.logdir', None])
+                       experiment_name=None, use_args=False,
+                       param_args=['--common.logdir', ''])
 
     conf_data = conf['dataset']
     conf_search = conf['darts']['search']
