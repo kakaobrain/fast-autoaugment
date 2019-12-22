@@ -37,7 +37,7 @@ class Metrics:
         self.best_top1, self.best_epoch = 0., 0
         self.logger_freq = logger_freq
         self.optim, self.tb_tag = optim, tb_tag
-        self.epoch, self.epochs = 0, 0
+        self.epoch, self.epochs = 0, epochs
         self.step, self.global_step = 0, 0
 
     def pre_step(self, x: Tensor, y: Tensor):
