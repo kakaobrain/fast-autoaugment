@@ -1,7 +1,7 @@
-from scripts.darts.cifar_search import conf
 import torch
 import os
 
+from ..common.common import get_logger
 from ..common.config import Config
 from .model import Model
 from ..common.data import get_dataloaders
