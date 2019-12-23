@@ -77,6 +77,6 @@ class MixedOp(Op):
         self._alphas = list(alphas)
         if not len(self._alphas):
             new_p = nn.Parameter(  # TODO: use better init than uniform random?
-                1.0e-3*torch.randn(len(PetridishOp.PRIMITIVES)), requires_grad=True)
+                1.0e-3*torch.randn(len(MixedOp.PRIMITIVES)), requires_grad=True)
             self._reg_alphas = new_p
             self._alphas = [p for p in self.parameters()]
