@@ -15,8 +15,7 @@ from ..nas.operations import Op
 
 
 class MixedOp(Op):
-    """
-    The output of MixedOp is weighted output of all allowed primitives.
+    """The output of MixedOp is weighted output of all allowed primitives.
     """
 
     PRIMITIVES = [
@@ -37,20 +36,12 @@ class MixedOp(Op):
         # assume last PRIMITIVE is 'none'
         assert MixedOp.PRIMITIVES[-1] == 'none'
 
-        self._alphas = list(alphas)
-        if not len(self._alphas):
-            new_p = nn.Parameter(  # TODO: use better init than uniform random?
-                1.0e-3*torch.randn(len(MixedOp.PRIMITIVES)), requires_grad=True)
-        # before adding ops, get alphas from the module
-            self._reg_alphas = new_p
-            self._alphas = [p for p in self.parameters()]
-
+        self._set_alphas(alphas)
         self._ops = nn.ModuleList()
-
         for primitive in MixedOp.PRIMITIVES:
-            # create corresponding layer
             op = Op.create(
-                OpDesc(primitive, run_mode, ch_in, ch_out, stride, affine), alphas)
+                OpDesc(primitive, run_mode, ch_in=ch_in, ch_out=ch_out,
+                       stride=stride, affine=affine), alphas=alphas)
             self._ops.append(op)
 
     @overrides
@@ -79,3 +70,13 @@ class MixedOp(Op):
     @overrides
     def can_drop_path(self) -> bool:
         return False
+
+    def _set_alphas(self, alphas: Iterable[nn.Parameter]) -> None:
+        # must call before adding other ops
+        assert len(list(self.parameters())) == 0
+        self._alphas = list(alphas)
+        if not len(self._alphas):
+            new_p = nn.Parameter(  # TODO: use better init than uniform random?
+                1.0e-3*torch.randn(len(PetridishOp.PRIMITIVES)), requires_grad=True)
+            self._reg_alphas = new_p
+            self._alphas = [p for p in self.parameters()]
