@@ -19,9 +19,10 @@ class OpDesc(DescBase):
     """
     def __init__(self, name:str, run_mode:RunMode,
                  ch_in:Optional[int]=None, ch_out:Optional[int]=None,
-                stride:Optional[int]=None, affine:Optional[bool]=None)->None:
+                 stride:Optional[int]=None, affine:Optional[bool]=None,
+                 in_len=1)->None:
         self.name = name
-        self.ch_in, self.ch_out = ch_in, ch_out
+        self.ch_in, self.ch_out, self.in_len = ch_in, ch_out, in_len
         self.stride, self.affine, self.run_mode = stride, affine, run_mode
 
 class EdgeDesc(DescBase):

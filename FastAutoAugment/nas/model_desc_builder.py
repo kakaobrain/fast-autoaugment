@@ -43,7 +43,8 @@ class ModelDescBuilder(EnforceOverrides):
         cell_descs = self._get_cell_descs(stem0_op.ch_out)
 
         ch_out = cell_descs[-1].get_ch_out()
-        pool_op = OpDesc(self.pool_op_name, self.run_mode, ch_out, ch_out)
+        pool_op = OpDesc(self.pool_op_name, self.run_mode,
+                         ch_in=ch_out, ch_out=ch_out)
 
         return ModelDesc(stem0_op, stem1_op, pool_op,
                          self.ch_in, self.n_classes, cell_descs)
