@@ -76,29 +76,36 @@ class PetridishOp(Op):
         assert PetridishOp.PRIMITIVES[-1] == 'none'
 
         self._set_alphas(alphas, op_desc.in_len)
-        self._ins = nn.ModuleList()
+        self._edges = nn.ModuleList()
 
         for _ in range(op_desc.in_len):
-            in_ops = nn.ModuleList()
-            self._ins.append(in_ops)
+            edge = nn.ModuleList()
+            self._edges.append(edge)
             for primitive in PetridishOp.PRIMITIVES:
-                primitive_op = Op.create(
-                    OpDesc(primitive, op_desc.run_mode,
-                        ch_in=op_desc.ch_in, ch_out=op_desc.ch_out,
-                        stride=op_desc.stride, affine=op_desc.affine), alphas=alphas)
+                primitive_op = Op.create(OpDesc(primitive, op_desc.run_mode,
+                                    ch_in=op_desc.ch_in, ch_out=op_desc.ch_out,
+                                    stride=op_desc.stride, affine=op_desc.affine),
+                                  alphas=alphas)
                 op = nn.Sequential(
-                    StopGradientReduction(op_desc.ch_in, op_desc.ch_out,                        affine=op_desc.affine) if reduction else StopGradient(),
-                    primitive_op)
-                in_ops.append(op)
+                    StopGradientReduction(op_desc.ch_in, op_desc.ch_out,
+                                          affine=op_desc.affine) \
+                        if reduction                             \
+                        else StopGradient(),
+                    primitive_op
+                )
+                edge.append(op)
+
         self._sf = StopForwardReductionOp(op_desc.ch_in, op_desc.ch_out,
-                                          affine=op_desc.affine) if reduction else StopForward()
+                                          affine=op_desc.affine) \
+                        if reduction                             \
+                        else StopForward()
 
     @overrides
     def forward(self, x:List[Tensor]):
         s = 0
-        for i, (xi, in_ops) in enumerate(zip(x, self._ins)):
-            asm = F.softmax(self._alphas[i], dim=0)
-            s = sum(w * op(xi) for w, op in zip(asm, in_ops)) + s
+        for i, (xi, edge) in enumerate(zip(x, self._edges)):
+            edge_alphas = self._alphas[i]
+            s = sum(a * op(xi) for a, op in zip(edge_alphas, edge)) + s
         return self._sf(s)
 
     @overrides
@@ -109,8 +116,8 @@ class PetridishOp(Op):
     @overrides
     def weights(self) -> Iterable[nn.Parameter]:
         #TODO: cache this?
-        for in_ops in self._ins:
-            for op in in_ops:
+        for edge in self._edges:
+            for op in edge:
                 for w in op.parameters():
                     yield w
 
