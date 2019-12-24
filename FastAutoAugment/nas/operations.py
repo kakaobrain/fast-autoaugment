@@ -11,48 +11,27 @@ from ..common import utils
 from .model_desc import OpDesc, RunMode
 
 # type alias
-OpFactoryFn = Callable[[OpDesc, Iterable[nn.Parameter]], Op]
+OpFactoryFn = Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']
 
 # Each op is a unary tensor operator, all take same constructor params
 _ops_factory:Dict[str, OpFactoryFn] = {
-    'max_pool_3x3':     lambda op_desc, alphas:
-                        PoolBN('max', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
-    'avg_pool_3x3':     lambda op_desc, alphas:
-                        PoolBN('avg', op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
-    'skip_connect':     lambda op_desc, alphas:
-                        Identity() if op_desc.stride == 1 else \
-                            FactorizedReduce(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
-    'sep_conv_3x3':     lambda op_desc, alphas:
-                        SepConv(op_desc.ch_in, op_desc.ch_out, 3, op_desc.stride, 1, affine=op_desc.affine),
-    'sep_conv_5x5':     lambda op_desc, alphas:
-                        SepConv(op_desc.ch_in, op_desc.ch_out, 5, op_desc.stride, 2, affine=op_desc.affine),
-    'dil_conv_3x3':     lambda op_desc, alphas:
-                        DilConv(op_desc.ch_in, op_desc.ch_out, 3, op_desc.stride, 2, 2, affine=op_desc.affine),
-    'dil_conv_5x5':     lambda op_desc, alphas:
-                        DilConv(op_desc.ch_in, op_desc.ch_out, 5, op_desc.stride, 4, 2, affine=op_desc.affine),
-    'none':             lambda op_desc, alphas:
-                        Zero(op_desc.stride),
-    'sep_conv_7x7':     lambda op_desc, alphas:
-                        SepConv(op_desc.ch_in, op_desc.ch_out, 7, op_desc.stride, 3, affine=op_desc.affine),
-    'conv_7x1_1x7':     lambda op_desc, alphas:
-                        FacConv(op_desc.ch_in, op_desc.ch_out, 7, op_desc.stride, 3, affine=op_desc.affine),
-    'prepr_reduce':     lambda op_desc, alphas:
-                        FactorizedReduce(op_desc.ch_in, op_desc.ch_out,
-                                affine=op_desc.affine or op_desc.run_mode!=RunMode.Search),
-    'prepr_normal':     lambda op_desc, alphas:
-                        ReLUConvBN(op_desc.ch_in, op_desc.ch_out, 1, 1, 0,
-                                affine=op_desc.affine or op_desc.run_mode!=RunMode.Search),
-    'stem_cifar':       lambda op_desc, alphas:
-                        StemCifar(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
-    'stem0_imagenet':   lambda op_desc, alphas:
-                        Stem0Imagenet(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
-    'stem1_imagenet':   lambda op_desc, alphas:
-                        Stem1Imagenet(op_desc.ch_in, op_desc.ch_out, affine=op_desc.affine),
-    'pool_cifar':       lambda op_desc, alphas:
-                        PoolCifar(),
-    'pool_imagenet':    lambda op_desc, alphas:
-                        PoolImagenet()
-
+    'max_pool_3x3':     lambda op_desc, alphas: PoolBN('max', op_desc),
+    'avg_pool_3x3':     lambda op_desc, alphas: PoolBN('avg', op_desc),
+    'skip_connect':     lambda op_desc, alphas: SkipConnect(op_desc),
+    'sep_conv_3x3':     lambda op_desc, alphas: SepConv(op_desc, 3, 1),
+    'sep_conv_5x5':     lambda op_desc, alphas: SepConv(op_desc, 5, 2),
+    'dil_conv_3x3':     lambda op_desc, alphas: DilConv(op_desc, 3, op_desc.params['stride'], 2, 2),
+    'dil_conv_5x5':     lambda op_desc, alphas: DilConv(op_desc, 5, op_desc.params['stride'], 4, 2),
+    'none':             lambda op_desc, alphas: Zero(op_desc),
+    'sep_conv_7x7':     lambda op_desc, alphas: SepConv(op_desc, 7, 3),
+    'conv_7x1_1x7':     lambda op_desc, alphas: FacConv(op_desc, 7, 3),
+    'prepr_reduce':     lambda op_desc, alphas: FactorizedReduce(op_desc),
+    'prepr_normal':     lambda op_desc, alphas: ReLUConvBN(op_desc, 1, 1, 0),
+    'stem_cifar':       lambda op_desc, alphas: StemCifar(op_desc),
+    'stem0_imagenet':   lambda op_desc, alphas: Stem0Imagenet(op_desc),
+    'stem1_imagenet':   lambda op_desc, alphas: Stem1Imagenet(op_desc),
+    'pool_cifar':       lambda op_desc, alphas: PoolCifar(),
+    'pool_imagenet':    lambda op_desc, alphas: PoolImagenet()
 }
 
 class Op(nn.Module, ABC, EnforceOverrides):
@@ -66,6 +45,7 @@ class Op(nn.Module, ABC, EnforceOverrides):
 
     @staticmethod
     def register_op(name: str, factory_fn: OpFactoryFn, exists_ok=True) -> None:
+        global _ops_factory
         if name in _ops_factory:
             if not exists_ok:
                 raise ArgumentError(f'{name} is already registered in op factory')
@@ -94,12 +74,19 @@ class Op(nn.Module, ABC, EnforceOverrides):
 class PoolBN(Op):
     """AvgPool or MaxPool - BN """
 
-    def __init__(self, pool_type, ch_in, kernel_size, stride, padding, affine=True):
+    def __init__(self, pool_type:str, op_desc:OpDesc):
         """
         Args:
             pool_type: 'max' or 'avg'
         """
         super().__init__()
+
+        ch_in = op_desc.params['ch_in']
+        stride = op_desc.params['stride']
+        affine = op_desc.params['affine']
+        kernel_size = op_desc.params.get('kernel_size', 3)
+        padding = op_desc.params.get('padding', 1)
+
         if pool_type.lower() == 'max':
             self.pool = nn.MaxPool2d(kernel_size, stride, padding)
         elif pool_type.lower() == 'avg':
@@ -116,13 +103,31 @@ class PoolBN(Op):
         out = self.bn(out)
         return out
 
+class SkipConnect(Op):
+    def __init__(self, op_desc:OpDesc) -> None:
+        super().__init__()
+
+        stride = op_desc.params['stride']
+        self._op = Identity() if stride == 1 \
+                              else FactorizedReduce(op_desc)
+
+    @overrides
+    def forward(self, x:Tensor)->Tensor:
+        return self._op(x)
+
 class FacConv(Op):
     """ Factorized conv
     ReLU - Conv(Kx1) - Conv(1xK) - BN
     """
 
-    def __init__(self, ch_in, ch_out, kernel_length, stride, padding, affine=True):
+    def __init__(self, op_desc:OpDesc, kernel_length:int, padding:int):
         super().__init__()
+
+        stride = op_desc.params['stride']
+        ch_in = op_desc.params['ch_in']
+        ch_out = op_desc.params['ch_out']
+        affine = op_desc.params['affine']
+
         self.net = nn.Sequential(
             nn.ReLU(),
             nn.Conv2d(ch_in, ch_in, (kernel_length, 1),
@@ -142,16 +147,11 @@ class ReLUConvBN(Op):
     Stack of relu-conv-bn
     """
 
-    def __init__(self, ch_in, ch_out, kernel_size, stride, padding, affine=True):
-        """
+    def __init__(self, op_desc:OpDesc, kernel_size:int, stride:int, padding:int):
+        ch_in = op_desc.params['ch_in']
+        ch_out = op_desc.params['ch_out']
+        affine = op_desc.params['affine']
 
-        :param ch_in:
-        :param ch_out:
-        :param kernel_size:
-        :param stride:
-        :param padding:
-        :param affine:
-        """
         super(ReLUConvBN, self).__init__()
 
         self.op = nn.Sequential(
@@ -174,8 +174,12 @@ class DilConv(Op):
                       5x5 conv => 9x9 receptive field
     """
 
-    def __init__(self, ch_in, ch_out, kernel_size, stride, padding, dilation, affine=True):
+    def __init__(self, op_desc:OpDesc, kernel_size:int, stride:int,  padding:int, dilation:int):
         super(DilConv, self).__init__()
+
+        ch_in = op_desc.params['ch_in']
+        ch_out = op_desc.params['ch_out']
+        affine = op_desc.params['affine']
 
         self.op = nn.Sequential(
             nn.ReLU(),
@@ -198,12 +202,12 @@ class SepConv(Op):
     This is same as two DilConv stacked with dilation=1
     """
 
-    def __init__(self, ch_in, ch_out, kernel_size, stride, padding, affine=True):
+    def __init__(self, op_desc:OpDesc, kernel_size:int, padding:int):
         super(SepConv, self).__init__()
 
         self.op = nn.Sequential(
-            DilConv(ch_in, ch_in, kernel_size, stride, padding, dilation=1, affine=affine),
-            DilConv(ch_in, ch_out, kernel_size, 1, padding, dilation=1, affine=affine))
+            DilConv(op_desc, kernel_size, op_desc.params['stride'], padding, dilation=1),
+            DilConv(op_desc, kernel_size, 1, padding, dilation=1))
 
     @overrides
     def forward(self, x):
@@ -226,8 +230,9 @@ class Identity(Op):
 class Zero(Op):
     """Represents no connection """
 
-    def __init__(self, stride):
+    def __init__(self, op_desc:OpDesc):
         super().__init__()
+        stride = op_desc.params['stride']
         self.stride = stride
 
     @overrides
@@ -242,8 +247,12 @@ class FactorizedReduce(Op):
     """
     # TODO: modify to take number of nodes in reduction cells where stride 2 was applied (currently only first two input nodes)
 
-    def __init__(self, ch_in, ch_out, affine=True):
+    def __init__(self, op_desc:OpDesc):
         super(FactorizedReduce, self).__init__()
+
+        ch_in = op_desc.params['ch_in']
+        ch_out = op_desc.params['ch_out']
+        affine = op_desc.params['affine']
 
         assert ch_out % 2 == 0
 
@@ -271,8 +280,13 @@ class FactorizedReduce(Op):
         return out
 
 class StemCifar(Op):
-    def __init__(self, ch_in, ch_out, affine)->None:
+    def __init__(self, op_desc:OpDesc)->None:
         super().__init__()
+
+        ch_in = op_desc.params['ch_in']
+        ch_out = op_desc.params['ch_out']
+        affine = op_desc.params['affine']
+
         self._op = nn.Sequential( # 3 => 48
             # batchnorm is added after each layer. Bias is turned off due to
             # BN in conv layer.
@@ -289,8 +303,13 @@ class StemCifar(Op):
         return False
 
 class Stem0Imagenet(Op):
-    def __init__(self, ch_in, ch_out, affine)->None:
+    def __init__(self, op_desc)->None:
         super().__init__()
+
+        ch_in = op_desc.params['ch_in']
+        ch_out = op_desc.params['ch_out']
+        affine = op_desc.params['affine']
+
         self._op = nn.Sequential(
             nn.Conv2d(ch_in, ch_out//2, kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(ch_out//2),
@@ -308,8 +327,13 @@ class Stem0Imagenet(Op):
         return False
 
 class Stem1Imagenet(Op):
-    def __init__(self, ch_in, ch_out, affine)->None:
+    def __init__(self, op_desc)->None:
         super().__init__()
+
+        ch_in = op_desc.params['ch_in']
+        ch_out = op_desc.params['ch_out']
+        affine = op_desc.params['affine']
+
         self._op = nn.Sequential(
             nn.ReLU(inplace=True),
             nn.Conv2d(ch_out, ch_out, 3, stride=2, padding=1, bias=False),
