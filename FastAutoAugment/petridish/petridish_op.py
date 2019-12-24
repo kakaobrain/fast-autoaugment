@@ -72,7 +72,7 @@ class PetridishOp(Op):
     def __init__(self, op_desc:OpDesc, alphas: Iterable[nn.Parameter], reduction:bool):
         super().__init__()
 
-        # assume last PRIMITIVE is 'none'
+        # assume last PRIMITIVE is 'none' (this is used for finalize)
         assert PetridishOp.PRIMITIVES[-1] == 'none'
 
         self._set_alphas(alphas, op_desc.in_len)
@@ -123,25 +123,58 @@ class PetridishOp(Op):
 
     @overrides
     def finalize(self) -> Tuple[OpDesc, Optional[float]]:
-        raise NotImplementedError()
-        # select except 'none' op
         with torch.no_grad():
-            val, i = torch.topk(self._alphas[0][:-1], 1)
-        return self._ops[i].desc, float(val.item())
+            # create list of (alpha, input_id, op_desc), sort them, select top
+            l = [(a, i, op.desc) \
+                for edge_alphas, i, edge in
+                    zip(self._alphas, range(self.desc.in_len), self._edges) \
+                for a, op in zip(edge_alphas, edge)]
+            sel = l.sort(key=lambda t: t[0], reverse=True)[3] # TODO: add config
 
-    @overrides
-    def can_drop_path(self) -> bool:
-        return False
+        final_op = PetridishFinalOp(self.desc.in_len,
+                                    [(i, desc) for a, i, desc in sel],
+                                    self.desc.ch_out,
+                                    affine=True) # TODO: check this
+
+        return final_op, None # rank=None to indicate no further selection
 
     def _set_alphas(self, alphas: Iterable[nn.Parameter], in_len:int) -> None:
         assert len(list(self.parameters()))==0 # must call before adding other ops
+
         self._alphas = list(alphas)
+
+        # if this op shares alpha with another op then len should be non-zero
         if not len(self._alphas):
             pl = nn.ParameterList((
                 nn.Parameter(  # TODO: use better init than uniform random?
-                    1.0e-3*torch.randn(len(PetridishOp.PRIMITIVES)),
+                    torch.FloatTensor(len(PetridishOp.PRIMITIVES)).uniform_(-0.1, 0.1),
                     requires_grad=True)
                 for _ in range(in_len)
             ))
-            self._reg_alphas = pl
+            self._reg_alphas = pl # register parameters with module
             self._alphas = [p for p in self.parameters()]
+
+
+class PetridishFinalOp(Op):
+    def __init__(self, in_len:int, in_ops:Sequence[Tuple[int, OpDesc]],
+                 ch_out:int, affine:bool) -> None:
+        self._ops = nn.ModuleList()
+        self._ins:List[int] = []
+
+        all_ch_in = 0
+        for i, op_desc in in_ops:
+            self._ops.append(Op.create(op_desc))
+            all_ch_in += op_desc.ch_out or 0
+            self._ins.append(i)
+
+        # 1x1 conv
+        self._conv = nn.Conv2d(all_ch_in, ch_out, 1,
+                                stride=1, padding=0, bias=False)
+        self._bn = nn.BatchNorm2d(ch_out, affine=affine)
+
+    @overrides
+    def forwards(self, x:List[Tensor])->Tensor:
+        res = torch.cat([op(x[i]) for op, i in zip(self._ops, self._ins)])
+        res = self._conv(res)
+        return self._bn(res)
+
