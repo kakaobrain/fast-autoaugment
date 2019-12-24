@@ -32,11 +32,11 @@ class StopGradient(Op):
         return y
 
 class StopForwardReductionOp(Op):
-    def __init__(self, ch_in: int, ch_out: int, affine=True):
+    def __init__(self, op_desc:OpDesc):
         super().__init__()
         self._op = nn.Sequential(
             StopForward(),
-            FactorizedReduce(ch_in, ch_out, affine=affine)
+            FactorizedReduce(op_desc)
         )
 
     @overrides
@@ -45,11 +45,11 @@ class StopForwardReductionOp(Op):
 
 
 class StopGradientReduction(Op):
-    def __init__(self, ch_in: int, ch_out: int, affine=True):
+    def __init__(self, op_desc:OpDesc):
         super().__init__()
         self._op = nn.Sequential(
             StopGradient(),
-            FactorizedReduce(ch_in, ch_out, affine=affine)
+            FactorizedReduce(op_desc)
         )
 
     @overrides
@@ -72,33 +72,32 @@ class PetridishOp(Op):
     def __init__(self, op_desc:OpDesc, alphas: Iterable[nn.Parameter], reduction:bool):
         super().__init__()
 
-        # assume last PRIMITIVE is 'none'
+        # assume last PRIMITIVE is 'none' (this is used for finalize)
         assert PetridishOp.PRIMITIVES[-1] == 'none'
 
         self._set_alphas(alphas, op_desc.in_len)
-        self._ins = nn.ModuleList()
+        self._edges = nn.ModuleList()
 
         for _ in range(op_desc.in_len):
-            in_ops = nn.ModuleList()
-            self._ins.append(in_ops)
+            edge = nn.ModuleList()
+            self._edges.append(edge)
             for primitive in PetridishOp.PRIMITIVES:
-                primitive_op = Op.create(
-                    OpDesc(primitive, op_desc.run_mode,
-                        ch_in=op_desc.ch_in, ch_out=op_desc.ch_out,
-                        stride=op_desc.stride, affine=op_desc.affine), alphas=alphas)
+                primitive_op = Op.create(OpDesc(primitive, op_desc.run_mode,
+                                                params=op_desc.params),
+                                        alphas=alphas)
                 op = nn.Sequential(
-                    StopGradientReduction(op_desc.ch_in, op_desc.ch_out,                        affine=op_desc.affine) if reduction else StopGradient(),
+                    StopGradientReduction(op_desc) if reduction else StopGradient(),
                     primitive_op)
-                in_ops.append(op)
-        self._sf = StopForwardReductionOp(op_desc.ch_in, op_desc.ch_out,
-                                          affine=op_desc.affine) if reduction else StopForward()
+                edge.append(op)
+
+        self._sf = StopForwardReductionOp(op_desc) if reduction else StopForward()
 
     @overrides
     def forward(self, x:List[Tensor]):
         s = 0
-        for i, (xi, in_ops) in enumerate(zip(x, self._ins)):
-            asm = F.softmax(self._alphas[i], dim=0)
-            s = sum(w * op(xi) for w, op in zip(asm, in_ops)) + s
+        for i, (xi, edge) in enumerate(zip(x, self._edges)):
+            edge_alphas = self._alphas[i]
+            s = sum(a * op(xi) for a, op in zip(edge_alphas, edge)) + s
         return self._sf(s)
 
     @overrides
@@ -109,32 +108,75 @@ class PetridishOp(Op):
     @overrides
     def weights(self) -> Iterable[nn.Parameter]:
         #TODO: cache this?
-        for in_ops in self._ins:
-            for op in in_ops:
+        for edge in self._edges:
+            for op in edge:
                 for w in op.parameters():
                     yield w
 
     @overrides
     def finalize(self) -> Tuple[OpDesc, Optional[float]]:
-        raise NotImplementedError()
-        # select except 'none' op
         with torch.no_grad():
-            val, i = torch.topk(self._alphas[0][:-1], 1)
-        return self._ops[i].desc, float(val.item())
+            # create list of (alpha, input_id, op_desc), sort them, select top
+            l = [(a, i, op.desc) \
+                for edge_alphas, i, edge in
+                    zip(self._alphas, range(self.desc.in_len), self._edges) \
+                for a, op in zip(edge_alphas, edge)]
+            sel = l.sort(key=lambda t: t[0], reverse=True)[3] # TODO: add config
 
-    @overrides
-    def can_drop_path(self) -> bool:
-        return False
+        final_op_desc = OpDesc(name='petridish_final_op',
+                                run_mode=RunMode.EvalTrain,
+                                params={
+                                    'ch_out': self.desc.ch_out,
+                                    'affine': True,
+                                    'in_ops': [(i, desc) for a, i, desc in sel]
+                                },
+                                in_len=self.desc.in_len
+                               )
+
+        return final_op_desc, None # rank=None to indicate no further selection
 
     def _set_alphas(self, alphas: Iterable[nn.Parameter], in_len:int) -> None:
         assert len(list(self.parameters()))==0 # must call before adding other ops
+
         self._alphas = list(alphas)
+
+        # if this op shares alpha with another op then len should be non-zero
         if not len(self._alphas):
             pl = nn.ParameterList((
                 nn.Parameter(  # TODO: use better init than uniform random?
-                    1.0e-3*torch.randn(len(PetridishOp.PRIMITIVES)),
+                    torch.FloatTensor(len(PetridishOp.PRIMITIVES)).uniform_(-0.1, 0.1),
                     requires_grad=True)
                 for _ in range(in_len)
             ))
-            self._reg_alphas = pl
+            self._reg_alphas = pl # register parameters with module
             self._alphas = [p for p in self.parameters()]
+
+
+class PetridishFinalOp(Op):
+    def __init__(self, op_desc:OpDesc) -> None:
+        super().__init__()
+
+        in_ops:Sequence[Tuple[int, OpDesc]] = op_desc.params['in_ops']
+        ch_out:int = op_desc.params['ch_out']
+        affine:bool = op_desc.params['affine']
+
+        self._ops = nn.ModuleList()
+        self._ins:List[int] = []
+
+        all_ch_in = 0
+        for i, op_desc in in_ops:
+            self._ops.append(Op.create(op_desc))
+            all_ch_in += op_desc.params['ch_out']
+            self._ins.append(i)
+
+        # 1x1 conv
+        self._conv = nn.Conv2d(all_ch_in, ch_out, 1,
+                                stride=1, padding=0, bias=False)
+        self._bn = nn.BatchNorm2d(ch_out, affine=affine)
+
+    @overrides
+    def forwards(self, x:List[Tensor])->Tensor:
+        res = torch.cat([op(x[i]) for op, i in zip(self._ops, self._ins)])
+        res = self._conv(res)
+        return self._bn(res)
+

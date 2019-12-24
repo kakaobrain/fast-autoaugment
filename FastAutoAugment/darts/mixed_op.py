@@ -29,8 +29,7 @@ class MixedOp(Op):
         'none'  # this must be at the end so top1 doesn't chose it
     ]
 
-    def __init__(self, ch_in, ch_out, stride, affine,
-                 alphas: Iterable[nn.Parameter], run_mode: RunMode):
+    def __init__(self, op_desc:OpDesc, alphas: Iterable[nn.Parameter]):
         super().__init__()
 
         # assume last PRIMITIVE is 'none'
@@ -40,8 +39,7 @@ class MixedOp(Op):
         self._ops = nn.ModuleList()
         for primitive in MixedOp.PRIMITIVES:
             op = Op.create(
-                OpDesc(primitive, run_mode, ch_in=ch_in, ch_out=ch_out,
-                       stride=stride, affine=affine), alphas=alphas)
+                OpDesc(primitive, op_desc.run_mode, op_desc.params), alphas=alphas)
             self._ops.append(op)
 
     @overrides

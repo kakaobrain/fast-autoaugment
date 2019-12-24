@@ -11,10 +11,7 @@ from .mixed_op import MixedOp
 class DartsDagMutator(DagMutator):
     def __init__(self) -> None:
         Op.register_op('mixed_op',
-                    lambda op_desc, alphas:
-                        MixedOp(op_desc.ch_in, op_desc.ch_out, op_desc.stride,
-                                op_desc.affine, alphas, op_desc.run_mode)
-        )
+                       lambda op_desc, alphas: MixedOp(op_desc, alphas))
 
     @overrides
     def mutate(self, model_desc:ModelDesc)->None:
@@ -30,10 +27,12 @@ class DartsDagMutator(DagMutator):
             for j in range(i+2):
                 op_desc = OpDesc('mixed_op',
                                     run_mode=cell_desc.run_mode,
-                                    ch_in=ch_out,
-                                    ch_out=ch_out,
-                                    stride=2 if reduction and j < 2 else 1,
-                                    affine=cell_desc!=RunMode.Search)
+                                    params={
+                                        'ch_in': ch_out,
+                                        'ch_out': ch_out,
+                                        'stride': 2 if reduction and j < 2 else 1,
+                                        'affine': cell_desc!=RunMode.Search
+                                    })
                 edge = EdgeDesc(op_desc, len(node.edges),
                                 input_ids=[j],
                                 from_node=i,

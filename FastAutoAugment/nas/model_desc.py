@@ -18,12 +18,12 @@ class OpDesc(DescBase):
     """Op description that is in each edge
     """
     def __init__(self, name:str, run_mode:RunMode,
-                 ch_in:Optional[int]=None, ch_out:Optional[int]=None,
-                 stride:Optional[int]=None, affine:Optional[bool]=None,
+                 params:dict={},
                  in_len=1)->None:
         self.name = name
-        self.ch_in, self.ch_out, self.in_len = ch_in, ch_out, in_len
-        self.stride, self.affine, self.run_mode = stride, affine, run_mode
+        self.in_len = in_len
+        self.run_mode = run_mode
+        self.params = params # parameters specific to op needed to construct it
 
 class EdgeDesc(DescBase):
     """Edge description between two nodes in the cell
@@ -33,7 +33,7 @@ class EdgeDesc(DescBase):
         self.op_desc = op_desc
         self.index = index
         self.input_ids = input_ids
-        self.from_node = from_node
+        self.from_node = from_node # TODO: change name
         self.to_state = to_state
 
 class NodeDesc(DescBase):
@@ -66,7 +66,7 @@ class CellDesc(DescBase):
         self.n_out_nodes = n_out_nodes
         self.n_node_channels = n_node_channels
         self.run_mode = run_mode
-        self.alphas_from = alphas_from
+        self.alphas_from = alphas_from # cell index with which we share alphas
 
     def get_ch_out(self)->int:
         # cell output is concatenation of output nodes and output channels
