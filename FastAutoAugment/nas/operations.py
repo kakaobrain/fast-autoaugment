@@ -11,7 +11,7 @@ from ..common import utils
 from .model_desc import OpDesc, RunMode
 
 # type alias
-OpFactoryFn = Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']
+OpFactoryFn = Callable[[OpDesc, Iterable[nn.Parameter]], Op]
 
 # Each op is a unary tensor operator, all take same constructor params
 _ops_factory:Dict[str, OpFactoryFn] = {
@@ -60,7 +60,8 @@ class Op(nn.Module, ABC, EnforceOverrides):
     def create(op_desc:OpDesc,
                alphas:Iterable[nn.Parameter]=[])->'Op':
         op = _ops_factory[op_desc.name](op_desc, alphas)
-        op.desc = op_desc # TODO: annotate as Final
+        # TODO: annotate as Final
+        op.desc = op_desc # type: ignore
         return op
 
     @staticmethod
@@ -72,12 +73,12 @@ class Op(nn.Module, ABC, EnforceOverrides):
         else:
             _ops_factory[name] = factory_fn
 
-    # must override if op has alphas!
+    # must override if op has alphas, otherwise this returns nothing!
     def alphas(self)->Iterable[nn.Parameter]:
         return # when supported, derived class should override it
         yield
 
-    # must override if op has alphas!
+    # must override if op has alphas, otherwise this will return weights + alphas!
     def weights(self)->Iterable[nn.Parameter]:
         for w in self.parameters():
             yield w

@@ -33,7 +33,7 @@ class EdgeDesc(DescBase):
         self.op_desc = op_desc
         self.index = index
         self.input_ids = input_ids
-        self.from_node = from_node
+        self.from_node = from_node # TODO: change name
         self.to_state = to_state
 
 class NodeDesc(DescBase):
