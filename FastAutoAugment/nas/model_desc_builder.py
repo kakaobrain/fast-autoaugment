@@ -39,12 +39,14 @@ class ModelDescBuilder(EnforceOverrides):
 
     def get_model_desc(self)->ModelDesc:
         stem0_op, stem1_op = self._get_stem_ops()
-        assert stem0_op.ch_out is not None
-        cell_descs = self._get_cell_descs(stem0_op.ch_out)
+        cell_descs = self._get_cell_descs(stem0_op.params['ch_out'])
 
         ch_out = cell_descs[-1].get_ch_out()
         pool_op = OpDesc(self.pool_op_name, self.run_mode,
-                         ch_in=ch_out, ch_out=ch_out)
+                         params={
+                             'ch_in': ch_out,
+                             'ch_out': ch_out
+                         })
 
         return ModelDesc(stem0_op, stem1_op, pool_op,
                          self.ch_in, self.n_classes, cell_descs)
@@ -113,10 +115,12 @@ class ModelDescBuilder(EnforceOverrides):
             for template_edge in template_node.edges:
                 op_desc = OpDesc(template_edge.op_desc.name,
                                     run_mode=self.run_mode,
-                                    ch_in=ch_out,
-                                    ch_out=ch_out,
-                                    stride=template_edge.op_desc.stride,
-                                    affine=cell_desc.run_mode!=RunMode.Search)
+                                    params={
+                                        'ch_in': ch_out,
+                                        'ch_out': ch_out,
+                                        'stride': template_edge.op_desc.params['stride'],
+                                        'affine': cell_desc.run_mode!=RunMode.Search
+                                    })
                 edge = EdgeDesc(op_desc, len(node.edges),
                                 input_ids=template_edge.input_ids,
                                 from_node=template_edge.from_node,
@@ -151,14 +155,24 @@ class ModelDescBuilder(EnforceOverrides):
         # TODO: investigate why affine=False for search but True for test
         if reduction_p:
             s0_op = OpDesc('prepr_reduce', run_mode=self.run_mode,
-                            ch_in=pp_ch_out, ch_out=ch_out, affine=False)
+                            params={
+                                'ch_in': pp_ch_out,
+                                'ch_out': ch_out,
+                                'affine': self.run_mode!=RunMode.Search
+                            })
         else:
             s0_op = OpDesc('prepr_normal', run_mode=self.run_mode,
-                            ch_in=pp_ch_out, ch_out=ch_out,
-                            affine=self.run_mode!=RunMode.Search)
+                            params={
+                                'ch_in': pp_ch_out,
+                                'ch_out': ch_out,
+                                'affine': self.run_mode!=RunMode.Search
+                            })
         s1_op = OpDesc('prepr_normal', run_mode=self.run_mode,
-                        ch_in=p_ch_out, ch_out=ch_out,
-                        affine=self.run_mode!=RunMode.Search)
+                        params={
+                                    'ch_in': p_ch_out,
+                                    'ch_out': ch_out,
+                                    'affine': self.run_mode!=RunMode.Search
+                        })
 
         return s0_op, s1_op
 
@@ -177,10 +191,18 @@ class ModelDescBuilder(EnforceOverrides):
         # TODO: in original paper stems are always affine
         stem_ch_out = self.init_ch_out*self.stem_multiplier
         stem0_op = OpDesc(name=self.stem0_op_name, run_mode=self.run_mode,
-                          ch_in=self.ch_in, ch_out=stem_ch_out,
-                          affine=self.run_mode!=RunMode.Search)
+                          params={
+                            'ch_in': self.ch_in,
+                            'ch_out': stem_ch_out,
+                            'affine': self.run_mode!=RunMode.Search
+                          }
+                          )
         stem1_op = OpDesc(name=self.stem1_op_name, run_mode=self.run_mode,
-                          ch_in=self.ch_in, ch_out=stem_ch_out,
-                          affine=self.run_mode!=RunMode.Search)
+                          params={
+                            'ch_in':self.ch_in,
+                            'ch_out':stem_ch_out,
+                            'affine':self.run_mode!=RunMode.Search
+                          })
+
 
         return stem0_op, stem1_op

@@ -35,6 +35,7 @@ class Cell(nn.Module, ABC, EnforceOverrides):
         for i, node_desc in enumerate(nodes_desc):
             edges:nn.ModuleList = nn.ModuleList()
             dag.append(edges)
+            assert len(node_desc.edges) > 0
             for j, edge_desc in enumerate(node_desc.edges):
                 edges.append(DagEdge(edge_desc,
                     alphas_edge=alphas_cell._dag[i][j] if alphas_cell else None))
@@ -54,8 +55,8 @@ class Cell(nn.Module, ABC, EnforceOverrides):
 
     @overrides
     def forward(self, s0, s1):
-        s0 = self._preprocess0(s0)  # [40, 48, 32, 32], [40, 16, 32, 32]
-        s1 = self._preprocess1(s1)  # [40, 48, 32, 32], [40, 16, 32, 32]
+        s0 = self._preprocess0(s0)
+        s1 = self._preprocess1(s1)
 
         states = [s0, s1]
         for node in self._dag:
@@ -66,7 +67,7 @@ class Cell(nn.Module, ABC, EnforceOverrides):
 
         # TODO: Below assumes same shape except for channels but this won't
         #   happen for max pool etc shapes?
-        return torch.cat(states[-self.desc.n_out_nodes:], dim=1) # 6x[40,16,32,32]
+        return torch.cat(states[-self.desc.n_out_nodes:], dim=1)
 
     def finalize(self, max_edges:int)->CellDesc:
         nodes_desc:List[NodeDesc] = []
