@@ -32,11 +32,11 @@ class StopGradient(Op):
         return y
 
 class StopForwardReductionOp(Op):
-    def __init__(self, ch_in: int, ch_out: int, affine=True):
+    def __init__(self, op_desc:OpDesc):
         super().__init__()
         self._op = nn.Sequential(
             StopForward(),
-            FactorizedReduce(ch_in, ch_out, affine=affine)
+            FactorizedReduce(op_desc)
         )
 
     @overrides
@@ -45,11 +45,11 @@ class StopForwardReductionOp(Op):
 
 
 class StopGradientReduction(Op):
-    def __init__(self, ch_in: int, ch_out: int, affine=True):
+    def __init__(self, op_desc:OpDesc):
         super().__init__()
         self._op = nn.Sequential(
             StopGradient(),
-            FactorizedReduce(ch_in, ch_out, affine=affine)
+            FactorizedReduce(op_desc)
         )
 
     @overrides
@@ -83,22 +83,14 @@ class PetridishOp(Op):
             self._edges.append(edge)
             for primitive in PetridishOp.PRIMITIVES:
                 primitive_op = Op.create(OpDesc(primitive, op_desc.run_mode,
-                                    ch_in=op_desc.ch_in, ch_out=op_desc.ch_out,
-                                    stride=op_desc.stride, affine=op_desc.affine),
-                                  alphas=alphas)
+                                                params=op_desc.params),
+                                        alphas=alphas)
                 op = nn.Sequential(
-                    StopGradientReduction(op_desc.ch_in, op_desc.ch_out,
-                                          affine=op_desc.affine) \
-                        if reduction                             \
-                        else StopGradient(),
-                    primitive_op
-                )
+                    StopGradientReduction(op_desc) if reduction else StopGradient(),
+                    primitive_op)
                 edge.append(op)
 
-        self._sf = StopForwardReductionOp(op_desc.ch_in, op_desc.ch_out,
-                                          affine=op_desc.affine) \
-                        if reduction                             \
-                        else StopForward()
+        self._sf = StopForwardReductionOp(op_desc) if reduction else StopForward()
 
     @overrides
     def forward(self, x:List[Tensor]):
@@ -131,12 +123,17 @@ class PetridishOp(Op):
                 for a, op in zip(edge_alphas, edge)]
             sel = l.sort(key=lambda t: t[0], reverse=True)[3] # TODO: add config
 
-        final_op = PetridishFinalOp(self.desc.in_len,
-                                    [(i, desc) for a, i, desc in sel],
-                                    self.desc.ch_out,
-                                    affine=True) # TODO: check this
+        final_op_desc = OpDesc(name='petridish_final_op',
+                                run_mode=RunMode.EvalTrain,
+                                params={
+                                    'ch_out': self.desc.ch_out,
+                                    'affine': True,
+                                    'in_ops': [(i, desc) for a, i, desc in sel]
+                                },
+                                in_len=self.desc.in_len
+                               )
 
-        return final_op, None # rank=None to indicate no further selection
+        return final_op_desc, None # rank=None to indicate no further selection
 
     def _set_alphas(self, alphas: Iterable[nn.Parameter], in_len:int) -> None:
         assert len(list(self.parameters()))==0 # must call before adding other ops
@@ -156,15 +153,20 @@ class PetridishOp(Op):
 
 
 class PetridishFinalOp(Op):
-    def __init__(self, in_len:int, in_ops:Sequence[Tuple[int, OpDesc]],
-                 ch_out:int, affine:bool) -> None:
+    def __init__(self, op_desc:OpDesc) -> None:
+        super().__init__()
+
+        in_ops:Sequence[Tuple[int, OpDesc]] = op_desc.params['in_ops']
+        ch_out:int = op_desc.params['ch_out']
+        affine:bool = op_desc.params['affine']
+
         self._ops = nn.ModuleList()
         self._ins:List[int] = []
 
         all_ch_in = 0
         for i, op_desc in in_ops:
             self._ops.append(Op.create(op_desc))
-            all_ch_in += op_desc.ch_out or 0
+            all_ch_in += op_desc.params['ch_out']
             self._ins.append(i)
 
         # 1x1 conv
