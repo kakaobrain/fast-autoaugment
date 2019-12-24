@@ -1,11 +1,11 @@
 from argparse import ArgumentError
-from typing import Callable, Iterable, Tuple, Dict, Optional
+from typing import Callable, Iterable, Sequence, Tuple, Dict, Optional, List
 from abc import ABC, abstractmethod
 
 from overrides import overrides, EnforceOverrides
 
 import torch
-import torch.nn as nn
+from torch import nn, Tensor
 
 from ..common import utils
 from .model_desc import OpDesc, RunMode
@@ -369,3 +369,4 @@ class DropPath_(nn.Module):
     @overrides
     def forward(self, x):
         return utils.drop_path_(x, self.p, self.training)
+
