@@ -1,6 +1,6 @@
 import sys
 
-from FastAutoAugment.nas import vis_genotype as vis
+from FastAutoAugment.nas import vis_model_desc as vis
 
 
 if __name__ == '__main__':
