@@ -90,8 +90,7 @@ def _create_tb_writer(conf_common: Config, is_master=True)\
 
 def _get_formatter() -> logging.Formatter:
     return logging.Formatter(
-        '[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s')
-
+        '[%(asctime)s][%(levelname)s] %(message)s')
 
 def _setup_logger(experiment_name, level=logging.DEBUG) -> None:
     global _logger

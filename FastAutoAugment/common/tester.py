@@ -14,16 +14,16 @@ class Tester(EnforceOverrides):
     """Evaluate model on given data"""
 
     def __init__(self, model:nn.Module, device, lossfn:_Loss,
-                 logger_freq:int=10, tb_tag:str='')->None:
+                 logger_freq:int=10, title:str='')->None:
         self.model = model
         self.device = device
         self.lossfn = lossfn
-        self.tb_tag = tb_tag
+        self.title = title
         self.logger_freq = logger_freq
 
     def test(self, test_dl:DataLoader, epochs:int)->Metrics:
         metrics = self.create_metrics(epochs)
-        for epoch in range(epochs):
+        for _ in range(epochs):
             self.test_epoch(test_dl, metrics)
         return metrics
 
@@ -38,7 +38,7 @@ class Tester(EnforceOverrides):
         metrics.post_step(x, y, logits, loss, steps)
 
     def create_metrics(self, epochs:int):
-        return Metrics(epochs, self.tb_tag, logger_freq=self.logger_freq)
+        return Metrics(self.title, epochs, logger_freq=self.logger_freq)
 
     def test_epoch(self, test_dl: DataLoader, metrics:Metrics)->None:
         steps = len(test_dl)
