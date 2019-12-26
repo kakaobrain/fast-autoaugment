@@ -94,8 +94,9 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     lr_scheduler = get_lr_scheduler(conf_lr_sched, epochs, optim)
 
     trainer = Trainer(model, device, train_lossfn, test_lossfn,
-        aux_weight, grad_clip, drop_path_prob, logger_freq,
-        tb_tag='eval_train', val_logger_freq=1000, val_tb_tag='eval_test')
+        aux_weight=aux_weight, grad_clip=grad_clip,
+        drop_path_prob=drop_path_prob, logger_freq=logger_freq,
+        title='eval_train', val_logger_freq=1000, val_title='eval_test')
     train_metrics, test_metrics = trainer.fit(train_dl, test_dl, epochs,
                                               optim, lr_scheduler)
     test_metrics.report_best()

@@ -49,8 +49,8 @@ class BilevelArchTrainer(ArchTrainer):
         trainer = BilevelTrainer(w_momentum, w_decay, alpha_optim,
             max_final_edges, plotsdir, model, device, lossfn, lossfn,
             aux_weight=0.0, grad_clip=grad_clip, drop_path_prob=0.0,
-            logger_freq=logger_freq, tb_tag='search_train',
-            val_logger_freq=1000, val_tb_tag='search_val')
+            logger_freq=logger_freq, title='search_train',
+            val_logger_freq=1000, val_title='search_val')
 
         train_metrics, val_metrics = trainer.fit(train_dl, val_dl, epochs,
                                                  w_optim, lr_scheduler)
@@ -64,12 +64,13 @@ class BilevelTrainer(Trainer):
                  max_final_edges:int, plotsdir:str,
                  model:Model, device, train_lossfn: _Loss, test_lossfn: _Loss,
                  aux_weight: float, grad_clip: float,
-                 drop_path_prob: float, logger_freq: int,
-                 tb_tag: str, val_logger_freq:int, val_tb_tag:str)->None:
+                 drop_path_prob: float, logger_freq: int, title:str,
+                val_logger_freq:int, val_title:str)->None:
         super().__init__(model, device, train_lossfn, test_lossfn,
                          aux_weight=aux_weight, grad_clip=grad_clip,
                          drop_path_prob=drop_path_prob,
-                         logger_freq=logger_freq, tb_tag=tb_tag)
+                         logger_freq=logger_freq, title=title,
+                         val_logger_freq=val_logger_freq, val_title=val_title)
 
         self.w_momentum, self.w_decay = w_momentum, w_decay
         self.alpha_optim = alpha_optim

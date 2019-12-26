@@ -123,3 +123,17 @@ def deep_update(d:MutableMapping, u:Mapping, map_type:Type[MutableMapping]=dict)
         else:
             d[k] = v
     return d
+
+
+# TODO: replace this with SmoothCrossEntropyLoss class
+# def cross_entropy_smooth(input: torch.Tensor, target, size_average=True, label_smoothing=0.1):
+#     y = torch.eye(10).to(input.device)
+#     lb_oh = y[target]
+
+#     target = lb_oh * (1 - label_smoothing) + 0.5 * label_smoothing
+
+#     logsoftmax = nn.LogSoftmax()
+#     if size_average:
+#         return torch.mean(torch.sum(-target * logsoftmax(input), dim=1))
+#     else:
+#         return torch.sum(torch.sum(-target * logsoftmax(input), dim=1))
