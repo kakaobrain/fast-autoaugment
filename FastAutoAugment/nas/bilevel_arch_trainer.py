@@ -17,7 +17,7 @@ from ..nas.model import Model
 from ..common.metrics import Metrics
 from ..nas.model_desc import ModelDesc
 from ..common.trainer import Trainer
-from ..nas.vis_genotype import draw_model_desc
+from ..nas.vis_model_desc import draw_model_desc
 
 
 class BilevelArchTrainer(ArchTrainer):
