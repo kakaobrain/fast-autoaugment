@@ -13,7 +13,7 @@ from ..nas.model import Model
 from ..common.metrics import Metrics
 from ..nas.model_desc import ModelDesc
 
-class DartsArchTrainer(ArchTrainer):
+class BilevelArchTrainer(ArchTrainer):
     @overrides
     def fit(self, conf_search:Config, model:Model, device,
             train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
