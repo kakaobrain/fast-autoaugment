@@ -21,37 +21,44 @@ from ..nas.vis_model_desc import draw_model_desc
 
 
 class BilevelArchTrainer(ArchTrainer):
-    @overrides
-    def fit(self, conf_search:Config, model:Model, device,
-            train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
-            plotsdir:str, logger_freq:int)->Tuple[ModelDesc, Metrics, Optional[Metrics]]:
+    def __init__(self, conf_common:Config, conf_search:Config,
+                 model:Model, device)-> None:
         # region conf vars
+        # common
+        self.logger_freq = conf_common['logger_freq']
+        self.plotsdir = conf_common['plotsdir']
         # search
         conf_lossfn   = conf_search['lossfn']
-        max_final_edges = conf_search['max_final_edges']
+        self.max_final_edges = conf_search['max_final_edges']
         # optimizers
-        conf_w_opt    = conf_search['weights']['optimizer']
-        w_momentum    = conf_w_opt['momentum']
-        w_decay       = conf_w_opt['decay']
-        grad_clip     = conf_w_opt['clip']
-        conf_w_sched  = conf_search['weights']['lr_schedule']
-        conf_a_opt    = conf_search['alphas']['optimizer']
+        self.conf_w_opt    = conf_search['weights']['optimizer']
+        self.conf_a_opt    = conf_search['alphas']['optimizer']
+        self.w_momentum    = self.conf_w_opt['momentum']
+        self.w_decay       = self.conf_w_opt['decay']
+        self.grad_clip     = self.conf_w_opt['clip']
+        self.conf_w_sched  = conf_search['weights']['lr_schedule']
         # endregion
 
-        lossfn = get_lossfn(conf_lossfn).to(device)
+        self.model = model
+        self.device = device
+        self.lossfn = get_lossfn(conf_lossfn).to(device)
 
+    @overrides
+    def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int)\
+            ->Tuple[ModelDesc, Metrics, Optional[Metrics]]:
         # optimizer for w and alphas
-        w_optim = get_optimizer(conf_w_opt, model.weights())
-        alpha_optim = get_optimizer(conf_a_opt, model.alphas())
-        lr_scheduler = get_lr_scheduler(conf_w_sched, epochs, w_optim)
+        w_optim = get_optimizer(self.conf_w_opt, self.model.weights())
+        alpha_optim = get_optimizer(self.conf_a_opt, self.model.alphas())
+        lr_scheduler = get_lr_scheduler(self.conf_w_sched, epochs, w_optim)
 
-        bilevel_optim = BilevelOptimizer(w_momentum, w_decay, alpha_optim,
-                                     model, lossfn)
+        bilevel_optim = BilevelOptimizer(self.w_momentum, self.w_decay, alpha_optim,
+                                     self.model, self.lossfn)
 
         trainer = BilevelTrainer(bilevel_optim,
-            max_final_edges, plotsdir, model, device, lossfn, lossfn,
-            aux_weight=0.0, grad_clip=grad_clip, drop_path_prob=0.0,
-            logger_freq=logger_freq, title='search_train',
+            self.max_final_edges, self.plotsdir, self.model, self.device,
+            self.lossfn, self.lossfn,
+            aux_weight=0.0, grad_clip=self.grad_clip, drop_path_prob=0.0,
+            logger_freq=self.logger_freq, title='search_train',
             val_logger_freq=1000, val_title='search_val')
 
         train_metrics, val_metrics = trainer.fit(train_dl, val_dl, epochs,

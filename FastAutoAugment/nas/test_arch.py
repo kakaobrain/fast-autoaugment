@@ -20,8 +20,6 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
               template_model_desc:Optional[ModelDesc]=None,
               save_model:bool=True):
 
-    logger, writer = get_logger(), get_tb_writer()
-
     # region conf vars
     logger_freq       = conf_common['logger_freq']
     horovod           = conf_common['horovod']
