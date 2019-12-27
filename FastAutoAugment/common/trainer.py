@@ -16,21 +16,22 @@ class Trainer(EnforceOverrides):
     def __init__(self, model:nn.Module, device,
                  train_lossfn:_Loss, test_lossfn:_Loss,
                  aux_weight=0., grad_clip=0., drop_path_prob=0.,
-                 logger_freq=10, tb_tag='',
-                 val_logger_freq=10, val_tb_tag='')->None:
+                 logger_freq=10, title='',
+                 val_logger_freq=10, val_title='')->None:
         self.model = model
         self.device = device
         self.train_lossfn = train_lossfn
         self.aux_weight, self.grad_clip = aux_weight, grad_clip
         self.drop_path_prob = drop_path_prob
-        self.tb_tag, self.logger_freq = tb_tag, logger_freq
+        self.title, self.logger_freq = title, logger_freq
         self.tester = Tester(model, device, test_lossfn,
-                             logger_freq=val_logger_freq, tb_tag=val_tb_tag)
+                             logger_freq=val_logger_freq, title=val_title)
 
     def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
             optim:Optimizer, lr_scheduler:_LRScheduler)\
               ->Tuple[Metrics, Optional[Metrics]]:
-        train_metrics, val_metrics = self.create_metrics(epochs, optim), None
+        train_metrics, val_metrics = \
+            self.create_metrics(epochs, optim), None
 
         if val_dl:
             val_metrics = self.tester.create_metrics(epochs)
@@ -60,7 +61,8 @@ class Trainer(EnforceOverrides):
         train_metrics.post_step(x, y, logits, loss, steps)
 
     def create_metrics(self, epochs:int, optim:Optimizer):
-        return Metrics(epochs, self.tb_tag, optim, self.logger_freq)
+        return Metrics(self.title, epochs,
+                       optim=optim, logger_freq=self.logger_freq)
 
     def train_epoch(self, train_dl: DataLoader, optim:Optimizer,
                     train_metrics:Metrics)->None:

@@ -28,7 +28,7 @@ class PetridishMutator(DagMutator):
         ch_out = cell_desc.n_node_channels
         reduction = (cell_desc.cell_type==CellType.Reduction)
 
-        # add mixed op for each edge
+        # add petridish op for each edge
         node, i = NodeDesc(edges=[]), len(cell_desc.nodes)
         for j in range(i+2):
             op_desc = OpDesc('petridish_reduction_op' if reduction else 'petridish_normal_op',
