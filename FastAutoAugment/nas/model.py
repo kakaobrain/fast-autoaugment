@@ -97,7 +97,7 @@ class Model(nn.Module):
 
     def drop_path_prob(self, p:float):
         """ Set drop path probability
-        This will be called exteranlly so any DropPath_ modules get
+        This will be called externally so any DropPath_ modules get
         new probability. Typically, every epoch we will reduce this probability.
         """
         for module in self.modules():

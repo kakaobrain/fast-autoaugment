@@ -59,7 +59,7 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
         with open(os.path.join(logdir, model_desc_file), 'r') as f:
             template_model_desc = yaml.load(f, Loader=yaml.Loader)
 
-    # template desc must be supplied either via parameter of config
+    # template desc must be supplied either via parameter or config
     assert template_model_desc is not None
     # if save_model is true then logdir must be specified
     assert (save_model and logdir) or not save_model
