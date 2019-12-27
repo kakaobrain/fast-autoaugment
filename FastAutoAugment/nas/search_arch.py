@@ -1,5 +1,8 @@
-import torch
 import os
+from typing import Tuple
+
+import torch
+from torch.utils.data.dataloader import DataLoader
 
 from ..common.common import get_logger
 from ..common.config import Config
@@ -13,28 +16,13 @@ from .arch_trainer import ArchTrainer
 
 def search_arch(conf_common: Config, conf_data: Config, conf_search: Config,
                 dag_mutator: DagMutator, arch_trainer: ArchTrainer) -> ModelDesc:
-    logger = get_logger()
-
     # region conf vars
-    horovod = conf_common['horovod']
     logger_freq = conf_common['logger_freq']
     plotsdir = conf_common['plotsdir']
-    logdir = conf_common['logdir']
-    # dataset
-    ds_name = conf_data['name']
-    max_batches = conf_data['max_batches']
-    dataroot = conf_data['dataroot']
     # data loader
     conf_loader = conf_search['loader']
-    aug = conf_loader['aug']
-    cutout = conf_loader['cutout']
-    val_ratio = conf_loader['val_ratio']
-    batch_size = conf_loader['batch']
     epochs = conf_loader['epochs']
-    val_fold = conf_loader['val_fold']
-    n_workers = conf_loader['n_workers']
     # search
-    model_desc_file = conf_search['model_desc_file']
     conf_model_desc = conf_search['model_desc']
     # endregion
 
@@ -42,24 +30,53 @@ def search_arch(conf_common: Config, conf_data: Config, conf_search: Config,
     model = create_model(conf_data, conf_model_desc, dag_mutator, device)
 
     # get data
-    train_dl, val_dl, *_ = get_dataloaders(
-        ds_name, batch_size, dataroot,
-        aug=aug, cutout=cutout, load_train=True, load_test=False,
-        val_ratio=val_ratio, val_fold=val_fold, horovod=horovod,
-        n_workers=n_workers, max_batches=max_batches)
+    train_dl, val_dl = get_data(conf_common, conf_loader, conf_data)
 
     found_model_desc, *_ = arch_trainer.fit(conf_search, model, device,
                                             train_dl, val_dl,
                                             epochs, plotsdir, logger_freq)
+
+    save_found_model_desc(conf_common, conf_search, found_model_desc)
+    return found_model_desc
+
+def save_found_model_desc(conf_common: Config, conf_search: Config,
+                          found_model_desc:ModelDesc):
+    logger = get_logger()
+    model_desc_file = conf_search['model_desc_file']
+    logdir = conf_common['logdir']
 
     if model_desc_file and logdir:
         model_desc_save_path = os.path.join(logdir, model_desc_file)
         with open(model_desc_save_path, 'w') as f:
             f.write(found_model_desc.serialize())
         logger.info(f"Best architecture saved in {model_desc_save_path}")
+    else:
+        logger.info(f"Best architecture is not saved because file path config not set")
 
-    return found_model_desc
+def get_data(conf_common:Config, conf_loader:Config, conf_data:Config)\
+        -> Tuple[DataLoader, DataLoader]:
+    # region conf vars
+    horovod = conf_common['horovod']
+    # dataset
+    ds_name = conf_data['name']
+    max_batches = conf_data['max_batches']
+    dataroot = conf_data['dataroot']
+    # data loader
+    aug = conf_loader['aug']
+    cutout = conf_loader['cutout']
+    val_ratio = conf_loader['val_ratio']
+    batch_size = conf_loader['batch']
+    val_fold = conf_loader['val_fold']
+    n_workers = conf_loader['n_workers']
+    # endregion
 
+    train_dl, val_dl, *_ = get_dataloaders(
+        ds_name, batch_size, dataroot,
+        aug=aug, cutout=cutout, load_train=True, load_test=False,
+        val_ratio=val_ratio, val_fold=val_fold, horovod=horovod,
+        n_workers=n_workers, max_batches=max_batches)
+
+    return train_dl, val_dl
 
 def create_model_desc(conf_data: Config, conf_model_desc: Config,
                       dag_mutator: DagMutator) -> ModelDesc:

@@ -20,7 +20,7 @@ from ..common.trainer import Trainer
 from ..nas.vis_model_desc import draw_model_desc
 
 
-class BilevelArchTrainer(ArchTrainer):
+class SgdArchTrainer(ArchTrainer):
     @overrides
     def fit(self, conf_search:Config, model:Model, device,
             train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,

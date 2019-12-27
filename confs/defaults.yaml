@@ -56,44 +56,7 @@ autoaug:
     lr_min: 0.0 # min learning rate, this will be used in eta_min param of scheduler
 
 darts:
-  test:
-    model_desc_file: 'best_model_desc.yaml'
-    model_file: 'cifar_model.pt'
-    data_parallel: False
-    model_desc:
-      init_ch_out: 36 # num of channels for stem outpt node
-      n_cells: 20 # number of cells
-      n_nodes: 4 # number of nodes in a cell
-      n_out_nodes: 4 # last n nodes to concate output from
-      stem_multiplier: 3 # output channels multiplier for the stem
-      aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
-      drop_path_prob: 0.2 # probability that given edge will be dropped
-    train_lossfn:
-      type: 'CrossEntropyLoss'
-    test_lossfn:
-      type: 'CrossEntropyLoss'
-    loader:
-      aug: '' # additional augmentations to use
-      cutout: 16 # cutout length, use cutout augmentation when > 0
-      batch: 96
-      epochs: 600
-      val_ratio: 0.4 #split portion for test set, 0 to 1
-      val_fold: 0 #Fold number to use (0 to 4)
-      cv_num: 5 # total number of folds available
-      n_workers: null # if null then gpu_count*4
-    optimizer:
-      type: 'sgd'
-      lr: 0.025 # init learning rate
-      decay: 3.0e-4
-      momentum: 0.9 # pytorch default is 0
-      nesterov: False
-      clip: 5. # grads above this value is clipped
-      warmup: null
-    lr_schedule:
-      type: 'cosine'
-      lr_min: 0.001 # min learning rate to se bet in eta_min param of scheduler
   search:
-    bilevel: True
     data_parallel: False
     max_final_edges: 2 # max edge that can be in final arch per node
     model_desc_file: 'best_model_desc.yaml' # found arch is saved in this file
@@ -139,3 +102,114 @@ darts:
         lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler
       lossfn:
         type: 'CrossEntropyLoss'
+  test:
+    model_desc_file: 'best_model_desc.yaml'
+    model_file: 'cifar_model.pt'
+    data_parallel: False
+    model_desc:
+      init_ch_out: 36 # num of channels for stem outpt node
+      n_cells: 20 # number of cells
+      n_nodes: 4 # number of nodes in a cell
+      n_out_nodes: 4 # last n nodes to concate output from
+      stem_multiplier: 3 # output channels multiplier for the stem
+      aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
+      drop_path_prob: 0.2 # probability that given edge will be dropped
+    train_lossfn:
+      type: 'CrossEntropyLoss'
+    test_lossfn:
+      type: 'CrossEntropyLoss'
+    loader:
+      aug: '' # additional augmentations to use
+      cutout: 16 # cutout length, use cutout augmentation when > 0
+      batch: 96
+      epochs: 600
+      val_ratio: 0.4 #split portion for test set, 0 to 1
+      val_fold: 0 #Fold number to use (0 to 4)
+      cv_num: 5 # total number of folds available
+      n_workers: null # if null then gpu_count*4
+    optimizer:
+      type: 'sgd'
+      lr: 0.025 # init learning rate
+      decay: 3.0e-4
+      momentum: 0.9 # pytorch default is 0
+      nesterov: False
+      clip: 5. # grads above this value is clipped
+      warmup: null
+    lr_schedule:
+      type: 'cosine'
+      lr_min: 0.001 # min learning rate to se bet in eta_min param of scheduler
+
+
+petridish:
+  search:
+    data_parallel: False
+    max_final_edges: 2 # max edge that can be in final arch per node
+    model_desc_file: 'best_model_desc.yaml' # found arch is saved in this file
+    model_desc:
+      init_ch_out: 16 # num of channels for stem outpt node
+      n_cells: 8 # number of cells
+      n_nodes: 4 # number of nodes in a cell
+      n_out_nodes: 4 # last n nodes to concate output from
+      stem_multiplier: 3 # output channels multiplier for the stem
+      aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
+      drop_path_prob: 0.0 # probability that given edge will be dropped
+    lossfn:
+      type: 'CrossEntropyLoss'
+    loader:
+      aug: '' # additional augmentations to use
+      cutout: 0 # cutout length, use cutout augmentation when > 0
+      batch: 32
+      epochs: 200
+      val_ratio: 0.5 #split portion for test set, 0 to 1
+      val_fold: 0 #Fold number to use (0 to 4)
+      cv_num: 5 # total number of folds available
+      n_workers: null # if null then gpu_count*4
+    optimizer:
+      type: 'sgd'
+      lr: 0.025 # init learning rate
+      decay: 3.0e-4
+      momentum: 0.9 # pytorch default is 0
+      nesterov: False
+      clip: 5. # grads above this value is clipped
+      warmup: null
+    lr_schedule:
+      type: 'cosine'
+      lr_min: 0.0 # min learning rate, this will be used in eta_min param of scheduler
+    lossfn:
+      type: 'CrossEntropyLoss'
+  test:
+    model_desc_file: 'best_model_desc.yaml'
+    model_file: 'cifar_model.pt'
+    data_parallel: False
+    model_desc:
+      init_ch_out: 32 # num of channels for stem outpt node
+      n_cells: 20 # number of cells
+      n_nodes: 4 # number of nodes in a cell
+      n_out_nodes: 4 # last n nodes to concate output from
+      stem_multiplier: 3 # output channels multiplier for the stem
+      aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
+      drop_path_prob: 0.6 # probability that given edge will be dropped
+    train_lossfn:
+      type: 'CrossEntropyLoss'
+    test_lossfn:
+      type: 'CrossEntropyLoss'
+    loader:
+      aug: '' # additional augmentations to use
+      cutout: 16 # cutout length, use cutout augmentation when > 0
+      batch: 96
+      epochs: 600
+      val_ratio: 0.4 #split portion for test set, 0 to 1
+      val_fold: 0 #Fold number to use (0 to 4)
+      cv_num: 5 # total number of folds available
+      n_workers: null # if null then gpu_count*4
+    optimizer:
+      type: 'sgd'
+      lr: 0.025 # init learning rate
+      decay: 3.0e-4
+      momentum: 0.9 # pytorch default is 0
+      nesterov: False
+      clip: 5. # grads above this value is clipped
+      warmup: null
+    lr_schedule:
+      type: 'cosine'
+      lr_min: 0.001 # min learning rate to se bet in eta_min param of scheduler
