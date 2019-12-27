@@ -14,31 +14,6 @@ from .dag_mutator import DagMutator
 from .arch_trainer import ArchTrainer
 
 
-def search_arch(conf_common: Config, conf_data: Config, conf_search: Config,
-                dag_mutator: DagMutator, arch_trainer: ArchTrainer) -> ModelDesc:
-    # region conf vars
-    logger_freq = conf_common['logger_freq']
-    plotsdir = conf_common['plotsdir']
-    # data loader
-    conf_loader = conf_search['loader']
-    epochs = conf_loader['epochs']
-    # search
-    conf_model_desc = conf_search['model_desc']
-    # endregion
-
-    device = torch.device('cuda')
-    model = create_model(conf_data, conf_model_desc, dag_mutator, device)
-
-    # get data
-    train_dl, val_dl = get_data(conf_common, conf_loader, conf_data)
-
-    found_model_desc, *_ = arch_trainer.fit(conf_search, model, device,
-                                            train_dl, val_dl,
-                                            epochs, plotsdir, logger_freq)
-
-    save_found_model_desc(conf_common, conf_search, found_model_desc)
-    return found_model_desc
-
 def save_found_model_desc(conf_common: Config, conf_search: Config,
                           found_model_desc:ModelDesc):
     logger = get_logger()
@@ -78,7 +53,7 @@ def get_data(conf_common:Config, conf_loader:Config, conf_data:Config)\
 
     return train_dl, val_dl
 
-def create_model_desc(conf_data: Config, conf_model_desc: Config,
+def _create_model_desc(conf_data: Config, conf_model_desc: Config,
                       dag_mutator: DagMutator) -> ModelDesc:
     builder = ModelDescBuilder(
         conf_data, conf_model_desc, run_mode=RunMode.Search)
@@ -86,9 +61,10 @@ def create_model_desc(conf_data: Config, conf_model_desc: Config,
     dag_mutator.mutate(model_desc)
     return model_desc
 
-def create_model(conf_data: Config, conf_model_desc: Config,
+def create_model(conf_data: Config, conf_search: Config,
                  dag_mutator: DagMutator, device) -> Model:
-    model_desc = create_model_desc(conf_data, conf_model_desc, dag_mutator)
+    conf_model_desc = conf_search['model_desc']
+    model_desc = _create_model_desc(conf_data, conf_model_desc, dag_mutator)
     model = Model(model_desc)
     # if data_parallel:
     #     model = nn.DataParallel(model).to(device)
