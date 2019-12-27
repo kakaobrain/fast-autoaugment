@@ -45,8 +45,8 @@ class RandomOp(Op):
 
     @overrides
     def forward(self, x):
-        return sum(op(x) for op in self._ops)
-
+        # There is only a single op
+        return self._ops[0](x)
 
     @overrides
     def weights(self) -> Iterable[nn.Parameter]:
