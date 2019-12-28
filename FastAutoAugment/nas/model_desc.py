@@ -41,10 +41,9 @@ class NodeDesc(DescBase):
         self.edges = edges
 
 class AuxTowerDesc(DescBase):
-    def __init__(self, ch_in:int, n_classes:int, aux_weight:float) -> None:
+    def __init__(self, ch_in:int, n_classes:int) -> None:
         self.ch_in = ch_in
         self.n_classes = n_classes
-        self.aux_weight = aux_weight
 
 class CellType(Enum):
     Regular = 'regular'

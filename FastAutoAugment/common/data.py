@@ -412,6 +412,8 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             sampler=None, drop_last=False
     )
 
+    assert val_ratio > 0.0 or validloader is None
+
     # we have to return train_sampler because of horovod
     return trainloader, validloader, testloader, train_sampler
 
