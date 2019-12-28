@@ -1,5 +1,4 @@
 from typing import Iterable, Optional, Tuple
-import random
 
 import torch
 from torch import nn
@@ -18,7 +17,6 @@ from ..nas.operations import Op
 class RandomOp(Op):
     """The output of RandomOp is one of the primitives chosen at uniform random
     """
-
     PRIMITIVES = [
         'max_pool_3x3',
         'avg_pool_3x3',
@@ -38,8 +36,9 @@ class RandomOp(Op):
 
         self._ops = nn.ModuleList()
 
-        # select an op from the primitive list (other than 'none')
-        p_sel_ind = random.randint(0, len(RandomOp.PRIMITIVES)-2)
+        # Empty alphas list since we don't know how to 
+        alphas = nn.ParameterList()
+        
         op = Op.create(OpDesc(RandomOp.PRIMITIVES[p_sel_ind], op_desc.run_mode, op_desc.params), alphas=None)
         self._ops.append(op)
 
