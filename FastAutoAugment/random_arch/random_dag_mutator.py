@@ -63,10 +63,10 @@ class RandomDagMutator(DagMutator):
             connect_state_0 = random.randint(0, i+1)
             connect_state_1 = random.randint(0, i+1)
 
-            p_ind_0 = random.randint(0, len(RandomOp.PRIMITIVES)-2)
+            p_ind_0 = random.randint(0, len(RandomDagMutator.PRIMITIVES)-2)
             p_0_name = RandomDagMutator.PRIMITIVES[p_ind_0]
 
-            p_ind_1 = random.randint(0, len(RandomOp.PRIMITIVES)-2)
+            p_ind_1 = random.randint(0, len(RandomDagMutator.PRIMITIVES)-2)
             p_1_name = RandomDagMutator.PRIMITIVES[p_ind_1]
             
             params_0 = {}
