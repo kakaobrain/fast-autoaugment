@@ -7,7 +7,6 @@ from overrides import overrides
 from ..nas.dag_mutator import DagMutator
 from ..nas.operations import Op
 from ..nas.model_desc import ModelDesc, CellDesc, CellType, RunMode, OpDesc, EdgeDesc
-from .random_op import RandomOp
 
 class OpDescContainer():
     def __init__(self) -> None:
@@ -21,6 +20,17 @@ class OpDescContainer():
             yield op_desc_tuple
         
 class RandomDagMutator(DagMutator):
+    PRIMITIVES = [
+        'max_pool_3x3',
+        'avg_pool_3x3',
+        'skip_connect',  # identity
+        'sep_conv_3x3',
+        'sep_conv_5x5',
+        'dil_conv_3x3',
+        'dil_conv_5x5',
+        'none'  # this must be at the end so top1 doesn't choose it
+    ]
+
     def __init__(self) -> None:        
         self.op_desc_container = OpDescContainer()
 
@@ -54,10 +64,10 @@ class RandomDagMutator(DagMutator):
             connect_state_1 = random.randint(0, i+1)
 
             p_ind_0 = random.randint(0, len(RandomOp.PRIMITIVES)-2)
-            p_0_name = RandomOp.PRIMITIVES[p_ind_0]
+            p_0_name = RandomDagMutator.PRIMITIVES[p_ind_0]
 
             p_ind_1 = random.randint(0, len(RandomOp.PRIMITIVES)-2)
-            p_1_name = RandomOp.PRIMITIVES[p_ind_1]
+            p_1_name = RandomDagMutator.PRIMITIVES[p_ind_1]
             
             params_0 = {}
             params_0['source_state'] = connect_state_0
