@@ -61,6 +61,8 @@ class RandomDagMutator(DagMutator):
             # Every node connects to randomly chosen two 
             # previous states via a random operation
             connect_state_0 = random.randint(0, i+1)
+            # TODO: Make sure that you are not 
+            # connecting to the same state
             connect_state_1 = random.randint(0, i+1)
 
             p_ind_0 = random.randint(0, len(RandomDagMutator.PRIMITIVES)-2)
