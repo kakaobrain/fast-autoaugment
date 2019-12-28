@@ -138,7 +138,7 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
         # compatibility
         total_trainset.targets = [lb for _, lb in total_trainset.samples]
 
-        sss = StratifiedShuffleSplit(n_splits=1, test_size=len(total_trainset) - 500000, random_state=0)  # 4000 trainset
+        sss = StratifiedShuffleSplit(n_splits=1, test_size=len(total_trainset) - 6000, random_state=0)  # 4000 trainset
         sss = sss.split(list(range(len(total_trainset))), total_trainset.targets)
         train_idx, valid_idx = next(sss)
 
