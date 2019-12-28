@@ -1,7 +1,7 @@
 from torch.utils.data.dataloader import DataLoader
 import os
 import sys
-from typing import Tuple, Union
+from typing import Tuple, Union, Optional
 
 import torch
 import torchvision
@@ -152,7 +152,7 @@ def _get_datasets(dataset, dataroot, load_train:bool, load_test:bool,
 
 # target_lb allows to filter dataset for a specific class, not used
 def _get_train_sampler(val_ratio:float, val_fold:int, trainset, horovod,
-        target_lb:int=-1)->Tuple[Sampler,Sampler]:
+        target_lb:int=-1)->Tuple[Optional[Sampler], Sampler]:
     """Splits train set into train, validation sets, stratified rand sampling.
 
     Arguments:
@@ -353,7 +353,8 @@ class LimitDataset(Dataset):
 def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     load_train:bool, load_test:bool, val_ratio:float, val_fold=0,
     horovod=False, target_lb=-1, n_workers:int=None, max_batches:int=-1) \
-        -> Tuple[DataLoader, DataLoader, DataLoader, Sampler]:
+        -> Tuple[Optional[DataLoader], Optional[DataLoader],
+                 Optional[DataLoader], Optional[Sampler]]:
 
     logger = get_logger()
 
@@ -380,7 +381,7 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
     #     trainset.set_preaug(augs, total_aug)
     #     logger.info('set_preaug-')
 
-    trainloader, validloader, testloader = None, None, None
+    trainloader, validloader, testloader, train_sampler = None, None, None, None
 
     if trainset:
         if max_batches >= 0:
@@ -394,10 +395,12 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
             batch_size=batch_size, shuffle=True if train_sampler is None else False,
             num_workers=n_workers, pin_memory=True,
             sampler=train_sampler, drop_last=True)
-        validloader = torch.utils.data.DataLoader(trainset,
-            batch_size=batch_size, shuffle=False,
-            num_workers=n_workers, pin_memory=True, #TODO: set n_workers per ratio?
-            sampler=valid_sampler, drop_last=False)
+        if train_sampler is not None:
+            validloader = torch.utils.data.DataLoader(trainset,
+                batch_size=batch_size, shuffle=False,
+                num_workers=n_workers, pin_memory=True, #TODO: set n_workers per ratio?
+                sampler=valid_sampler, drop_last=False)
+        # else validloader is left as None
     if testset:
         if max_batches >= 0:
             max_size = max_batches*batch_size

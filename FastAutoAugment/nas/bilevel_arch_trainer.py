@@ -12,7 +12,7 @@ from overrides import overrides
 
 from ..common.config import Config
 from ..nas.arch_trainer import ArchTrainer, ArchOptimizer
-from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
+from ..common.utils import get_lr_scheduler, get_optimizer, get_lossfn
 from ..nas.model import Model
 from ..common.metrics import Metrics
 from ..nas.model_desc import ModelDesc
@@ -51,10 +51,10 @@ class BilevelArchTrainer(ArchTrainer):
         alpha_optim = get_optimizer(self.conf_a_opt, self.model.alphas())
         lr_scheduler = get_lr_scheduler(self.conf_w_sched, epochs, w_optim)
 
-        bilevel_optim = BilevelOptimizer(self.w_momentum, self.w_decay, alpha_optim,
+        bilevel_optim = _BilevelOptimizer(self.w_momentum, self.w_decay, alpha_optim,
                                      self.model, self.lossfn)
 
-        trainer = BilevelTrainer(bilevel_optim,
+        trainer = _BilevelTrainer(bilevel_optim,
             self.max_final_edges, self.plotsdir, self.model, self.device,
             self.lossfn, self.lossfn,
             aux_weight=0.0, grad_clip=self.grad_clip, drop_path_prob=0.0,
@@ -68,7 +68,7 @@ class BilevelArchTrainer(ArchTrainer):
 
         return trainer.best_model_desc, train_metrics, val_metrics
 
-class BilevelTrainer(Trainer):
+class _BilevelTrainer(Trainer):
     def __init__(self, arch_optim,
                  max_final_edges:int, plotsdir:str,
                  model:Model, device, train_lossfn: _Loss, test_lossfn: _Loss,
@@ -137,7 +137,7 @@ def _get_loss(model, lossfn, x, y):
     return lossfn(logits, y)
 
 
-class BilevelOptimizer(ArchOptimizer):
+class _BilevelOptimizer(ArchOptimizer):
     def __init__(self, w_momentum:float, w_decay:float, alpha_optim:Optimizer,
                  model:Union[nn.DataParallel, Model], lossfn:_Loss)->None:
         self._w_momentum = w_momentum # momentum for w
