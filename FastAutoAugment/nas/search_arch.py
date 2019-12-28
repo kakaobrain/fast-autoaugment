@@ -1,5 +1,5 @@
 import os
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from torch.utils.data.dataloader import DataLoader
@@ -29,7 +29,7 @@ def save_found_model_desc(conf_common: Config, conf_search: Config,
         logger.info(f"Best architecture is not saved because file path config not set")
 
 def get_data(conf_common:Config, conf_loader:Config, conf_data:Config)\
-        -> Tuple[DataLoader, DataLoader]:
+        -> Tuple[DataLoader, Optional[DataLoader]]:
     # region conf vars
     horovod = conf_common['horovod']
     # dataset
@@ -50,7 +50,7 @@ def get_data(conf_common:Config, conf_loader:Config, conf_data:Config)\
         aug=aug, cutout=cutout, load_train=True, load_test=False,
         val_ratio=val_ratio, val_fold=val_fold, horovod=horovod,
         n_workers=n_workers, max_batches=max_batches)
-
+    assert train_dl is not None
     return train_dl, val_dl
 
 def _create_model_desc(conf_data: Config, conf_model_desc: Config,

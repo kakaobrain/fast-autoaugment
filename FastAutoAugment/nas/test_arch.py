@@ -7,12 +7,10 @@ import torch.nn as nn
 import yaml
 
 from ..common import utils
-from ..common.common import get_logger, get_tb_writer
 from ..common.trainer import Trainer
 from ..common.config import Config
 from ..common.data import get_dataloaders
 from .model import Model
-from ..common.optimizer import get_lr_scheduler, get_optimizer, get_lossfn
 from .model_desc import ModelDesc, RunMode
 from .model_desc_builder import ModelDescBuilder
 
@@ -30,7 +28,6 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     dataroot          = conf_data['dataroot']
     # dataloader
     conf_loader       = conf_test['loader']
-    cutout            = conf_loader['cutout']
     aug               = conf_loader['aug']
     cutout            = conf_loader['cutout']
     batch_size        = conf_loader['batch']
@@ -75,11 +72,12 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
         load_train=True, load_test=True,
         val_ratio=0., val_fold=0, # no validation set
         horovod=horovod, max_batches=max_batches, n_workers=n_workers)
+    assert train_dl is not None and test_dl is not None
 
     device = torch.device("cuda")
 
-    train_lossfn = get_lossfn(conf_train_lossfn).to(device)
-    test_lossfn = get_lossfn(conf_test_lossfn).to(device)
+    train_lossfn = utils.get_lossfn(conf_train_lossfn).to(device)
+    test_lossfn = utils.get_lossfn(conf_test_lossfn).to(device)
 
     # create model
     model = Model(model_desc)
@@ -88,8 +86,8 @@ def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
     else:
         model = model.to(device)
 
-    optim = get_optimizer(conf_opt, model.parameters())
-    lr_scheduler = get_lr_scheduler(conf_lr_sched, epochs, optim)
+    optim = utils.get_optimizer(conf_opt, model.parameters())
+    lr_scheduler = utils.get_lr_scheduler(conf_lr_sched, epochs, optim)
 
     trainer = Trainer(model, device, train_lossfn, test_lossfn,
         aux_weight=aux_weight, grad_clip=grad_clip,
