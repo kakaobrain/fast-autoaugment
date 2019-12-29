@@ -15,7 +15,7 @@ from . import utils
 class Tester(EnforceOverrides):
     """Evaluate model on given data"""
 
-    def __init__(self, model:nn.Module, device, conf_test:Config)->None:
+    def __init__(self, conf_test:Config, model:nn.Module, device)->None:
         self._title = conf_test['title']
         self._logger_freq = conf_test['logger_freq']
         conf_lossfn = conf_test['lossfn']

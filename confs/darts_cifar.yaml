@@ -1,10 +1,9 @@
 common:
-  logdir: '~/logdir'
-  plotsdir: null # use default subfolder in logdir
-  chkptdir: null # use default subfolder in logdir
+  logdir: "~/logdir"
   seed: 42
   enable_tb: True # if False then TensorBoard logging is ignored
   horovod: False
+  device: 'cuda'
   checkpoint_freq: 10
   detect_anomaly: False # if True, PyTorch code will run 6X slower
   # TODO: workers setting
@@ -20,45 +19,16 @@ common:
   resume: False
 
 dataset:
-  dataroot: '~/torchvision_data_dir' #torchvision data folder
-  name: 'cifar10'
+  dataroot: "~/torchvision_data_dir" #torchvision data folder
+  name: "cifar10"
   n_classes: 10
   ch_in: 3 # number of channels in image
   max_batches: -1 # if >= 0 then only these many batches are generated (useful for debugging)
 
-autoaug:
-  num_op: 2
-  num_policy: 5
-  num_search: 200
-  num_result_per_cv: 10 # after conducting N trials, we will chose the results of top num_result_per_cv
-  loader:
-    aug: '' # additional augmentations to use
-    cutout: 16 # cutout length, use cutout augmentation when > 0
-    batch: 64
-    epochs: 50
-    val_ratio: 0.4 #split portion for test set, 0 to 1
-    val_fold: 0 #Fold number to use (0 to 4)
-    cv_num: 5 # total number of folds available
-    n_workers: null # if null then gpu_count*4
-  optimizer:
-    type: 'sgd'
-    decay: 0
-    momentum: 0.9 # pytorch default is 0
-    nesterov: False
-    clip: 5. # grads above this value is clipped
-    warmup: null
-      # multiplier: 2
-      # epochs: 3
-    #betas: [0.9, 0.999] # PyTorch default betas for Adam
-  lr_schedule:
-    type: 'cosine'
-    lr_min: 0.0 # min learning rate, this will be used in eta_min param of scheduler
-
-darts:
+nas:
   search:
     data_parallel: False
-    max_final_edges: 2 # max edge that can be in final arch per node
-    model_desc_file: 'best_model_desc.yaml' # found arch is saved in this file
+    model_desc_file: "best_model_desc.yaml" # found arch is saved in this file
     model_desc:
       init_ch_out: 16 # num of channels for stem outpt node
       n_cells: 8 # number of cells
@@ -67,7 +37,7 @@ darts:
       stem_multiplier: 3 # output channels multiplier for the stem
       aux_tower: False
     loader:
-      aug: '' # additional augmentations to use
+      aug: "" # additional augmentations to use
       cutout: 0 # cutout length, use cutout augmentation when > 0
       batch: 64
       val_ratio: 0.5 #split portion for test set, 0 to 1
@@ -75,31 +45,36 @@ darts:
       cv_num: 5 # total number of folds available
       n_workers: null # if null then gpu_count*4
     trainer:
-      epochs: 50
       aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
       drop_path_prob: 0.0 # probability that given edge will be dropped
+      grad_clip: 5. # grads above this value is clipped
+      logger_freq: 10 # after every N updates dump loss and other metrics in logger
+      title: "search_train"
+      epochs: 50
+      # additional vals for the derived class
+      max_final_edges: 2 # max edge that can be in final arch per node
+      plotsdir: 'plots' # use default subfolder in logdir
+      lossfn:
+        type: "CrossEntropyLoss"
       optimizer:
-        type: 'sgd'
+        type: "sgd"
         lr: 0.025 # init learning rate
         decay: 3.0e-4
         momentum: 0.9 # pytorch default is 0
         nesterov: False
-        clip: 5. # grads above this value is clipped
         warmup: null
       alpha_optimizer:
-        type: 'adam'
+        type: "adam"
         lr: 3.0e-4
         decay: 1.0e-3
         betas: [0.5, 0.999]
       lr_schedule:
-        type: 'cosine'
+        type: "cosine"
         lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler
-      lossfn:
-        type: 'CrossEntropyLoss'
-      validation: nil
+      validation: null
   eval:
-    model_desc_file: 'best_model_desc.yaml'
-    model_file: 'cifar_model.pt'
+    model_desc_file: "best_model_desc.yaml"
+    model_file: "model.pt"
     data_parallel: False
     model_desc:
       init_ch_out: 36 # num of channels for stem outpt node
@@ -108,35 +83,65 @@ darts:
       n_out_nodes: 4 # last n nodes to concate output from
       stem_multiplier: 3 # output channels multiplier for the stem
       aux_tower: True
+    loader:
+      aug: "" # additional augmentations to use
+      cutout: 16 # cutout length, use cutout augmentation when > 0
+      batch: 96
+      val_ratio: 0.4 #split portion for test set, 0 to 1
+      val_fold: 0 #Fold number to use (0 to 4)
+      cv_num: 5 # total number of folds available
+      n_workers: null # if null then gpu_count*4
     trainer:
       aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
       drop_path_prob: 0.0 # probability that given edge will be dropped
       grad_clip: 5. # grads above this value is clipped
       logger_freq: 10 # after every N updates dump loss and other metrics in logger
-      title: 'eval_train'
+      title: "eval_train"
       epochs: 600
       lossfn:
-        type: 'CrossEntropyLoss'
-      loader:
-        aug: '' # additional augmentations to use
-        cutout: 16 # cutout length, use cutout augmentation when > 0
-        batch: 96
-        val_ratio: 0.4 #split portion for test set, 0 to 1
-        val_fold: 0 #Fold number to use (0 to 4)
-        cv_num: 5 # total number of folds available
-        n_workers: null # if null then gpu_count*4
+        type: "CrossEntropyLoss"
       optimizer:
-        type: 'sgd'
+        type: "sgd"
         lr: 0.025 # init learning rate
         decay: 3.0e-4
         momentum: 0.9 # pytorch default is 0
         nesterov: False
         warmup: null
       lr_schedule:
-        type: 'cosine'
+        type: "cosine"
         lr_min: 0.001 # min learning rate to se bet in eta_min param of scheduler
       validation:
-        title: 'eval_test'
+        title: "eval_test"
         logger_freq: 1000
         lossfn:
-          type: 'CrossEntropyLoss'
+          type: "CrossEntropyLoss"
+
+
+autoaug:
+  num_op: 2
+  num_policy: 5
+  num_search: 200
+  num_result_per_cv: 10 # after conducting N trials, we will chose the results of top num_result_per_cv
+  loader:
+    aug: "" # additional augmentations to use
+    cutout: 16 # cutout length, use cutout augmentation when > 0
+    batch: 64
+    epochs: 50
+    val_ratio: 0.4 #split portion for test set, 0 to 1
+    val_fold: 0 #Fold number to use (0 to 4)
+    cv_num: 5 # total number of folds available
+    n_workers: null # if null then gpu_count*4
+  optimizer:
+    type: "sgd"
+    decay: 0
+    momentum: 0.9 # pytorch default is 0
+    nesterov: False
+    warmup:
+      null
+      # multiplier: 2
+      # epochs: 3
+    #betas: [0.9, 0.999] # PyTorch default betas for Adam
+  lr_schedule:
+    type: "cosine"
+    lr_min: 0.0 # min learning rate, this will be used in eta_min param of scheduler
+

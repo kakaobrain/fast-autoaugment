@@ -1,7 +1,6 @@
 import os
 from typing import Optional, Tuple
 
-import torch
 from torch.utils.data.dataloader import DataLoader
 
 from ..common.common import get_logger
@@ -11,7 +10,6 @@ from ..common.data import get_dataloaders
 from .model_desc import ModelDesc, RunMode
 from .model_desc_builder import ModelDescBuilder
 from .dag_mutator import DagMutator
-from .arch_trainer import ArchTrainer
 
 
 def save_found_model_desc(conf_common: Config, conf_search: Config,
@@ -28,7 +26,7 @@ def save_found_model_desc(conf_common: Config, conf_search: Config,
     else:
         logger.info(f"Best architecture is not saved because file path config not set")
 
-def get_data(conf_common:Config, conf_loader:Config, conf_data:Config)\
+def get_data(conf_common:Config, conf_data:Config, conf_loader:Config)\
         -> Tuple[DataLoader, Optional[DataLoader]]:
     # region conf vars
     horovod = conf_common['horovod']
