@@ -14,7 +14,7 @@ from .model import Model
 from .model_desc import ModelDesc, RunMode
 from .model_desc_builder import ModelDescBuilder
 
-def test_arch(conf_common:Config, conf_data:Config, conf_test:Config,
+def eval_arch(conf_common:Config, conf_data:Config, conf_test:Config,
               template_model_desc:Optional[ModelDesc]=None,
               save_model:bool=True):
 

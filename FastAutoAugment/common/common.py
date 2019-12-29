@@ -25,7 +25,11 @@ SummaryWriterAny = Union[SummaryWriterDummy, SummaryWriter]
 
 _logger: Optional[logging.Logger] = None
 _tb_writer: SummaryWriterAny = None
+_config_common = None
 
+def get_config_common():
+    global _config_common
+    return _config_common
 
 def get_logger() -> logging.Logger:
     global _logger
@@ -39,13 +43,11 @@ def get_tb_writer() -> SummaryWriterAny:
 
 # initializes random number gen, debugging etc
 def common_init(config_filepath: Optional[str]=None,
-                defaults_filepath: Optional[str]=None,
                 param_args: list = [], experiment_name='',
                 log_level=logging.DEBUG, is_master=True, use_args=True) \
         -> Config:
 
     conf = Config(config_filepath=config_filepath,
-                  defaults_filepath=defaults_filepath,
                   param_args=param_args,
                   use_args=use_args)
 
@@ -55,19 +57,20 @@ def common_init(config_filepath: Optional[str]=None,
     StopWatch.set(sw)
 
     _setup_logger(experiment_name)
-    conf_common = conf['common']
+    global _config_common
+    _config_common = conf['common']
     conf_data = conf['dataset']
-    _setup_dirs(conf_common, conf_data, experiment_name)
-    _setup_gpus(conf_common)
+    _setup_dirs(_config_common, conf_data, experiment_name)
+    _setup_gpus(_config_common)
 
-    logdir = conf_common['logdir']
+    logdir = _config_common['logdir']
     if logdir:
         # copy net config to experiment folder for reference
         with open(os.path.join(logdir, 'full_config.yaml'), 'w') as f:
             yaml.dump(conf, f, default_flow_style=False)
 
     global _tb_writer
-    _tb_writer = _create_tb_writer(conf_common, is_master)
+    _tb_writer = _create_tb_writer(_config_common, is_master)
 
     return conf
 
@@ -122,13 +125,7 @@ def _setup_dirs(conf_common: Config, conf_data: Config, experiment_name: str):
     if logdir:
         logdir = os.path.expanduser(logdir)
         logdir = os.path.join(logdir, experiment_name)
-        plotsdir = os.path.join(logdir, 'plots') if not conf_common['plotsdir'] \
-            else os.path.expanduser(conf_common['plotsdir'])
-        chkptdir = os.path.join(logdir, 'chkpt') if not conf_common['chkptdir'] \
-            else os.path.expanduser(conf_common['chkptdir'])
         os.makedirs(logdir, exist_ok=True)
-        os.makedirs(plotsdir, exist_ok=True)
-        os.makedirs(chkptdir, exist_ok=True)
 
         # file where logger would log messages
         logfilename = 'logs.log'
@@ -138,11 +135,17 @@ def _setup_dirs(conf_common: Config, conf_data: Config, experiment_name: str):
     else:
         logger.warn(
             'logdir not specified, no logs will be created or any models saved')
-        plotsdir = chkptdir = None
 
     conf_common['logdir'], conf_data['dataroot'] = logdir, dataroot
-    conf_common['plotsdir'], conf_common['chkptdir'] = plotsdir, chkptdir
 
+def get_logdir(subdir:str='', ensure_exists=False)->str:
+    logdir = _config_common['logdir']
+    if not subdir:
+        logdir = os.path.join(logdir, subdir)
+        if ensure_exists:
+            os.makedirs(logdir, exist_ok=True)
+
+    return logdir
 
 def _setup_gpus(conf_common):
     logger = get_logger()

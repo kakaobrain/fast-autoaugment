@@ -1,0 +1,29 @@
+__include__: 'darts_cifar.yaml'
+
+dataset:
+  max_batches: 2 # if >= 0 then only these many batches are generated (useful for debugging)
+
+nas:
+  search:
+    model_desc:
+      n_cells: 3 # number of cells
+      n_nodes: 2 # number of nodes in a cell
+      n_out_nodes: 2 # last n nodes to concate output from
+    loader:
+      batch: 32
+    trainer:
+      epochs: 2
+      logger_freq: 1 # after every N updates dump loss and other metrics in logger
+  eval:
+    data_parallel: False
+    model_desc:
+      n_cells: 3 # number of cells
+      n_nodes: 2 # number of nodes in a cell
+      n_out_nodes: 2 # last n nodes to concate output from
+    loader:
+      batch: 32
+    trainer:
+      epochs: 2
+      logger_freq: 1 # after every N updates dump loss and other metrics in logger
+      validation:
+        logger_freq: 1

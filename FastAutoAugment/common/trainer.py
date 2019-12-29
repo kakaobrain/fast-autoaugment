@@ -34,21 +34,12 @@ class Trainer(EnforceOverrides):
         self._tester = Tester(conf_validation, model, device) \
                         if conf_validation else None
 
-    def get_optimizer(self)->Optimizer:
-        return utils.get_optimizer(self.conf_opt, self.model.parameters())
-
-    def get_scheduler(self, optim:Optimizer)->_LRScheduler:
-        return utils.get_lr_scheduler(self._conf_sched, self._epochs, optim)
-
     def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
-        assert (val_dl is None and self._tester is None) or \
-                (val_dl is not None and self._tester is not None)
-
         optim = self.get_optimizer()
         lr_scheduler = self.get_scheduler(optim)
-
         self._metrics = self._create_metrics(self._epochs, optim)
 
+        self.pre_fit(train_dl, val_dl, optim, lr_scheduler)
         for epoch in range(self._epochs):
             self._set_drop_path(epoch, self._epochs)
 
@@ -57,15 +48,30 @@ class Trainer(EnforceOverrides):
             self.post_epoch(train_dl, val_dl)
 
             lr_scheduler.step()
+        self.post_fit(train_dl, val_dl)
+
+    def get_optimizer(self)->Optimizer:
+        return utils.get_optimizer(self.conf_opt, self.model.parameters())
+
+    def get_scheduler(self, optim:Optimizer)->_LRScheduler:
+        return utils.get_lr_scheduler(self._conf_sched, self._epochs, optim)
 
     def get_metrics(self)->Tuple[Metrics, Optional[Metrics]]:
         return self._metrics, self._tester.get_metrics() if self._tester else None
 
+    def get_cur_lr(self)->float:
+        return self._metrics.get_cur_lr()
+
+    def pre_fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader],
+                optim:Optimizer, sched:_LRScheduler)->None:
+        pass
+    def post_fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
+        pass
     def pre_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
         self._metrics.pre_epoch()
     def post_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
         self._metrics.post_epoch()
-        if val_dl:
+        if val_dl and self._tester:
             self._tester.test(val_dl)
     def pre_step(self, x:Tensor, y:Tensor, optim:Optimizer)->None:
         self._metrics.pre_step(x, y)

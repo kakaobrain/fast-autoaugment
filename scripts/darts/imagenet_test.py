@@ -1,13 +1,12 @@
 from FastAutoAugment.common.common import common_init
-from FastAutoAugment.nas.test_arch import test_arch
+from FastAutoAugment.nas.eval_arch import eval_arch
 
 if __name__ == '__main__':
     conf = common_init(config_filepath='confs/imagenet_darts.yaml',
-                       defaults_filepath='confs/defaults.yaml',
-                       experiment_name='imagenet_test')
+                       experiment_name='imagenet_eval')
 
     conf_common = conf['common']
     conf_data = conf['dataset']
-    conf_test = conf['darts']['test']
+    conf_test = conf['nas']['test']
 
-    best_top1, model = test_arch(conf_common, conf_data, conf_test)
+    best_top1, model = eval_arch(conf_common, conf_data, conf_test)

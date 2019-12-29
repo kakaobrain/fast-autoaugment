@@ -7,12 +7,13 @@ from torch.utils.data import DataLoader
 from torch import Tensor, nn, autograd
 from torch.nn.modules.loss import _Loss
 from torch.optim.optimizer import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
 
 from overrides import overrides
 
 from ..common.config import Config
-from ..nas.arch_trainer import ArchTrainer, ArchOptimizer
-from ..common.utils import get_lr_scheduler, get_optimizer, get_lossfn
+from ..nas.arch_trainer import ArchTrainer
+from ..common import utils
 from ..nas.model import Model
 from ..common.metrics import Metrics
 from ..nas.model_desc import ModelDesc
@@ -21,82 +22,40 @@ from ..nas.vis_model_desc import draw_model_desc
 
 
 class BilevelArchTrainer(ArchTrainer):
-    def __init__(self, conf_common:Config, conf_search:Config,
-                 model:Model, device)-> None:
-        # region conf vars
-        # common
-        self.logger_freq = conf_common['logger_freq']
-        self.plotsdir = conf_common['plotsdir']
-        # search
-        conf_lossfn   = conf_search['lossfn']
-        self.max_final_edges = conf_search['max_final_edges']
-        # optimizers
-        self.conf_w_opt    = conf_search['weights']['optimizer']
-        self.conf_a_opt    = conf_search['alphas']['optimizer']
-        self.w_momentum    = self.conf_w_opt['momentum']
-        self.w_decay       = self.conf_w_opt['decay']
-        self.grad_clip     = self.conf_w_opt['clip']
-        self.conf_w_sched  = conf_search['weights']['lr_schedule']
-        # endregion
+    def __init__(self, conf_train: Config, model: Model, device) -> None:
+        super().__init__(conf_train, model, device)
 
-        self.model = model
-        self.device = device
-        self.lossfn = get_lossfn(conf_lossfn).to(device)
+        self._conf_w_optim = conf_train['optimizer']
+        self._conf_w_lossfn = conf_train['lossfn']
+        self._conf_alpha_optim = conf_train['alpha_optimizer']
 
     @overrides
-    def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int)\
-            ->Tuple[ModelDesc, Metrics, Optional[Metrics]]:
-        # optimizer for w and alphas
-        w_optim = get_optimizer(self.conf_w_opt, self.model.weights())
-        alpha_optim = get_optimizer(self.conf_a_opt, self.model.alphas())
-        lr_scheduler = get_lr_scheduler(self.conf_w_sched, epochs, w_optim)
-
-        bilevel_optim = _BilevelOptimizer(self.w_momentum, self.w_decay, alpha_optim,
-                                     self.model, self.lossfn)
-
-        trainer = _BilevelTrainer(bilevel_optim,
-            self.max_final_edges, self.plotsdir, self.model, self.device,
-            self.lossfn, self.lossfn,
-            aux_weight=0.0, grad_clip=self.grad_clip, drop_path_prob=0.0,
-            logger_freq=self.logger_freq, title='search_train',
-            val_logger_freq=1000, val_title='search_val')
-
-        train_metrics, val_metrics = trainer.fit(train_dl, val_dl, epochs,
-                                                 w_optim, lr_scheduler)
-
-        val_metrics.report_best() if val_metrics else train_metrics.report_best()
-
-        return trainer.best_model_desc, train_metrics, val_metrics
-
-class _BilevelTrainer(Trainer):
-    def __init__(self, arch_optim,
-                 max_final_edges:int, plotsdir:str,
-                 model:Model, device, train_lossfn: _Loss, test_lossfn: _Loss,
-                 aux_weight: float, grad_clip: float,
-                 drop_path_prob: float, logger_freq: int, title:str,
-                val_logger_freq:int, val_title:str)->None:
-        super().__init__(model, device, train_lossfn, test_lossfn,
-                         aux_weight=aux_weight, grad_clip=grad_clip,
-                         drop_path_prob=drop_path_prob,
-                         logger_freq=logger_freq, title=title,
-                         val_logger_freq=val_logger_freq, val_title=val_title)
-
-        self._arch_optim = arch_optim
-        self.max_final_edges, self.plotsdir = max_final_edges, plotsdir
-        self.best_model_desc = self._get_model_desc()
+    def get_optimizer(self) -> Optimizer:
+        return utils.get_optimizer(self._conf_w_optim, self.model.weights())
 
     @overrides
-    def pre_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader],
-                  train_metrics:Metrics, val_metrics:Optional[Metrics])->None:
-        super().pre_epoch(train_dl, val_dl, train_metrics,  val_metrics)
+    def pre_fit(self, train_dl: DataLoader, val_dl: Optional[DataLoader],
+                optim: Optimizer, sched: _LRScheduler) -> None:
+
+        assert val_dl is not None
+        w_momentum = self._conf_w_optim['momentum']
+        w_decay = self._conf_w_optim['decay']
+        lossfn = utils.get_lossfn(self._conf_w_lossfn).to(self.device)
+        alpha_optim = utils.get_optimizer(
+            self._conf_alpha_optim, self.model.alphas())
+        self._bilevel_optim = _BilevelOptimizer(w_momentum, w_decay, alpha_optim,
+                                                self.model, lossfn)
+
+    @overrides
+    def pre_epoch(self, train_dl: DataLoader, val_dl: Optional[DataLoader]) -> None:
+        super().pre_epoch(train_dl, val_dl)
 
         # prep val set to train alphas
-        assert val_dl is not None
-        self._valid_iter = iter(val_dl)
+        self._valid_iter = iter(val_dl)  # type: ignore
 
     @overrides
-    def pre_step(self, x:Tensor, y:Tensor, optim:Optimizer, train_metrics:Metrics)->None:
-        super().pre_step(x, y, optim, train_metrics)
+    def pre_step(self, x: Tensor, y: Tensor, optim: Optimizer) -> None:
+        super().pre_step(x, y, optim)
 
         # reset val loader if we exausted it
         try:
@@ -105,45 +64,19 @@ class _BilevelTrainer(Trainer):
             # reinit iterator
             self._valid_iter = iter(self._val_dl)
             x_val, y_val = next(self._valid_iter)
-        x_val, y_val = x_val.to(self.device), y_val.to(self.device, non_blocking=True)
+        x_val, y_val = x_val.to(self.device), y_val.to(
+            self.device, non_blocking=True)
 
         # update alphas
-        self._arch_optim.step(x, y, x_val, y_val, optim, train_metrics)
+        self._bilevel_optim.step(x, y, x_val, y_val, optim, self.get_cur_lr())
 
-    @overrides
-    def post_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader],
-                  train_metrics:Metrics, val_metrics:Optional[Metrics])->None:
-        del self._valid_iter # clean up
-        super().post_epoch(train_dl, val_dl, train_metrics, val_metrics)
-
-        self._update_best(train_metrics, val_metrics)
-
-    def _update_best(self, train_metrics:Metrics, val_metrics:Optional[Metrics])->None:
-        if (val_metrics and val_metrics.is_best()) or \
-                (not val_metrics and train_metrics.is_best()):
-            self.best_model_desc = self._get_model_desc()
-
-            # log model_desc as a image
-            plot_filepath = os.path.join(self.plotsdir, "EP{train_metrics.epoch:03d}")
-            draw_model_desc(self.best_model_desc, plot_filepath+"-normal",
-                            caption=f"Epoch {train_metrics.epoch}")
-
-    def _get_model_desc(self)->ModelDesc:
-        return self.model.finalize(max_edges=self.max_final_edges)
-
-
-def _get_loss(model, lossfn, x, y):
-    logits, *_ = model(x)
-    return lossfn(logits, y)
-
-
-class _BilevelOptimizer(ArchOptimizer):
-    def __init__(self, w_momentum:float, w_decay:float, alpha_optim:Optimizer,
-                 model:Union[nn.DataParallel, Model], lossfn:_Loss)->None:
-        self._w_momentum = w_momentum # momentum for w
-        self._w_weight_decay = w_decay # weight decay for w
+class _BilevelOptimizer:
+    def __init__(self, w_momentum: float, w_decay: float, alpha_optim: Optimizer,
+                 model: Union[nn.DataParallel, Model], lossfn: _Loss) -> None:
+        self._w_momentum = w_momentum  # momentum for w
+        self._w_weight_decay = w_decay  # weight decay for w
         self._lossfn = lossfn
-        self._model = model # main model with respect to w and alpha
+        self._model = model  # main model with respect to w and alpha
 
         # create a copy of model which we will use
         # to compute grads for alphas without disturbing
@@ -154,11 +87,16 @@ class _BilevelOptimizer(ArchOptimizer):
         # this is the optimizer to optimize alphas parameter
         self._alpha_optim = alpha_optim
 
-    def _update_vmodel(self, x, y, lr:float, w_optim:Optimizer)->None:
+    @staticmethod
+    def _get_loss(model, lossfn, x, y):
+        logits, *_ = model(x)
+        return lossfn(logits, y)
+
+    def _update_vmodel(self, x, y, lr: float, w_optim: Optimizer) -> None:
         """ Update vmodel with w' (main model has w) """
 
         # TODO: should this loss be stored for later use?
-        loss = _get_loss(self._model, self._lossfn, x, y)
+        loss = _BilevelOptimizer._get_loss(self._model, self._lossfn, x, y)
         gradients = autograd.grad(loss, self._model.weights())
 
         """update weights in vmodel so we leave main model undisturbed
@@ -169,26 +107,26 @@ class _BilevelOptimizer(ArchOptimizer):
         # TODO: other alternative may be to (1) copy model
         #   (2) set require_grads = False on alphas
         #   (3) loss and step on vmodel (4) set back require_grades = True
-        with torch.no_grad(): # no need to track gradient for these operations
+        with torch.no_grad():  # no need to track gradient for these operations
             for w, vw, g in zip(
                     self._model.weights(), self._vmodel.weights(), gradients):
                 # simulate mometum update on model but put this update in vmodel
-                m = w_optim.state[w].get('momentum_buffer', 0.)*self._w_momentum
+                m = w_optim.state[w].get(
+                    'momentum_buffer', 0.)*self._w_momentum
                 vw.copy_(w - lr * (m + g + self._w_weight_decay*w))
 
             # synchronize alphas
             for a, va in zip(self._model.alphas(), self._vmodel.alphas()):
                 va.copy_(a)
 
-    @overrides
-    def step(self, x_train:Tensor, y_train:Tensor, x_valid:Tensor, y_valid:Tensor,
-            w_optim:Optimizer, train_metrics:Metrics)->None:
+    def step(self, x_train: Tensor, y_train: Tensor, x_valid: Tensor, y_valid: Tensor,
+             w_optim: Optimizer, lr:float) -> None:
         self._alpha_optim.zero_grad()
 
         # compute the gradient and write it into tensor.grad
         # instead of generated by loss.backward()
         self._backward_bilevel(x_train, y_train, x_valid, y_valid,
-                               train_metrics.get_cur_lr(), w_optim)
+                               lr, w_optim)
 
         # at this point we should have model with updated grades for w and alpha
         self._alpha_optim.step()
@@ -203,7 +141,8 @@ class _BilevelOptimizer(ArchOptimizer):
         # compute loss on validation set for model with w'
         # wrt alphas. The autograd.grad is used instead of backward()
         # to avoid having to loop through params
-        vloss = _get_loss(self._vmodel, self._lossfn, x_valid, y_valid)
+        vloss = _BilevelOptimizer._get_loss(
+            self._vmodel, self._lossfn, x_valid, y_valid)
 
         v_alphas = tuple(self._vmodel.alphas())
         v_weights = tuple(self._vmodel.weights())
@@ -250,8 +189,9 @@ class _BilevelOptimizer(ArchOptimizer):
 
         # Now that we have model with w+, we need to compute grads wrt alphas
         # This loss needs to be on train set, not validation set
-        loss = _get_loss(self._model, self._lossfn, x, y)
-        dalpha_plus = autograd.grad(loss, self._model.alphas()) #dalpha{L_trn(w+)}
+        loss = _BilevelOptimizer._get_loss(self._model, self._lossfn, x, y)
+        dalpha_plus = autograd.grad(
+            loss, self._model.alphas())  # dalpha{L_trn(w+)}
 
         # get model with w- and then compute grads wrt alphas
         # w- = w - eps*dw`
@@ -261,7 +201,7 @@ class _BilevelOptimizer(ArchOptimizer):
                 p -= 2. * epsilon * v
 
         # similarly get dalpha_minus
-        loss = _get_loss(self._model, self._lossfn, x, y)
+        loss = _BilevelOptimizer._get_loss(self._model, self._lossfn, x, y)
         dalpha_minus = autograd.grad(loss, self._model.alphas())
 
         # reset back params to original values by adding dw
@@ -270,6 +210,6 @@ class _BilevelOptimizer(ArchOptimizer):
                 p += epsilon * v
 
         # apply eq 8, final difference to compute hessian
-        h= [(p - m) / (2. * epsilon) for p, m in zip(dalpha_plus, dalpha_minus)]
+        h = [(p - m) / (2. * epsilon)
+             for p, m in zip(dalpha_plus, dalpha_minus)]
         return h
-
