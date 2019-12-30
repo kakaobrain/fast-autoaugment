@@ -13,6 +13,7 @@ dependencies:
   - cudatoolkit=10.1.168=0
   - decorator=4.3.2=py36_0
   - freetype=2.9.1=h8a8886c_1
+  - graphviz
   - importlib_metadata=0.23=py36_0
   - intel-openmp=2019.1=144
   - ipython=7.8.0=py36h39e3cac_0
@@ -176,7 +177,7 @@ dependencies:
     - defusedxml==0.6.0
     - distro==1.4.0
     - docker==4.1.0
-    - docs==0.2.2
+    - docs
     - dotnetcore2==2.1.11
     - entrypoints==0.3
     - enum34==1.1.6
@@ -239,7 +240,6 @@ dependencies:
     - pystopwatch2==0.1.1
     - pytest==5.2.1
     - python-dateutil==2.8.0
-    - python-graphviz==0.13.2
     - pytz==2019.3
     - pywavelets==1.1.1
     - pyyaml==5.1.2
@@ -263,13 +263,11 @@ dependencies:
     - tensorboardx==1.9
     - terminado==0.8.3
     - testpath==0.4.4
-    - theconf==0.1.0
     - timebudget==0.7
     - torchstat==0.0.7
     - tornado==6.0.3
     - tqdm==4.36.1
     - urllib3==1.25.6
-    - warmup-scheduler==0.1
     - webencodings==0.5.1
     - websocket-client==0.56.0
     - werkzeug==0.16.0
