@@ -30,8 +30,7 @@ class Trainer(EnforceOverrides):
     def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
             optim:Optimizer, lr_scheduler:_LRScheduler)\
               ->Tuple[Metrics, Optional[Metrics]]:
-        train_metrics, val_metrics = \
-            self.create_metrics(epochs, optim), None
+        train_metrics, val_metrics = self.create_metrics(epochs, optim), None
 
         if val_dl:
             val_metrics = self.tester.create_metrics(epochs)

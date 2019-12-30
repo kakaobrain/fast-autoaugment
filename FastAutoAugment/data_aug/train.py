@@ -10,11 +10,10 @@ from torch.nn.parallel.data_parallel import DataParallel
 from tqdm import tqdm
 
 from ..common.common import get_logger, get_tb_writer
-from ..common.optimizer import get_lr_scheduler, get_optimizer
 from ..common.data import get_dataloaders
 from ..common.metrics import Accumulator
 from ..networks import get_model, num_class
-from ..common.utils import accuracy
+from ..common.utils import accuracy, get_lr_scheduler, get_optimizer
 
 
 # TODO: remove scheduler parameter?
