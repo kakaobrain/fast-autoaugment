@@ -2,12 +2,12 @@ import os
 import yaml
 
 from FastAutoAugment.common.common import common_init
-from FastAutoAugment.nas.eval_arch import eval_arch
+from FastAutoAugment.nas.evaluate import eval_arch
 
 
 if __name__ == '__main__':
     conf = common_init(defaults_filepath='confs/defaults.yaml',
-                       experiment_name='cifar_test')
+                       experiment_name='cifar_eval')
 
     conf_common = conf['common']
     conf_data         = conf['dataset']

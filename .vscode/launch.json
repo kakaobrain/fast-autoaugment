@@ -23,7 +23,7 @@
             "name": "TestDarts cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/scripts/darts/cifar_test.py",
+            "program": "${cwd}/scripts/darts/cifar_eval.py",
             "console": "integratedTerminal"
         },
         {
@@ -41,7 +41,7 @@
             "name": "ToyTestDarts cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/scripts/darts/cifar_test.py",
+            "program": "${cwd}/scripts/darts/cifar_eval.py",
             "console": "integratedTerminal",
             "args": [
                 "-c",
@@ -52,7 +52,7 @@
             "name": "ToyTestRanddom cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/scripts/random/cifar_test.py",
+            "program": "${cwd}/scripts/random/cifar_eval.py",
             "console": "integratedTerminal",
             "args": [
                 "-c",
