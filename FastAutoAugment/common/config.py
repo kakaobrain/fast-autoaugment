@@ -60,7 +60,7 @@ class Config(UserDict):
 
     def _load_from_file(self, filepath:Optional[str])->None:
         if filepath:
-            with open(filepath, 'r') as f:
+            with open(os.path.expanduser(filepath), 'r') as f:
                 config_yaml = yaml.load(f, Loader=yaml.Loader)
             if '__include__' in config_yaml:
                 include_filepath = os.path.join(os.path.dirname(filepath),

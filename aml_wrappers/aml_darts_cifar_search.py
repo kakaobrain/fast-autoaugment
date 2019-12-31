@@ -33,14 +33,14 @@ def launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment):
                                                        container_name='datasets',
                                                        account_name='petridishdata',
                                                        account_key=conf_aml['azure_storage_account_key'],
-                                                       create_if_not_exists=False)        
-    
+                                                       create_if_not_exists=False)
+
     output_ds = Datastore.register_azure_blob_container(workspace=ws,
                                                        datastore_name='petridishoutput',
                                                        container_name='amloutput',
                                                        account_name='petridishdata',
                                                        account_key=conf_aml['azure_storage_account_key'],
-                                                       create_if_not_exists=False)        
+                                                       create_if_not_exists=False)
 
 
     # Create or attach compute cluster
@@ -73,24 +73,24 @@ def launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment):
     image_registry_details.password = conf_docker['image_registry_password']
 
     # don't let the system build a new conda environment
-    user_managed_dependencies = True    
+    user_managed_dependencies = True
 
-    # Note that experiment names have to be 
+    # Note that experiment names have to be
     # <36 alphanumeric characters
     exp_name = conf_experiment['experiment_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
-    
+
     experiment = Experiment(ws, name=exp_name)
     script_params = {'--dataset.dataroot': input_ds.path('/').as_mount(),
                      '--common.logdir': output_ds.path('/').as_mount(),
                     }
-    
+
     est = Estimator(source_directory=project_folder,
                     script_params=script_params,
                     compute_target=compute_target,
                     entry_script='scripts/darts/cifar_search.py',
                     custom_docker_image=conf_docker['image_name'],
                     image_registry_details=image_registry_details,
-                    user_managed=user_managed_dependencies,                    
+                    user_managed=user_managed_dependencies,
                     source_directory_data_store=input_ds)
 
     run = experiment.submit(est)
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     set_diagnostics_collection(send_diagnostics=True)
 
     # Read in config
-    conf = Config(config_filepath='/home/dedey/aml_secrets/aml_config_dedey.yaml')
+    conf = Config(config_filepath='~/aml_secrets/aml_config_dedey.yaml')
 
      # Config region
     conf_aml = conf['aml_config']
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     conf_docker = conf['azure_docker']
     conf_experiment = conf['experiment']
     # endregion
-                  
+
 
     # Initialize workspace
     # Make sure you have downloaded your workspace config
