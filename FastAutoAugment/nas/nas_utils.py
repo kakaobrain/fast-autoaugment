@@ -11,15 +11,23 @@ from .model import Model
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, logdir_abspath
 
-def create_model(conf_model_desc: Config, device, run_mode:RunMode,
+def create_model_desc(conf_model_desc: Config, run_mode:RunMode,
                  dag_mutator: Optional[DagMutator]=None,
-                 template_model_desc:Optional[ModelDesc]=None) -> Model:
+                 template_model_desc:Optional[ModelDesc]=None) -> ModelDesc:
     builder = ModelDescBuilder(conf_model_desc,
                                run_mode=RunMode.Search,
                                template=template_model_desc)
     model_desc = builder.get_model_desc()
     if dag_mutator:
         dag_mutator.mutate(model_desc)
+    return model_desc
+
+def create_model(conf_model_desc: Config, device, run_mode:RunMode,
+                 dag_mutator: Optional[DagMutator]=None,
+                 template_model_desc:Optional[ModelDesc]=None) -> Model:
+    model_desc = create_model_desc(conf_model_desc, run_mode,
+                                   dag_mutator=dag_mutator,
+                                   template_model_desc=template_model_desc)
 
     model = Model(model_desc)
     # TODO: enable DataParallel
@@ -57,3 +65,11 @@ def get_train_test_data(conf_loader:Config)\
         n_workers=n_workers, max_batches=max_batches)
     assert train_dl is not None
     return train_dl, val_dl
+
+def save_model_desc(model_desc_filename:Optional[str], model_desc:ModelDesc)\
+        ->Optional[str]:
+    model_desc_filepath = logdir_abspath(model_desc_filename)
+    if model_desc_filepath:
+        with open(model_desc_filepath, 'w') as f:
+            f.write(model_desc.serialize())
+    return model_desc_filepath

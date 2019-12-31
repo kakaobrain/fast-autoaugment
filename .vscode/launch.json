@@ -49,6 +49,17 @@
             ]
         },
         {
+            "name": "ToyTestRanddom cifar10",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/scripts/random/cifar_test.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-c",
+                "confs/darts_cifar_toy.yaml"
+            ]
+        },
+        {
             "name": "TestDarts imagenet",
             "type": "python",
             "request": "launch",

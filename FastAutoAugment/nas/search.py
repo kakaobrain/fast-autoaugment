@@ -12,6 +12,8 @@ from . import nas_utils
 
 def search_arch(conf_search:Config, dag_mutator:DagMutator,
                 trainer_class:Type[ArchTrainer])->None:
+    logger = get_logger()
+
     conf_model_desc = conf_search['model_desc']
     model_desc_filename = conf_search['model_desc_file']
     conf_loader = conf_search['loader']
@@ -33,16 +35,10 @@ def search_arch(conf_search:Config, dag_mutator:DagMutator,
     found_model_desc = arch_trainer.get_model_desc()
 
     # save found model
-    _save_model_desc(model_desc_filename, found_model_desc)
-
-def _save_model_desc(model_desc_filename:Optional[str], found_model_desc:ModelDesc)->None:
-    logger = get_logger()
-
-    model_desc_filepath = logdir_abspath(model_desc_filename)
-    if model_desc_filepath:
-        with open(model_desc_filepath, 'w') as f:
-            f.write(found_model_desc.serialize())
-        logger.info(f"Best architecture saved in {model_desc_filepath}")
+    save_path = nas_utils.save_model_desc(model_desc_filename, found_model_desc)
+    if save_path:
+        logger.info(f"Best architecture saved in {save_path}")
     else:
-        logger.info(f"Best architecture is not saved because file path config not set")
+        logger.info("Best architecture is not saved because file path config not set")
+
 

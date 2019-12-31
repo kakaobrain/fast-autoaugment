@@ -1,6 +1,3 @@
-import os
-import yaml
-
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas.evaluate import eval_arch
 
