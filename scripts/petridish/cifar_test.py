@@ -11,7 +11,7 @@ if __name__ == '__main__':
 
     conf_common = conf['common']
     conf_data         = conf['dataset']
-    conf_test       = conf['nas']['test']
+    conf_eval       = conf['nas']['test']
 
-    best_top1, model = eval_arch(conf_common, conf_data, conf_test)
+    best_top1, model = eval_arch(conf_common, conf_data, conf_eval)
 

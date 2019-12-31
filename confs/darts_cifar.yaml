@@ -2,8 +2,8 @@ common:
   logdir: "~/logdir"
   seed: 42
   enable_tb: True # if False then TensorBoard logging is ignored
-  horovod: False
-  device: 'cuda'
+  horovod: &horovod False
+  device: &device 'cuda'
   checkpoint_freq: 10
   detect_anomaly: False # if True, PyTorch code will run 6X slower
   # TODO: workers setting
@@ -18,7 +18,7 @@ common:
   only_eval: False
   resume: False
 
-dataset:
+dataset: &dataset
   dataroot: "~/torchvision_data_dir" #torchvision data folder
   name: "cifar10"
   n_classes: 10
@@ -29,6 +29,7 @@ nas:
   search:
     data_parallel: False
     model_desc_file: "best_model_desc.yaml" # found arch is saved in this file
+    device: *device
     model_desc:
       init_ch_out: 16 # num of channels for stem outpt node
       n_cells: 8 # number of cells
@@ -36,6 +37,7 @@ nas:
       n_out_nodes: 4 # last n nodes to concate output from
       stem_multiplier: 3 # output channels multiplier for the stem
       aux_tower: False
+      dataset: *dataset
     loader:
       aug: "" # additional augmentations to use
       cutout: 0 # cutout length, use cutout augmentation when > 0
@@ -44,6 +46,10 @@ nas:
       val_fold: 0 #Fold number to use (0 to 4)
       cv_num: 5 # total number of folds available
       n_workers: null # if null then gpu_count*4
+      load_train: True # load train split of dataset
+      load_test: False # load test split of dataset
+      horovod: *horovod
+      dataset: *dataset
     trainer:
       aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
       drop_path_prob: 0.0 # probability that given edge will be dropped
@@ -74,7 +80,8 @@ nas:
       validation: null
   eval:
     model_desc_file: "best_model_desc.yaml"
-    model_file: "model.pt"
+    save_filename: "model.pt" # file to which trained model will be saved
+    device: *device
     data_parallel: False
     model_desc:
       init_ch_out: 36 # num of channels for stem outpt node
@@ -83,14 +90,19 @@ nas:
       n_out_nodes: 4 # last n nodes to concate output from
       stem_multiplier: 3 # output channels multiplier for the stem
       aux_tower: True
+      dataset: *dataset
     loader:
       aug: "" # additional augmentations to use
       cutout: 16 # cutout length, use cutout augmentation when > 0
       batch: 96
-      val_ratio: 0.4 #split portion for test set, 0 to 1
+      val_ratio: 0.0 #split portion for test set, 0 to 1
       val_fold: 0 #Fold number to use (0 to 4)
       cv_num: 5 # total number of folds available
       n_workers: null # if null then gpu_count*4
+      load_train: True # load train split of dataset
+      load_test: True # load test split of dataset
+      horovod: *horovod
+      dataset: *dataset
     trainer:
       aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
       drop_path_prob: 0.0 # probability that given edge will be dropped
@@ -131,6 +143,8 @@ autoaug:
     val_fold: 0 #Fold number to use (0 to 4)
     cv_num: 5 # total number of folds available
     n_workers: null # if null then gpu_count*4
+    horovod: *horovod
+    dataset: *dataset
   optimizer:
     type: "sgd"
     decay: 0

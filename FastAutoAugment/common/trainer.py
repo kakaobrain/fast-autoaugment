@@ -51,7 +51,7 @@ class Trainer(EnforceOverrides):
         self.post_fit(train_dl, val_dl)
 
     def get_optimizer(self)->Optimizer:
-        return utils.get_optimizer(self.conf_opt, self.model.parameters())
+        return utils.get_optimizer(self._conf_optim, self.model.parameters())
 
     def get_scheduler(self, optim:Optimizer)->_LRScheduler:
         return utils.get_lr_scheduler(self._conf_sched, self._epochs, optim)

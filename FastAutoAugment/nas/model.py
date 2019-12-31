@@ -1,3 +1,4 @@
+from os import stat
 import torch
 from torch import nn, Tensor
 
@@ -103,4 +104,3 @@ class Model(nn.Module):
         for module in self.modules():
             if isinstance(module, DropPath_):
                 module.p = p
-

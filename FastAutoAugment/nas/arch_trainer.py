@@ -26,16 +26,18 @@ class ArchTrainer(Trainer, EnforceOverrides):
         super().__init__(conf_train, model, device)
 
         self._max_final_edges = conf_train['max_final_edges']
-        self._plotsdir = common.get_logdir(conf_train['plotsdir'], True)
+        self._plotsdir = common.logdir_abspath(conf_train['plotsdir'], True)
 
     @overrides
     def post_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
         del self._valid_iter # clean up
         super().post_epoch(train_dl, val_dl)
 
-        self._update_best()
+        self._draw_model()
 
-    def _update_best(self)->None:
+    def _draw_model(self)->None:
+        if not self._plotsdir:
+            return
         train_metrics, val_metrics = self.get_metrics()
         if (val_metrics and val_metrics.is_best()) or \
                 (train_metrics and train_metrics.is_best()):

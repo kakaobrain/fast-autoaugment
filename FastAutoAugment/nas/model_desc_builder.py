@@ -7,8 +7,9 @@ from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
                         EdgeDesc, CellDesc, AuxTowerDesc, RunMode
 
 class ModelDescBuilder(EnforceOverrides):
-    def __init__(self, conf_data: Config, conf_model_desc: Config,
+    def __init__(self, conf_model_desc: Config,
                  run_mode:RunMode, template:Optional[ModelDesc]=None)->None:
+        conf_data = conf_model_desc['dataset']
         self.ds_name = conf_data['name']
         self.ch_in = conf_data['ch_in']
         self.n_classes = conf_data['n_classes']

@@ -1,6 +1,6 @@
 __include__: 'darts_cifar.yaml'
 
-dataset:
+dataset: &dataset
   max_batches: 2 # if >= 0 then only these many batches are generated (useful for debugging)
 
 nas:
@@ -11,6 +11,7 @@ nas:
       n_out_nodes: 2 # last n nodes to concate output from
     loader:
       batch: 32
+      dataset: *dataset
     trainer:
       epochs: 2
       logger_freq: 1 # after every N updates dump loss and other metrics in logger
@@ -22,6 +23,7 @@ nas:
       n_out_nodes: 2 # last n nodes to concate output from
     loader:
       batch: 32
+      dataset: *dataset
     trainer:
       epochs: 2
       logger_freq: 1 # after every N updates dump loss and other metrics in logger

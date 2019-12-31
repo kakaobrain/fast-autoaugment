@@ -1,72 +1,48 @@
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TypeVar, Type
 
-from torch.utils.data.dataloader import DataLoader
+import torch
 
-from ..common.common import get_logger
+from ..common.common import get_logger, logdir_abspath
 from ..common.config import Config
-from .model import Model
-from ..common.data import get_dataloaders
 from .model_desc import ModelDesc, RunMode
-from .model_desc_builder import ModelDescBuilder
 from .dag_mutator import DagMutator
+from .arch_trainer import ArchTrainer
+from . import nas_utils
 
+def search_arch(conf_search:Config, dag_mutator:DagMutator,
+                trainer_class:Type[ArchTrainer])->None:
+    conf_model_desc = conf_search['model_desc']
+    model_desc_filename = conf_search['model_desc_file']
+    conf_loader = conf_search['loader']
+    conf_train = conf_search['trainer']
 
-def save_found_model_desc(conf_common: Config, conf_search: Config,
-                          found_model_desc:ModelDesc):
+    device = torch.device(conf_search['device'])
+
+    # create model
+    model = nas_utils.create_model(conf_model_desc, device,
+                                   run_mode=RunMode.Search,
+                                   dag_mutator=dag_mutator)
+
+    # get data
+    train_dl, val_dl = nas_utils.get_train_test_data(conf_loader)
+
+    # search arch
+    arch_trainer = trainer_class(conf_train, model, device)
+    arch_trainer.fit(train_dl, val_dl)
+    found_model_desc = arch_trainer.get_model_desc()
+
+    # save found model
+    _save_model_desc(model_desc_filename, found_model_desc)
+
+def _save_model_desc(model_desc_filename:Optional[str], found_model_desc:ModelDesc)->None:
     logger = get_logger()
-    model_desc_file = conf_search['model_desc_file']
-    logdir = conf_common['logdir']
 
-    if model_desc_file and logdir:
-        model_desc_save_path = os.path.join(logdir, model_desc_file)
-        with open(model_desc_save_path, 'w') as f:
+    model_desc_filepath = logdir_abspath(model_desc_filename)
+    if model_desc_filepath:
+        with open(model_desc_filepath, 'w') as f:
             f.write(found_model_desc.serialize())
-        logger.info(f"Best architecture saved in {model_desc_save_path}")
+        logger.info(f"Best architecture saved in {model_desc_filepath}")
     else:
         logger.info(f"Best architecture is not saved because file path config not set")
 
-def get_data(conf_common:Config, conf_data:Config, conf_loader:Config)\
-        -> Tuple[DataLoader, Optional[DataLoader]]:
-    # region conf vars
-    horovod = conf_common['horovod']
-    # dataset
-    ds_name = conf_data['name']
-    max_batches = conf_data['max_batches']
-    dataroot = conf_data['dataroot']
-    # data loader
-    aug = conf_loader['aug']
-    cutout = conf_loader['cutout']
-    val_ratio = conf_loader['val_ratio']
-    batch_size = conf_loader['batch']
-    val_fold = conf_loader['val_fold']
-    n_workers = conf_loader['n_workers']
-    # endregion
-
-    train_dl, val_dl, *_ = get_dataloaders(
-        ds_name, batch_size, dataroot,
-        aug=aug, cutout=cutout, load_train=True, load_test=False,
-        val_ratio=val_ratio, val_fold=val_fold, horovod=horovod,
-        n_workers=n_workers, max_batches=max_batches)
-    assert train_dl is not None
-    return train_dl, val_dl
-
-def _create_model_desc(conf_data: Config, conf_model_desc: Config,
-                      dag_mutator: DagMutator) -> ModelDesc:
-    builder = ModelDescBuilder(
-        conf_data, conf_model_desc, run_mode=RunMode.Search)
-    model_desc = builder.get_model_desc()
-    dag_mutator.mutate(model_desc)
-    return model_desc
-
-def create_model(conf_data: Config, conf_search: Config,
-                 dag_mutator: DagMutator, device) -> Model:
-    conf_model_desc = conf_search['model_desc']
-    model_desc = _create_model_desc(conf_data, conf_model_desc, dag_mutator)
-    model = Model(model_desc)
-    # if data_parallel:
-    #     model = nn.DataParallel(model).to(device)
-    # else:
-    # TODO: enable DataParallel
-    model = model.to(device)
-    return model

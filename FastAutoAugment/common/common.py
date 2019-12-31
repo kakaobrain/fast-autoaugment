@@ -74,11 +74,16 @@ def common_init(config_filepath: Optional[str]=None,
 
     return conf
 
+def logdir_abspath(subpath:Optional[str], ensure_exists=False)->Optional[str]:
+    logdir = _config_common['logdir']
+    if not subpath or not logdir:
+        return None
+    if subpath:
+        logdir = os.path.join(logdir, subpath)
+        if ensure_exists:
+            os.makedirs(logdir, exist_ok=True)
 
-def get_model_savepath(logdir, dataset, model, tag):
-    return os.path.join(logdir, '%s_%s_%s.model'
-                        % (dataset, model, tag))
-
+    return logdir
 
 def _create_tb_writer(conf_common: Config, is_master=True)\
         -> SummaryWriterAny:
@@ -137,15 +142,6 @@ def _setup_dirs(conf_common: Config, conf_data: Config, experiment_name: str):
             'logdir not specified, no logs will be created or any models saved')
 
     conf_common['logdir'], conf_data['dataroot'] = logdir, dataroot
-
-def get_logdir(subdir:str='', ensure_exists=False)->str:
-    logdir = _config_common['logdir']
-    if not subdir:
-        logdir = os.path.join(logdir, subdir)
-        if ensure_exists:
-            os.makedirs(logdir, exist_ok=True)
-
-    return logdir
 
 def _setup_gpus(conf_common):
     logger = get_logger()
