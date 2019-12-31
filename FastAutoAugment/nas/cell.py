@@ -6,6 +6,7 @@ from overrides import overrides, EnforceOverrides
 import torch
 from torch import nn
 
+from ..common.common import get_logger
 from .dag_edge import DagEdge
 from .model_desc import CellDesc, EdgeDesc, NodeDesc
 from .operations import Op
@@ -31,11 +32,13 @@ class Cell(nn.Module, ABC, EnforceOverrides):
     @staticmethod
     def _create_dag(nodes_desc:List[NodeDesc],
                     alphas_cell:Optional['Cell'])->nn.ModuleList:
+        logger = get_logger()
+
         dag = nn.ModuleList()
         for i, node_desc in enumerate(nodes_desc):
             edges:nn.ModuleList = nn.ModuleList()
             dag.append(edges)
-            assert len(node_desc.edges) > 0
+            logger.warn(f'node {i} in cell did not had any edges!')
             for j, edge_desc in enumerate(node_desc.edges):
                 edges.append(DagEdge(edge_desc,
                     alphas_edge=alphas_cell._dag[i][j] if alphas_cell else None))

@@ -23,25 +23,25 @@ class PetridishMutator(DagMutator):
             self._mutate_cell(cell_desc)
 
     def _mutate_cell(self, cell_desc:CellDesc)->None:
-        # Petridish cell will start out with 0 nodes
-        # at each iteration we add one node
         ch_out = cell_desc.n_node_channels
         reduction = (cell_desc.cell_type==CellType.Reduction)
 
-        # add petridish op for each edge
-        node, i = NodeDesc(edges=[]), len(cell_desc.nodes)
-        for j in range(i+2):
-            op_desc = OpDesc('petridish_reduction_op' if reduction else 'petridish_normal_op',
-                                run_mode=cell_desc.run_mode,
-                                params={
-                                    'ch_in':ch_out,
-                                    'ch_out':ch_out,
-                                    'stride':2 if reduction and j < 2 else 1,
-                                    'affine':cell_desc!=RunMode.Search
-                                })
-            edge = EdgeDesc(op_desc, len(node.edges),
-                            input_ids=[j],
-                            from_node=i,
-                            to_state=j)
-            node.edges.append(edge)
-        cell_desc.nodes.append(node)
+        # Petridish cell will start out with 1 nodes
+        # at each iteration we add one node
+        # we pick the last node available and add petridish op to it
+        last_node_i = len(cell_desc.nodes)-1
+        input_ids = list(range(last_node_i+2))
+        op_desc = OpDesc('petridish_reduction_op' if reduction else 'petridish_normal_op',
+                            run_mode=cell_desc.run_mode, in_len=len(input_ids),
+                            params={
+                                'ch_in':ch_out,
+                                'ch_out':ch_out,
+                                # specify strides for each input
+                                '_strides':[2 if reduction and j < 2 else 1 \
+                                           for j in input_ids],
+                                'affine':cell_desc!=RunMode.Search
+                            })
+        node = cell_desc.nodes[last_node_i]
+        edge = EdgeDesc(op_desc, index=len(node.edges),
+                        input_ids=input_ids)
+        node.edges.append(edge)

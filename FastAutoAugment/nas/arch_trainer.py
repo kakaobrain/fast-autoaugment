@@ -30,9 +30,7 @@ class ArchTrainer(Trainer, EnforceOverrides):
 
     @overrides
     def post_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
-        del self._valid_iter # clean up
         super().post_epoch(train_dl, val_dl)
-
         self._draw_model()
 
     def _draw_model(self)->None:

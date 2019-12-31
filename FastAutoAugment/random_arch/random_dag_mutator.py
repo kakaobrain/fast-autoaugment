@@ -65,9 +65,7 @@ class RandomDagMutator(DagMutator):
                                         'affine': cell_desc!=RunMode.Search
                                     })
                 edge = EdgeDesc(op_desc, len(node.edges),
-                                input_ids=[to_state],
-                                from_node=-1,
-                                to_state=-1)
+                                input_ids=[to_state])
                 node.edges.append(edge)
 
 

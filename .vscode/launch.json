@@ -5,14 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "SearchAug wresnet40x2 cifar10",
-            "type": "python",
-            "request": "launch",
-            "program": "${cwd}/tests/aug_search.py",
-            "console": "integratedTerminal",
-            "args": ["-c", "confs/wresnet40x2_cifar10_b512.yaml"]
-        },
-        {
             "name": "SearchDarts cifar10",
             "type": "python",
             "request": "launch",
@@ -27,14 +19,21 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "TestDarts imagenet",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/tests/scripts/imagenet_test.py",
+            "console": "integratedTerminal"
+        },
+
+        {
             "name": "ToySearchDarts cifar10",
             "type": "python",
             "request": "launch",
             "program": "${cwd}/scripts/darts/cifar_search.py",
             "console": "integratedTerminal",
-            "args": [
-                "-c",
-                "confs/darts_cifar_toy.yaml"
+            "args": ["--config", "confs/cifar_toy.yaml",
+                "--config-defaults", "confs/darts_cifar.yaml"
             ]
         },
         {
@@ -43,37 +42,61 @@
             "request": "launch",
             "program": "${cwd}/scripts/darts/cifar_eval.py",
             "console": "integratedTerminal",
-            "args": [
-                "-c",
-                "confs/darts_cifar_toy.yaml"
+            "args": ["--config", "confs/cifar_toy.yaml",
+                    "--config-defaults", "confs/darts_cifar.yaml"
             ]
         },
+
+        {
+            "name": "ToySearchPetridish cifar10",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/scripts/petridish/cifar_search.py",
+            "console": "integratedTerminal",
+            "args": ["--config", "confs/cifar_toy.yaml",
+                "--config-defaults", "confs/petridish_cifar.yaml"
+            ]
+        },
+        {
+            "name": "ToyTestPetridish cifar10",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/scripts/petridish/cifar_eval.py",
+            "console": "integratedTerminal",
+            "args": ["--config", "confs/cifar_toy.yaml",
+                "--config-defaults", "confs/petridish_cifar.yaml"
+            ]
+        },
+
         {
             "name": "ToyTestRanddom cifar10",
             "type": "python",
             "request": "launch",
             "program": "${cwd}/scripts/random/cifar_eval.py",
             "console": "integratedTerminal",
-            "args": [
-                "-c",
-                "confs/darts_cifar_toy.yaml"
+            "args": ["--config", "confs/cifar_toy.yaml",
+                "--config-defaults", "confs/random_cifar.yaml"
             ]
         },
+
         {
-            "name": "TestDarts imagenet",
+            "name": "SearchAug wresnet40x2 cifar10",
             "type": "python",
             "request": "launch",
-            "program": "${cwd}/tests/scripts/imagenet_test.py",
-            "console": "integratedTerminal"
+            "program": "${cwd}/tests/aug_search.py",
+            "console": "integratedTerminal",
+            "args": ["--config", "confs/wresnet40x2_cifar10_b512.yaml"]
         },
+
         {
             "name": "TrainAug wresnet40x2 cifar10",
             "type": "python",
             "request": "launch",
             "program": "${cwd}/scripts/auto_aug/aug_train.py",
             "console": "integratedTerminal",
-            "args": ["-c", "confs/wresnet40x2_cifar10_b512.yaml",
-                "--aug", "fa_reduced_cifar10"]
+            "args": ["--config", "confs/wresnet40x2_cifar10_b512.yaml",
+                    "--aug", "fa_reduced_cifar10"
+            ]
         },
         {
             "name": "CurrentFile",

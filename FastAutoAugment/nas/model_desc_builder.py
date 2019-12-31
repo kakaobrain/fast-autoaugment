@@ -122,9 +122,7 @@ class ModelDescBuilder(EnforceOverrides):
                                         'affine': cell_desc.run_mode!=RunMode.Search
                                     })
                 edge = EdgeDesc(op_desc, len(node.edges),
-                                input_ids=template_edge.input_ids,
-                                from_node=template_edge.from_node,
-                                to_state=template_edge.to_state)
+                                input_ids=template_edge.input_ids)
                 node.edges.append(edge)
 
     def _is_reduction(self, cell_index:int)->bool:

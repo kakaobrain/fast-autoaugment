@@ -28,13 +28,12 @@ class OpDesc(DescBase):
 class EdgeDesc(DescBase):
     """Edge description between two nodes in the cell
     """
-    def __init__(self, op_desc:OpDesc, index:int, input_ids:List[int],
-                 from_node:int, to_state:int)->None:
+    def __init__(self, op_desc:OpDesc, index:int, input_ids:List[int])->None:
+        assert op_desc.in_len == len(input_ids)
         self.op_desc = op_desc
         self.index = index
         self.input_ids = input_ids
-        self.from_node = from_node # TODO: change name
-        self.to_state = to_state
+
 
 class NodeDesc(DescBase):
     def __init__(self, edges:List[EdgeDesc]=[]) -> None:

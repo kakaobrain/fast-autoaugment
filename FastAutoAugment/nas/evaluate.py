@@ -34,11 +34,14 @@ def eval_arch(conf_eval:Config):
                                    template_model_desc=template_model_desc)
 
     # get data
-    train_dl, test_dl = nas_utils.get_train_test_data(conf_loader)
+    train_dl, _, test_dl = nas_utils.get_data(conf_loader)
+    assert train_dl is not None and test_dl is not None
 
     trainer = Trainer(conf_train, model, device)
     trainer.fit(train_dl, test_dl)
-    trainer.get_metrics()[1].report_best()
+    train_metrics, test_metrics = trainer.get_metrics()
+    train_metrics.report_best()
+    test_metrics.report_best()
 
     save_filepath = logdir_abspath(save_filename)
     if save_filepath:

@@ -1,0 +1,11 @@
+__include__: 'darts_cifar.yaml' # defaults are loaded from this file
+
+nas:
+  search:
+    model_desc:
+      n_nodes: 1 # start node for petridish, at each iteration we add one more
+      n_out_nodes: 1 # st start output is concatination of only node
+  eval:
+    model_desc:
+      n_nodes: 1 # start node for petridish, at each iteration we add one more
+      n_out_nodes: 1 # st start output is concatination of only node

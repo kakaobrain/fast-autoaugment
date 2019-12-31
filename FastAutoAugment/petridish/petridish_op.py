@@ -78,9 +78,10 @@ class PetridishOp(Op):
         self._set_alphas(alphas, op_desc.in_len)
         self._edges = nn.ModuleList()
 
-        for _ in range(op_desc.in_len):
+        for i in range(op_desc.in_len):
             edge = nn.ModuleList()
             self._edges.append(edge)
+            op_desc.params['stride'] = op_desc.params['_strides'][i]
             for primitive in PetridishOp.PRIMITIVES:
                 primitive_op = Op.create(OpDesc(primitive, op_desc.run_mode,
                                                 params=op_desc.params),
@@ -151,7 +152,6 @@ class PetridishOp(Op):
             self._reg_alphas = pl # register parameters with module
             self._alphas = [p for p in self.parameters()]
 
-
 class PetridishFinalOp(Op):
     def __init__(self, op_desc:OpDesc) -> None:
         super().__init__()
@@ -175,7 +175,7 @@ class PetridishFinalOp(Op):
         self._bn = nn.BatchNorm2d(ch_out, affine=affine)
 
     @overrides
-    def forwards(self, x:List[Tensor])->Tensor:
+    def forward(self, x:List[Tensor])->Tensor:
         res = torch.cat([op(x[i]) for op, i in zip(self._ops, self._ins)])
         res = self._conv(res)
         return self._bn(res)

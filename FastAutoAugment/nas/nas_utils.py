@@ -38,8 +38,8 @@ def create_model(conf_model_desc: Config, device, run_mode:RunMode,
     return model
 
 
-def get_train_test_data(conf_loader:Config)\
-        -> Tuple[DataLoader, Optional[DataLoader]]:
+def get_data(conf_loader:Config)\
+        -> Tuple[Optional[DataLoader], Optional[DataLoader], Optional[DataLoader]]:
     # region conf vars
     # dataset
     conf_data = conf_loader['dataset']
@@ -58,13 +58,13 @@ def get_train_test_data(conf_loader:Config)\
     load_test = conf_loader['load_test']
     # endregion
 
-    train_dl, val_dl, *_ = get_dataloaders(
+    train_dl, val_dl, test_dl, *_ = get_dataloaders(
         ds_name, batch_size, dataroot,
         aug=aug, cutout=cutout, load_train=load_train, load_test=load_test,
         val_ratio=val_ratio, val_fold=val_fold, horovod=horovod,
         n_workers=n_workers, max_batches=max_batches)
     assert train_dl is not None
-    return train_dl, val_dl
+    return train_dl, val_dl, test_dl
 
 def save_model_desc(model_desc_filename:Optional[str], model_desc:ModelDesc)\
         ->Optional[str]:

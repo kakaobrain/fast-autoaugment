@@ -54,6 +54,11 @@ class BilevelArchTrainer(ArchTrainer):
         self._valid_iter = iter(val_dl)  # type: ignore
 
     @overrides
+    def post_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
+        del self._valid_iter # clean up
+        super().post_epoch(train_dl, val_dl)
+
+    @overrides
     def pre_step(self, x: Tensor, y: Tensor, optim: Optimizer) -> None:
         super().pre_step(x, y, optim)
 

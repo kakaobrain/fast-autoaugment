@@ -1,4 +1,7 @@
-__include__: 'darts_cifar.yaml'
+# use this as overriding config for quick compile testing
+
+common:
+  detect_anomaly: True # if True, PyTorch code will run 6X slower
 
 dataset: &dataset
   max_batches: 2 # if >= 0 then only these many batches are generated (useful for debugging)
@@ -7,8 +10,8 @@ nas:
   search:
     model_desc:
       n_cells: 3 # number of cells
-      n_nodes: 2 # number of nodes in a cell
-      n_out_nodes: 2 # last n nodes to concate output from
+      n_nodes: 1 # number of nodes in a cell
+      n_out_nodes: 1 # last n nodes to concate output from
     loader:
       batch: 32
       dataset: *dataset
@@ -19,8 +22,8 @@ nas:
     data_parallel: False
     model_desc:
       n_cells: 3 # number of cells
-      n_nodes: 2 # number of nodes in a cell
-      n_out_nodes: 2 # last n nodes to concate output from
+      n_nodes: 1 # number of nodes in a cell
+      n_out_nodes: 1 # last n nodes to concate output from
     loader:
       batch: 32
       dataset: *dataset

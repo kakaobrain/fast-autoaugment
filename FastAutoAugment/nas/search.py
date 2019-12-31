@@ -27,7 +27,8 @@ def search_arch(conf_search:Config, dag_mutator:DagMutator,
                                    dag_mutator=dag_mutator)
 
     # get data
-    train_dl, val_dl = nas_utils.get_train_test_data(conf_loader)
+    train_dl, val_dl, _ = nas_utils.get_data(conf_loader)
+    assert train_dl is not None
 
     # search arch
     arch_trainer = trainer_class(conf_train, model, device)

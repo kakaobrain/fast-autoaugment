@@ -21,8 +21,9 @@ def deep_update(d:MutableMapping, u:Mapping, map_type:Type[MutableMapping]=dict)
 
 class Config(UserDict):
     def __init__(self, config_filepath:Optional[str]=None,
-                 app_desc:Optional[str]=None, use_args=False,
-                 param_args: Sequence = []) -> None:
+                 config_defaults_filepath:Optional[str]=None,
+                 app_desc:Optional[str]=None,
+                 use_args=False, param_args: Sequence = []) -> None:
         """Create config from specified files and args
 
         Config is simply a dictionary of key, value map. The value can itself be
@@ -36,6 +37,7 @@ class Config(UserDict):
 
         Keyword Arguments:
             config_filepath {[str]} -- [Yaml file to load config from] (default: {None})
+            config_defaults_filepath {[str]} -- [Yaml file to load defaults from] (default: {None})
             app_desc {[str]} -- [app description that will show up in --help] (default: {None})
             use_args {bool} -- [if true then command line parameters will override parameters from config files] (default: {False})
             param_args {Sequence} -- [parameters specified as ['--key1',val1,'--key2',val2,...] which will override parameters from config file.] (default: {[]})
@@ -49,11 +51,15 @@ class Config(UserDict):
         if use_args:
             # let command line args specify/override config file
             parser = argparse.ArgumentParser(description=app_desc)
-            parser.add_argument('--config', '-c', type=str, default=None,
-                help='config filepath, this overrides defaults loaded froj default config')
+            parser.add_argument('--config', type=str, default=None,
+                help='config filepath in yaml format')
+            parser.add_argument('--config-defaults', type=str, default=None,
+                help='yaml file to supply defaults, file specified by --config will override any values')
             self.args, self.extra_args = parser.parse_known_args()
             config_filepath = self.args.config or config_filepath
+            config_defaults_filepath = self.args.config_defaults or config_defaults_filepath
 
+        self._load_from_file(config_defaults_filepath)
         self._load_from_file(config_filepath)
         self._update_from_args(param_args)      # merge from params
         self._update_from_args(self.extra_args) # merge from command line
