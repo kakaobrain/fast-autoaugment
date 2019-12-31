@@ -12,7 +12,7 @@ def test_cell_shape():
                        param_args=['--common.logdir', ''])
 
     conf_data = conf['dataset']
-    conf_search = conf['darts']['search']
+    conf_search = conf['nas']['search']
     conf_model_desc = conf_search['model_desc']
 
     dag_mutator = DartsDagMutator()

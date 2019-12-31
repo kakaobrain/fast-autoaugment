@@ -7,8 +7,9 @@ from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
                         EdgeDesc, CellDesc, AuxTowerDesc, RunMode
 
 class ModelDescBuilder(EnforceOverrides):
-    def __init__(self, conf_data: Config, conf_model_desc: Config,
+    def __init__(self, conf_model_desc: Config,
                  run_mode:RunMode, template:Optional[ModelDesc]=None)->None:
+        conf_data = conf_model_desc['dataset']
         self.ds_name = conf_data['name']
         self.ch_in = conf_data['ch_in']
         self.n_classes = conf_data['n_classes']
@@ -18,8 +19,7 @@ class ModelDescBuilder(EnforceOverrides):
         self.n_nodes = conf_model_desc['n_nodes']
         self.n_out_nodes = conf_model_desc['n_out_nodes']
         self.stem_multiplier = conf_model_desc['stem_multiplier']
-        self.aux_weight = conf_model_desc['aux_weight']
-        self.drop_path_prob = conf_model_desc['drop_path_prob']
+        self.aux_tower = conf_model_desc['aux_tower']
         self.run_mode = run_mode
         self.template = template
 
@@ -180,9 +180,9 @@ class ModelDescBuilder(EnforceOverrides):
         aux_tower_desc = None
         # TODO: shouldn't we adding aux tower at *every* 1/3rd?
         if self.run_mode==RunMode.EvalTrain                        \
-                and self.aux_weight > 0.            \
+                and self.aux_tower                                 \
                 and cell_index == 2*self.n_cells//3:
-            aux_tower_desc = AuxTowerDesc(ch_in, self.n_classes, self.aux_weight)
+            aux_tower_desc = AuxTowerDesc(ch_in, self.n_classes)
         return aux_tower_desc
 
     def _get_stem_ops(self)->Tuple[OpDesc, OpDesc]:
@@ -191,18 +191,16 @@ class ModelDescBuilder(EnforceOverrides):
         # TODO: in original paper stems are always affine
         stem_ch_out = self.init_ch_out*self.stem_multiplier
         stem0_op = OpDesc(name=self.stem0_op_name, run_mode=self.run_mode,
-                          params={
+                            params={
                             'ch_in': self.ch_in,
                             'ch_out': stem_ch_out,
                             'affine': self.run_mode!=RunMode.Search
-                          }
-                          )
+                            }
+                            )
         stem1_op = OpDesc(name=self.stem1_op_name, run_mode=self.run_mode,
-                          params={
+                            params={
                             'ch_in':self.ch_in,
                             'ch_out':stem_ch_out,
                             'affine':self.run_mode!=RunMode.Search
-                          })
-
-
+                            })
         return stem0_op, stem1_op

@@ -1,8 +1,6 @@
 from typing import Tuple, Optional
-from abc import ABC, abstractmethod
 
 from torch import nn, Tensor
-from torch.nn.modules.loss import _Loss
 from torch.optim.optimizer import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.data import DataLoader
@@ -11,60 +9,81 @@ from overrides import EnforceOverrides
 
 from .metrics import Metrics
 from .tester import Tester
+from .config import Config
+from . import utils
 
 class Trainer(EnforceOverrides):
-    def __init__(self, model:nn.Module, device,
-                 train_lossfn:_Loss, test_lossfn:_Loss,
-                 aux_weight=0., grad_clip=0., drop_path_prob=0.,
-                 logger_freq=10, title='',
-                 val_logger_freq=10, val_title='')->None:
+    def __init__(self, conf_train:Config, model:nn.Module, device)->None:
+        # region config vars
+        conf_lossfn = conf_train['lossfn']
+        self._aux_weight = conf_train['aux_weight']
+        self._grad_clip = conf_train['grad_clip']
+        self._drop_path_prob = conf_train['drop_path_prob']
+        self._logger_freq = conf_train['logger_freq']
+        self._title = conf_train['title']
+        self._epochs = conf_train['epochs']
+        self._conf_optim = conf_train['optimizer']
+        self._conf_sched = conf_train['lr_schedule']
+        conf_validation = conf_train['validation']
+        # endregion
+
         self.model = model
         self.device = device
-        self.train_lossfn = train_lossfn
-        self.aux_weight, self.grad_clip = aux_weight, grad_clip
-        self.drop_path_prob = drop_path_prob
-        self.title, self.logger_freq = title, logger_freq
-        self.tester = Tester(model, device, test_lossfn,
-                             logger_freq=val_logger_freq, title=val_title)
+        self._lossfn = utils.get_lossfn(conf_lossfn).to(device)
+        self._metrics = self._create_metrics(self._epochs, None)
+        self._tester = Tester(conf_validation, model, device) \
+                        if conf_validation else None
 
-    def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader], epochs:int,
-            optim:Optimizer, lr_scheduler:_LRScheduler)\
-              ->Tuple[Metrics, Optional[Metrics]]:
-        train_metrics, val_metrics = self.create_metrics(epochs, optim), None
+    def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
+        optim = self.get_optimizer()
+        lr_scheduler = self.get_scheduler(optim)
+        self._metrics = self._create_metrics(self._epochs, optim)
 
-        if val_dl:
-            val_metrics = self.tester.create_metrics(epochs)
+        self.pre_fit(train_dl, val_dl, optim, lr_scheduler)
+        for epoch in range(self._epochs):
+            self._set_drop_path(epoch, self._epochs)
 
-        for epoch in range(epochs):
-            self._set_drop_path(epoch, epochs)
-
-            self.pre_epoch(train_dl, val_dl, train_metrics, val_metrics)
-            self.train_epoch(train_dl, optim, train_metrics)
-            self.post_epoch(train_dl, val_dl, train_metrics, val_metrics)
+            self.pre_epoch(train_dl, val_dl)
+            self._train_epoch(train_dl, optim)
+            self.post_epoch(train_dl, val_dl)
 
             lr_scheduler.step()
+        self.post_fit(train_dl, val_dl)
 
-        return train_metrics, val_metrics
+    def get_optimizer(self)->Optimizer:
+        return utils.get_optimizer(self._conf_optim, self.model.parameters())
 
-    def pre_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader],
-                  train_metrics:Metrics, val_metrics:Optional[Metrics])->None:
-        train_metrics.pre_epoch()
-    def post_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader],
-                   train_metrics:Metrics, val_metrics:Optional[Metrics])->None:
-        train_metrics.post_epoch()
-        self.test_epoch(val_dl, val_metrics)
-    def pre_step(self, x:Tensor, y:Tensor, optim:Optimizer, train_metrics:Metrics)->None:
-        train_metrics.pre_step(x, y)
+    def get_scheduler(self, optim:Optimizer)->_LRScheduler:
+        return utils.get_lr_scheduler(self._conf_sched, self._epochs, optim)
+
+    def get_metrics(self)->Tuple[Metrics, Optional[Metrics]]:
+        return self._metrics, self._tester.get_metrics() if self._tester else None
+
+    def get_cur_lr(self)->float:
+        return self._metrics.get_cur_lr()
+
+    def pre_fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader],
+                optim:Optimizer, sched:_LRScheduler)->None:
+        pass
+    def post_fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
+        pass
+    def pre_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
+        self._metrics.pre_epoch()
+    def post_epoch(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
+        self._metrics.post_epoch()
+        if val_dl and self._tester:
+            self._tester.test(val_dl)
+    def pre_step(self, x:Tensor, y:Tensor, optim:Optimizer)->None:
+        self._metrics.pre_step(x, y)
     def post_step(self, x:Tensor, y:Tensor, logits:Tensor, loss:Tensor,
-                  steps:int, train_metrics:Metrics)->None:
-        train_metrics.post_step(x, y, logits, loss, steps)
+                  steps:int)->None:
+        self._metrics.post_step(x, y, logits, loss, steps)
 
-    def create_metrics(self, epochs:int, optim:Optimizer):
-        return Metrics(self.title, epochs,
-                       optim=optim, logger_freq=self.logger_freq)
+    def _create_metrics(self, epochs:int, optim:Optional[Optimizer]):
+        return Metrics(self._title, epochs,
+                       optim=optim, logger_freq=self._logger_freq)
 
-    def train_epoch(self, train_dl: DataLoader, optim:Optimizer,
-                    train_metrics:Metrics)->None:
+    def _train_epoch(self, train_dl: DataLoader, optim:Optimizer)->None:
         steps = len(train_dl)
         self.model.train()
         for x, y in train_dl:
@@ -73,32 +92,28 @@ class Trainer(EnforceOverrides):
             # enable non-blocking on 2nd part so its ready when we get to it
             x, y = x.to(self.device), y.to(self.device, non_blocking=True)
 
-            self.pre_step(x, y, optim, train_metrics)
+            self.pre_step(x, y, optim)
 
             optim.zero_grad()
-            if self.aux_weight > 0.:
+            if self._aux_weight > 0.:
                 logits, aux_logits = self.model(x)
-                loss = self.train_lossfn(logits, y)
-                loss += self.aux_weight * self.train_lossfn(aux_logits, y)
+                loss = self._lossfn(logits, y)
+                loss += self._aux_weight * self._lossfn(aux_logits, y)
             else:
                 logits, *_ = self.model(x)
-                loss = self.train_lossfn(logits, y)
+                loss = self._lossfn(logits, y)
 
             loss.backward()
-            if self.grad_clip:
+            if self._grad_clip:
                 # TODO: original darts clips alphas as well but pt.darts doesn't
-                nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+                nn.utils.clip_grad_norm_(self.model.parameters(), self._grad_clip)
             optim.step()
 
-            self.post_step(x, y, logits, loss, steps, train_metrics)
-
-    def test_epoch(self, val_dl:Optional[DataLoader], val_metrics:Optional[Metrics]):
-        if val_dl:
-            self.tester.test_epoch(val_dl, val_metrics)
+            self.post_step(x, y, logits, loss, steps)
 
     def _set_drop_path(self, epoch:int, epochs:int)->None:
-        if self.drop_path_prob:
-            drop_prob = self.drop_path_prob * epoch / epochs
+        if self._drop_path_prob:
+            drop_prob = self._drop_path_prob * epoch / epochs
             # set value as property in model (it will be used by forward())
             # this is necessory when using DataParallel(model)
             # https://github.com/pytorch/pytorch/issues/16885
@@ -110,4 +125,4 @@ class Trainer(EnforceOverrides):
             else:
                 raise RuntimeError('Drop path value {} was specified but model'
                                    ' does not have drop_path_prob() method'\
-                                       .format(self.drop_path_prob))
+                                       .format(self._drop_path_prob))

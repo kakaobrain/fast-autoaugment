@@ -9,23 +9,41 @@ from torch.utils.data import DataLoader
 from overrides import EnforceOverrides
 
 from .metrics import Metrics
+from .config import Config
+from . import utils
 
 class Tester(EnforceOverrides):
     """Evaluate model on given data"""
 
-    def __init__(self, model:nn.Module, device, lossfn:_Loss,
-                 logger_freq:int=10, title:str='')->None:
+    def __init__(self, conf_eval:Config, model:nn.Module, device)->None:
+        self._title = conf_eval['title']
+        self._logger_freq = conf_eval['logger_freq']
+        conf_lossfn = conf_eval['lossfn']
+
         self.model = model
         self.device = device
-        self.lossfn = lossfn
-        self.title = title
-        self.logger_freq = logger_freq
+        self._lossfn = utils.get_lossfn(conf_lossfn).to(device)
+        self._metrics = self._create_metrics(epochs=1)
 
-    def test(self, test_dl:DataLoader, epochs:int)->Metrics:
-        metrics = self.create_metrics(epochs)
-        for _ in range(epochs):
-            self.test_epoch(test_dl, metrics)
-        return metrics
+    def test(self, test_dl: DataLoader)->None:
+        steps = len(test_dl)
+        self.pre_epoch(steps, self._metrics)
+        self.model.eval()
+        with torch.no_grad():
+            for x, y in test_dl:
+                assert not self.model.training # derived class might alter the mode
+
+                # enable non-blocking on 2nd part so its ready when we get to it
+                x, y = x.to(self.device), y.to(self.device, non_blocking=True)
+
+                self.pre_step(x, y, self._metrics)
+                logits, *_ = self.model(x) # ignore aux logits in test mode
+                loss = self._lossfn(logits, y)
+                self.post_step(x, y, logits, loss, steps, self._metrics)
+        self.post_epoch(steps, self._metrics)
+
+    def get_metrics(self)->Metrics:
+        return self._metrics
 
     def pre_epoch(self, epoch_steps:int, metrics:Metrics)->None:
         metrics.pre_epoch()
@@ -37,25 +55,6 @@ class Tester(EnforceOverrides):
                   steps:int, metrics:Metrics)->None:
         metrics.post_step(x, y, logits, loss, steps)
 
-    def create_metrics(self, epochs:int):
-        return Metrics(self.title, epochs, logger_freq=self.logger_freq)
-
-    def test_epoch(self, test_dl: DataLoader, metrics:Metrics)->None:
-        steps = len(test_dl)
-        self.pre_epoch(steps, metrics)
-
-        self.model.eval()
-        with torch.no_grad():
-            for x, y in test_dl:
-                assert not self.model.training # derived class might alter the mode
-
-                # enable non-blocking on 2nd part so its ready when we get to it
-                x, y = x.to(self.device), y.to(self.device, non_blocking=True)
-
-                self.pre_step(x, y, metrics)
-                logits, *_ = self.model(x) # ignore aux logits in test mode
-                loss = self.lossfn(logits, y)
-                self.post_step(x, y, logits, loss, steps, metrics)
-
-        self.post_epoch(steps, metrics)
+    def _create_metrics(self, epochs:int):
+        return Metrics(self._title, epochs, logger_freq=self._logger_freq)
 

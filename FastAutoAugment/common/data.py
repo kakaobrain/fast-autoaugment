@@ -20,6 +20,195 @@ from .imagenet import ImageNet
 
 DatasetLike = Union[Dataset, Subset, ConcatDataset]
 
+
+def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
+    load_train:bool, load_test:bool, val_ratio:float, val_fold=0,
+    horovod=False, target_lb=-1, n_workers:int=None, max_batches:int=-1) \
+        -> Tuple[Optional[DataLoader], Optional[DataLoader],
+                 Optional[DataLoader], Optional[Sampler]]:
+
+    logger = get_logger()
+
+    # if debugging in vscode, workers > 0 gets termination
+    if 'pydevd' in sys.modules:
+        n_workers = 0
+        logger.warn('Debugger is detected, lower performance settings may be used.')
+    else: # use simple heuristic to auto select number of workers
+        n_workers = int(torch.cuda.device_count()*4 if n_workers is None \
+            else n_workers)
+    logger.info('n_workers = {}'.format(n_workers))
+
+    # get usual random crop/flip transforms
+    transform_train, transform_test = get_transforms(dataset)
+
+    # add additional aug and cutout transformations
+    _add_augs(transform_train, aug, cutout)
+
+    trainset, testset = _get_datasets(dataset, dataroot,
+        load_train, load_test, transform_train, transform_test)
+
+    # TODO: below will never get executed, set_preaug does not exist in PyTorch
+    # if total_aug is not None and augs is not None:
+    #     trainset.set_preaug(augs, total_aug)
+    #     logger.info('set_preaug-')
+
+    trainloader, validloader, testloader, train_sampler = None, None, None, None
+
+    if trainset:
+        if max_batches >= 0:
+            max_size = max_batches*batch_size
+            logger.warn('Trainset trimmed to max_batches = {}'.format(max_size))
+            trainset = LimitDataset(trainset, max_size)
+        # sample validation set from trainset if cv_ration > 0
+        train_sampler, valid_sampler = _get_train_sampler(val_ratio, val_fold,
+            trainset, horovod, target_lb)
+        trainloader = torch.utils.data.DataLoader(trainset,
+            batch_size=batch_size, shuffle=True if train_sampler is None else False,
+            num_workers=n_workers, pin_memory=True,
+            sampler=train_sampler, drop_last=True)
+        if train_sampler is not None:
+            validloader = torch.utils.data.DataLoader(trainset,
+                batch_size=batch_size, shuffle=False,
+                num_workers=n_workers, pin_memory=True, #TODO: set n_workers per ratio?
+                sampler=valid_sampler, drop_last=False)
+        # else validloader is left as None
+    if testset:
+        if max_batches >= 0:
+            max_size = max_batches*batch_size
+            logger.warn('Testset trimmed to max_batches = {}'.format(max_size))
+            testset = LimitDataset(testset, max_batches*batch_size)
+        testloader = torch.utils.data.DataLoader(testset,
+            batch_size=batch_size, shuffle=False,
+            num_workers=n_workers, pin_memory=True,
+            sampler=None, drop_last=False
+    )
+
+    assert val_ratio > 0.0 or validloader is None
+
+    # we have to return train_sampler because of horovod
+    return trainloader, validloader, testloader, train_sampler
+
+def get_transforms(dataset):
+    if 'imagenet' in dataset:
+        return _get_imagenet_transforms()
+
+    if dataset == 'cifar10':
+        MEAN = [0.49139968, 0.48215827, 0.44653124]
+        STD = [0.24703233, 0.24348505, 0.26158768]
+        transf = [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip()
+        ]
+    elif dataset == 'cifar100':
+        MEAN = [0.507, 0.487, 0.441]
+        STD = [0.267, 0.256, 0.276]
+        transf = [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip()
+        ]
+    elif dataset == 'svhn':
+        MEAN = [0.4914, 0.4822, 0.4465]
+        STD = [0.2023, 0.1994, 0.20100]
+        transf = [
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip()
+        ]
+    elif dataset == 'mnist':
+        MEAN = [0.13066051707548254]
+        STD = [0.30810780244715075]
+        transf = [
+            transforms.RandomAffine(degrees=15, translate=(0.1, 0.1),
+                scale=(0.9, 1.1), shear=0.1)
+        ]
+    elif dataset == 'fashionmnist':
+        MEAN = [0.28604063146254594]
+        STD = [0.35302426207299326]
+        transf = [
+            transforms.RandomAffine(degrees=15, translate=(0.1, 0.1),
+                scale=(0.9, 1.1), shear=0.1),
+            transforms.RandomVerticalFlip()
+        ]
+    else:
+        raise ValueError('dataset not recognized: {}'.format(dataset))
+
+    normalize = [
+        transforms.ToTensor(),
+        transforms.Normalize(MEAN, STD)
+    ]
+
+    train_transform = transforms.Compose(transf + normalize)
+    test_transform = transforms.Compose(normalize)
+
+    return train_transform, test_transform
+
+class CutoutDefault:
+    """
+    Reference : https://github.com/quark0/darts/blob/master/cnn/utils.py
+    """
+    def __init__(self, length):
+        self.length = length
+
+    def __call__(self, img):
+        h, w = img.size(1), img.size(2)
+        mask = np.ones((h, w), np.float32)
+        y = np.random.randint(h)
+        x = np.random.randint(w)
+
+        y1 = np.clip(y - self.length // 2, 0, h)
+        y2 = np.clip(y + self.length // 2, 0, h)
+        x1 = np.clip(x - self.length // 2, 0, w)
+        x2 = np.clip(x + self.length // 2, 0, w)
+
+        mask[y1: y2, x1: x2] = 0.
+        mask = torch.from_numpy(mask)
+        mask = mask.expand_as(img)
+        img *= mask
+        return img
+
+class Augmentation:
+    def __init__(self, policies):
+        self.policies = policies
+
+    def __call__(self, img):
+        for _ in range(1):
+            policy = random.choice(self.policies)
+            for name, pr, level in policy:
+                if random.random() > pr:
+                    continue
+                img = apply_augment(img, name, level)
+        return img
+
+
+class SubsetSampler(Sampler):
+    r"""Samples elements from a given list of indices, without replacement.
+
+    Arguments:
+        indices (sequence): a sequence of indices
+    """
+
+    def __init__(self, indices):
+        self.indices = indices
+
+    def __iter__(self):
+        return (i for i in self.indices)
+
+    def __len__(self):
+        return len(self.indices)
+
+class LimitDataset(Dataset):
+    def __init__(self, dataset, n):
+        self.dataset = dataset
+        self.n = n
+        if hasattr(dataset, 'targets'):
+            self.targets = dataset.targets[:n]
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, i):
+        return self.dataset[i]
+
+
 def _get_datasets(dataset, dataroot, load_train:bool, load_test:bool,
         transform_train, transform_test)\
             ->Tuple[DatasetLike, DatasetLike]:
@@ -245,59 +434,6 @@ def _add_augs(transform_train, aug:str, cutout:int):
 
     return total_aug, augs
 
-def get_transforms(dataset):
-    if 'imagenet' in dataset:
-        return _get_imagenet_transforms()
-
-    if dataset == 'cifar10':
-        MEAN = [0.49139968, 0.48215827, 0.44653124]
-        STD = [0.24703233, 0.24348505, 0.26158768]
-        transf = [
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip()
-        ]
-    elif dataset == 'cifar100':
-        MEAN = [0.507, 0.487, 0.441]
-        STD = [0.267, 0.256, 0.276]
-        transf = [
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip()
-        ]
-    elif dataset == 'svhn':
-        MEAN = [0.4914, 0.4822, 0.4465]
-        STD = [0.2023, 0.1994, 0.20100]
-        transf = [
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip()
-        ]
-    elif dataset == 'mnist':
-        MEAN = [0.13066051707548254]
-        STD = [0.30810780244715075]
-        transf = [
-            transforms.RandomAffine(degrees=15, translate=(0.1, 0.1),
-                scale=(0.9, 1.1), shear=0.1)
-        ]
-    elif dataset == 'fashionmnist':
-        MEAN = [0.28604063146254594]
-        STD = [0.35302426207299326]
-        transf = [
-            transforms.RandomAffine(degrees=15, translate=(0.1, 0.1),
-                scale=(0.9, 1.1), shear=0.1),
-            transforms.RandomVerticalFlip()
-        ]
-    else:
-        raise ValueError('dataset not recognized: {}'.format(dataset))
-
-    normalize = [
-        transforms.ToTensor(),
-        transforms.Normalize(MEAN, STD)
-    ]
-
-    train_transform = transforms.Compose(transf + normalize)
-    test_transform = transforms.Compose(normalize)
-
-    return train_transform, test_transform
-
 def _get_imagenet_transforms():
     transform_train, transform_test = None, None
 
@@ -336,136 +472,3 @@ def _get_imagenet_transforms():
 
     return transform_train, transform_test
 
-
-class LimitDataset(Dataset):
-    def __init__(self, dataset, n):
-        self.dataset = dataset
-        self.n = n
-        if hasattr(dataset, 'targets'):
-            self.targets = dataset.targets[:n]
-
-    def __len__(self):
-        return self.n
-
-    def __getitem__(self, i):
-        return self.dataset[i]
-
-def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
-    load_train:bool, load_test:bool, val_ratio:float, val_fold=0,
-    horovod=False, target_lb=-1, n_workers:int=None, max_batches:int=-1) \
-        -> Tuple[Optional[DataLoader], Optional[DataLoader],
-                 Optional[DataLoader], Optional[Sampler]]:
-
-    logger = get_logger()
-
-    # if debugging in vscode, workers > 0 gets termination
-    if 'pydevd' in sys.modules:
-        n_workers = 0
-        logger.warn('Debugger is detected, lower performance settings may be used.')
-    else: # use simple heuristic to auto select number of workers
-        n_workers = int(torch.cuda.device_count()*4 if n_workers is None \
-            else n_workers)
-    logger.info('n_workers = {}'.format(n_workers))
-
-    # get usual random crop/flip transforms
-    transform_train, transform_test = get_transforms(dataset)
-
-    # add additional aug and cutout transformations
-    _add_augs(transform_train, aug, cutout)
-
-    trainset, testset = _get_datasets(dataset, dataroot,
-        load_train, load_test, transform_train, transform_test)
-
-    # TODO: below will never get executed, set_preaug does not exist in PyTorch
-    # if total_aug is not None and augs is not None:
-    #     trainset.set_preaug(augs, total_aug)
-    #     logger.info('set_preaug-')
-
-    trainloader, validloader, testloader, train_sampler = None, None, None, None
-
-    if trainset:
-        if max_batches >= 0:
-            max_size = max_batches*batch_size
-            logger.warn('Trainset trimmed to max_batches = {}'.format(max_size))
-            trainset = LimitDataset(trainset, max_size)
-        # sample validation set from trainset if cv_ration > 0
-        train_sampler, valid_sampler = _get_train_sampler(val_ratio, val_fold,
-            trainset, horovod, target_lb)
-        trainloader = torch.utils.data.DataLoader(trainset,
-            batch_size=batch_size, shuffle=True if train_sampler is None else False,
-            num_workers=n_workers, pin_memory=True,
-            sampler=train_sampler, drop_last=True)
-        if train_sampler is not None:
-            validloader = torch.utils.data.DataLoader(trainset,
-                batch_size=batch_size, shuffle=False,
-                num_workers=n_workers, pin_memory=True, #TODO: set n_workers per ratio?
-                sampler=valid_sampler, drop_last=False)
-        # else validloader is left as None
-    if testset:
-        if max_batches >= 0:
-            max_size = max_batches*batch_size
-            logger.warn('Testset trimmed to max_batches = {}'.format(max_size))
-            testset = LimitDataset(testset, max_batches*batch_size)
-        testloader = torch.utils.data.DataLoader(testset,
-            batch_size=batch_size, shuffle=False,
-            num_workers=n_workers, pin_memory=True,
-            sampler=None, drop_last=False
-    )
-
-    # we have to return train_sampler because of horovod
-    return trainloader, validloader, testloader, train_sampler
-
-
-class CutoutDefault:
-    """
-    Reference : https://github.com/quark0/darts/blob/master/cnn/utils.py
-    """
-    def __init__(self, length):
-        self.length = length
-
-    def __call__(self, img):
-        h, w = img.size(1), img.size(2)
-        mask = np.ones((h, w), np.float32)
-        y = np.random.randint(h)
-        x = np.random.randint(w)
-
-        y1 = np.clip(y - self.length // 2, 0, h)
-        y2 = np.clip(y + self.length // 2, 0, h)
-        x1 = np.clip(x - self.length // 2, 0, w)
-        x2 = np.clip(x + self.length // 2, 0, w)
-
-        mask[y1: y2, x1: x2] = 0.
-        mask = torch.from_numpy(mask)
-        mask = mask.expand_as(img)
-        img *= mask
-        return img
-
-class Augmentation:
-    def __init__(self, policies):
-        self.policies = policies
-
-    def __call__(self, img):
-        for _ in range(1):
-            policy = random.choice(self.policies)
-            for name, pr, level in policy:
-                if random.random() > pr:
-                    continue
-                img = apply_augment(img, name, level)
-        return img
-
-
-class SubsetSampler(Sampler):
-    r"""Samples elements from a given list of indices, without replacement.
-
-    Arguments:
-        indices (sequence): a sequence of indices
-    """
-
-    def __init__(self, indices):
-        self.indices = indices
-
-    def __iter__(self):
-        return (i for i in self.indices)
-
-    def __len__(self):
-        return len(self.indices)

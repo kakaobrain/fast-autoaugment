@@ -1,3 +1,4 @@
+from typing import Optional
 from hyperopt import hp
 from ray.tune.trial_runner import TrialRunner # will be patched but not used
 import gorilla
@@ -20,7 +21,7 @@ from ..common.metrics import Accumulator
 from ..networks import get_model, num_class
 from ..common.augmentations import augment_list
 from .train import train_and_eval
-from ..common.common import get_model_savepath, get_logger
+from ..common.common import get_logger, logdir_abspath
 
 from ..common.config import Config
 from ..common.stopwatch import StopWatch
@@ -71,6 +72,10 @@ def _train_model(conf, dataroot, augment, val_ratio, val_fold, save_path=None,
         save_path=save_path, only_eval=only_eval)
     return model_type, val_fold, result
 
+def _get_model_filepath(dataset, model, tag)->Optional[str]:
+    filename = '%s_%s_%s.model' % (dataset, model, tag)
+    return logdir_abspath(filename)
+
 def _train_no_aug(conf):
     logger, sw = get_logger(), StopWatch.get()
 
@@ -97,7 +102,7 @@ def _train_no_aug(conf):
     sw.start(tag='train_no_aug')
 
     # for each fold, we will save model
-    save_paths = [get_model_savepath(logdir, ds_name, model_type,
+    save_paths = [_get_model_filepath(ds_name, model_type,
         'ratio%.1f_fold%d' % (val_ratio, i)) for i in range(cv_num)]
 
     # Train model for each fold, save model in specified path, put result
@@ -184,7 +189,7 @@ def search(conf):
     logger.info('----- Search Test-Time Augmentation Policies -----')
     sw.start(tag='search')
 
-    save_paths = [get_model_savepath(logdir, ds_name,
+    save_paths = [_get_model_filepath(ds_name,
         model_type, 'ratio%.1f_fold%d' %
             (val_ratio, i)) for i in range(cv_num)]
 
@@ -255,9 +260,9 @@ def search(conf):
     sw.start(tag='train_aug')
 
     num_experiments = 5
-    default_path = [get_model_savepath(logdir, ds_name, model_type, 'ratio%.1f_default%d'  \
+    default_path = [_get_model_filepath(ds_name, model_type, 'ratio%.1f_default%d'  \
         % (val_ratio, _)) for _ in range(num_experiments)]
-    augment_path = [get_model_savepath(logdir, ds_name, model_type, 'ratio%.1f_augment%d'  \
+    augment_path = [_get_model_filepath(ds_name, model_type, 'ratio%.1f_augment%d'  \
         % (val_ratio, _)) for _ in range(num_experiments)]
     reqs = [_train_model.remote(copy.deepcopy(copied_c), dataroot, aug, 0.0, 0, save_path=default_path[_], only_eval=True) \
         for _ in range(num_experiments)] + \
