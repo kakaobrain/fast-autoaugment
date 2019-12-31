@@ -22,37 +22,38 @@ from collections import defaultdict
 import pdb
 import random
 
+from FastAutoAugment.common.config import Config
 
-def launch_experiment(ws):
+
+def launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment):
 
     # Register the input data blob container
     input_ds = Datastore.register_azure_blob_container(workspace=ws,
                                                        datastore_name='petridishdata',
                                                        container_name='datasets',
                                                        account_name='petridishdata',
-                                                       account_key='FVSBHodZL99VkIL0Mn33X0735NYbIpdQg99I+54/OW5LZsrbSclWMuRAnjUBdqS1ylMD9NK2Gsg06XEzftuCoA==',
+                                                       account_key=conf_aml['azure_storage_account_key'],
                                                        create_if_not_exists=False)        
     
     output_ds = Datastore.register_azure_blob_container(workspace=ws,
                                                        datastore_name='petridishoutput',
                                                        container_name='amloutput',
                                                        account_name='petridishdata',
-                                                       account_key='FVSBHodZL99VkIL0Mn33X0735NYbIpdQg99I+54/OW5LZsrbSclWMuRAnjUBdqS1ylMD9NK2Gsg06XEzftuCoA==',
+                                                       account_key=conf_aml['azure_storage_account_key'],
                                                        create_if_not_exists=False)        
 
 
     # Create or attach compute cluster
-    cluster_name = "pet-" + datetime.datetime.now().strftime('%Y%m%d%I%M')
+    cluster_name = conf_cluster['cluster_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
 
     try:
         compute_target = ComputeTarget(workspace=ws, name=cluster_name)
         print('Found existing compute target.')
     except:
         print('Creating a new compute target...')
-        # STANDARD_NC6 (K80), STANDARD_NC6S_V2 (P100)
-        compute_config = AmlCompute.provisioning_configuration(vm_size='STANDARD_NC24S_V2', max_nodes=100,
-                                                               vm_priority='lowpriority',
-                                                               idle_seconds_before_scaledown=120)
+        compute_config = AmlCompute.provisioning_configuration(vm_size=conf_cluster['vm_size'], max_nodes=conf_cluster['max_nodes'],
+                                                               vm_priority=conf_cluster['vm_priority'],
+                                                               idle_seconds_before_scaledown=conf_cluster['idle_seconds_before_scaledown'])
 
         # Create the cluster
         compute_target = ComputeTarget.create(ws, cluster_name, compute_config)
@@ -67,32 +68,29 @@ def launch_experiment(ws):
 
     # Setup custom docker usage
     image_registry_details = ContainerRegistry()
-    image_registry_details.address = "dedeyfvimobd1b7f78.azurecr.io"
-    image_registry_details.username = "dedeyfvimobd1b7f78"
-    image_registry_details.password = "cHzHmgsqAdk4EM1GQr=zJLwWrYyNnKur"
+    image_registry_details.address = conf_docker['image_registry_address']
+    image_registry_details.username = conf_docker['image_registry_username']
+    image_registry_details.password = conf_docker['image_registry_password']
 
     # don't let the system build a new conda environment
     user_managed_dependencies = True    
 
     # Note that experiment names have to be 
     # <36 alphanumeric characters
-    exp_name = 'pet-' + datetime.datetime.now().strftime('%Y%m%d%I%M')
+    exp_name = conf_experiment['experiment_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
     
     experiment = Experiment(ws, name=exp_name)
-    script_params = {'--dataroot': input_ds.path('/').as_mount(),
-                     '--save': output_ds.path(exp_name).as_mount(),
-                     '-c': 'FastAutoAugment/confs/darts.yaml',
-                     '--aug': 'fa_reduced_cifar10',
-                     '--dataset': 'cifar10'
+    script_params = {'--dataset.dataroot': input_ds.path('/').as_mount(),
+                     '--common.logdir': output_ds.path('/').as_mount(),
                     }
     
     est = Estimator(source_directory=project_folder,
                     script_params=script_params,
                     compute_target=compute_target,
-                    entry_script='FastAutoAugment/train.py',
-                    custom_docker_image='petridishpytorch',
+                    entry_script='scripts/darts/cifar_search.py',
+                    custom_docker_image=conf_docker['image_name'],
                     image_registry_details=image_registry_details,
-                    user_managed=user_managed_dependencies,
+                    user_managed=user_managed_dependencies,                    
                     source_directory_data_store=input_ds)
 
     run = experiment.submit(est)
@@ -117,12 +115,23 @@ if __name__ == "__main__":
     print("SDK Version:", azureml.core.VERSION)
     set_diagnostics_collection(send_diagnostics=True)
 
+    # Read in config
+    conf = Config(config_filepath='/home/dedey/aml_secrets/aml_config_dedey.yaml')
+
+     # Config region
+    conf_aml = conf['aml_config']
+    conf_cluster = conf['cluster_config']
+    conf_docker = conf['azure_docker']
+    conf_experiment = conf['experiment']
+    # endregion
+                  
+
     # Initialize workspace
     # Make sure you have downloaded your workspace config
-    ws = Workspace.from_config(path='dedey-fvimo-config.json')
+    ws = Workspace.from_config(path=conf_aml['aml_config_file'])
     print('Workspace name: ' + ws.name,
           'Azure region: ' + ws.location,
           'Subscription id: ' + ws.subscription_id,
           'Resource group: ' + ws.resource_group, sep='\n')
 
-    launch_experiment(ws)
+    launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment)
