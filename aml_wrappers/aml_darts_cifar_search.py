@@ -51,7 +51,7 @@ def launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment):
         print('Found existing compute target.')
     except:
         print('Creating a new compute target...')
-        compute_config = AmlCompute.provisioning_configuration(vm_size=conf_cluster['cluster_name'], max_nodes=conf_cluster['max_nodes'],
+        compute_config = AmlCompute.provisioning_configuration(vm_size=conf_cluster['vm_size'], max_nodes=conf_cluster['max_nodes'],
                                                                vm_priority=conf_cluster['vm_priority'],
                                                                idle_seconds_before_scaledown=conf_cluster['idle_seconds_before_scaledown'])
 
