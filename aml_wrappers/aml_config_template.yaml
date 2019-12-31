@@ -1,0 +1,20 @@
+aml_config:
+    aml_config_file: 'full_path_to_aml_config'
+    azure_storage_account_key: 'azure_storage_account_key'
+
+cluster_config:
+    cluster_name: 'name_of_the_cluster'
+    vm_size: 'machine_type'
+    vm_priority: 'priority_of_vm'
+    # Change the below to appropriate integers
+    max_nodes: 100
+    idle_seconds_before_scaledown: 120
+
+azure_docker:
+    image_registry_address: 'standin'
+    image_registry_username: 'standin'
+    image_registry_password: 'standin'
+    image_name: 'standin'
+
+experiment:
+    experiment_name: 'standin'
