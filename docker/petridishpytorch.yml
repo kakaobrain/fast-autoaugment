@@ -272,5 +272,6 @@ dependencies:
     - websocket-client==0.56.0
     - werkzeug==0.16.0
     - widgetsnbextension==3.5.1
+    - graphviz
 prefix: /home/dedey/miniconda3/envs/petridishpytorch
 
