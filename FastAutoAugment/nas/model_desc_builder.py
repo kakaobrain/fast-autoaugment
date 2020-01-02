@@ -1,4 +1,5 @@
 from typing import Optional, Tuple, List
+from copy import deepcopy
 
 from overrides import EnforceOverrides
 
@@ -113,14 +114,18 @@ class ModelDescBuilder(EnforceOverrides):
 
         for node, template_node in zip(cell_desc.nodes, cell_template.nodes):
             for template_edge in template_node.edges:
+                params = deepcopy(template_edge.op_desc.params)
+                # TODO: we need better param management and rewriting
+                if 'ch_in' in params:
+                    params['ch_in'] = ch_out
+                if 'ch_out' in params:
+                    params['ch_out'] = ch_out
+                if 'affine' in params:
+                    params['affine'] = cell_desc.run_mode!=RunMode.Search
+                # TODO: make all params in OpDesc and EdgeDesc required
                 op_desc = OpDesc(template_edge.op_desc.name,
                                     run_mode=self.run_mode,
-                                    params={
-                                        'ch_in': ch_out,
-                                        'ch_out': ch_out,
-                                        'stride': template_edge.op_desc.params['stride'],
-                                        'affine': cell_desc.run_mode!=RunMode.Search
-                                    })
+                                    params=params, in_len=template_edge.op_desc.in_len)
                 edge = EdgeDesc(op_desc, len(node.edges),
                                 input_ids=template_edge.input_ids)
                 node.edges.append(edge)
