@@ -84,8 +84,8 @@ class Config(UserDict):
             if arg.startswith(("--")):
                 path = arg[len("--"):].split('.')
                 section = self
-                for i in range(len(path)-1):
-                    section = section[path[i]]
+                for p in range(len(path)-1):
+                    section = section[path[p]]
                 key = path[-1]
                 section[key] = type(section[key])(args[i+1])
 
