@@ -1,4 +1,5 @@
 from typing import Iterable, List, Optional, Sequence, Tuple
+import heapq
 
 import torch
 from torch import Tensor, nn
@@ -118,18 +119,19 @@ class PetridishOp(Op):
     def finalize(self) -> Tuple[OpDesc, Optional[float]]:
         with torch.no_grad():
             # create list of (alpha, input_id, op_desc), sort them, select top
-            l = [(a, i, op.desc) \
+            # op is nn.Sequence with 2nd module as op
+            l = ((a, i, op[1].desc) \
                 for edge_alphas, i, edge in
                     zip(self._alphas, range(self.desc.in_len), self._edges) \
-                for a, op in zip(edge_alphas, edge)]
-            sel = l.sort(key=lambda t: t[0], reverse=True)[3] # TODO: add config
+                for a, op in zip(edge_alphas, edge))
+            sel = heapq.nlargest(3, l, key=lambda t: t[0])  # TODO: add config
 
         final_op_desc = OpDesc(name='petridish_final_op',
                                 run_mode=RunMode.EvalTrain,
                                 params={
-                                    'ch_out': self.desc.ch_out,
-                                    'affine': True,
-                                    'in_ops': [(i, desc) for a, i, desc in sel]
+                                    'ch_out': self.desc.params['ch_out'],
+                                    'affine': True, # TODO: is this always right?
+                                    'ins_and_ops': [(i, desc) for a, i, desc in sel]
                                 },
                                 in_len=self.desc.in_len
                                )
@@ -156,21 +158,21 @@ class PetridishFinalOp(Op):
     def __init__(self, op_desc:OpDesc) -> None:
         super().__init__()
 
-        in_ops:Sequence[Tuple[int, OpDesc]] = op_desc.params['in_ops']
+        ins_and_ops:Sequence[Tuple[int, OpDesc]] = op_desc.params['ins_and_ops']
         ch_out:int = op_desc.params['ch_out']
         affine:bool = op_desc.params['affine']
 
         self._ops = nn.ModuleList()
         self._ins:List[int] = []
 
-        all_ch_in = 0
-        for i, op_desc in in_ops:
+        ch_out_sum = 0 #
+        for i, op_desc in ins_and_ops:
             self._ops.append(Op.create(op_desc))
-            all_ch_in += op_desc.params['ch_out']
+            ch_out_sum += op_desc.params['ch_out']
             self._ins.append(i)
 
         # 1x1 conv
-        self._conv = nn.Conv2d(all_ch_in, ch_out, 1,
+        self._conv = nn.Conv2d(ch_out_sum, ch_out, 1,
                                 stride=1, padding=0, bias=False)
         self._bn = nn.BatchNorm2d(ch_out, affine=affine)
 
