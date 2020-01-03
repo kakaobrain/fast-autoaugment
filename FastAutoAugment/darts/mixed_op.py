@@ -39,7 +39,7 @@ class MixedOp(Op):
         self._ops = nn.ModuleList()
         for primitive in MixedOp.PRIMITIVES:
             op = Op.create(
-                OpDesc(primitive, op_desc.run_mode, op_desc.params), alphas=alphas)
+                OpDesc(primitive, op_desc.params), alphas=alphas)
             self._ops.append(op)
 
     @overrides

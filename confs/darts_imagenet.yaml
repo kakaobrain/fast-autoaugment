@@ -4,7 +4,6 @@ dataset:
   name: 'imagenet'
   dataroot: '~/data/ImageNet' #torchvision data folder
   n_classes: 1000
-  ch_in: 3 # number of channels in image
 
 nas:
   eval:

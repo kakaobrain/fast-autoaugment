@@ -8,6 +8,7 @@ dataset: &dataset
 
 nas:
   search:
+    data_parallel: False
     model_desc:
       n_cells: 3 # number of cells
       n_nodes: 1 # number of nodes in a cell

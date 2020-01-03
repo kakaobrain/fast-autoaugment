@@ -5,6 +5,7 @@ from overrides import overrides
 
 from ..nas.dag_mutator import DagMutator
 from ..nas.model_desc import ModelDesc, CellDesc, CellType, RunMode, OpDesc, EdgeDesc
+from ..nas.operations import ConvMacroParams
 
 class RandOps:
     """Container to store (op_names, to_states) for each nodes"""
@@ -57,12 +58,9 @@ class RandomDagMutator(DagMutator):
         for node, (op_names, to_states) in zip(cell_desc.nodes, rand_ops.ops_and_ins):
             for op_name, to_state in zip(op_names, to_states):
                 op_desc = OpDesc(op_name,
-                                    run_mode=cell_desc.run_mode,
                                     params={
-                                        'ch_in': ch_out,
-                                        'ch_out': ch_out,
-                                        'stride': 2 if reduction and to_state < 2 else 1,
-                                        'affine': cell_desc!=RunMode.Search
+                                        'conv': ConvMacroParams(ch_out, ch_out, cell_desc.run_mode!=RunMode.Search),
+                                        'stride': 2 if reduction and to_state < 2 else 1
                                     })
                 edge = EdgeDesc(op_desc, len(node.edges),
                                 input_ids=[to_state])

@@ -3,7 +3,7 @@ from overrides import overrides
 from  ..nas.model_desc import ModelDesc, CellDesc, CellDesc, OpDesc, \
                               EdgeDesc, RunMode, CellType, NodeDesc
 from ..nas.dag_mutator import DagMutator
-from ..nas.operations import Op
+from ..nas.operations import Op, ConvMacroParams
 from .petridish_op import PetridishOp, PetridishFinalOp
 
 
@@ -32,14 +32,12 @@ class PetridishMutator(DagMutator):
         last_node_i = len(cell_desc.nodes)-1
         input_ids = list(range(last_node_i+2))
         op_desc = OpDesc('petridish_reduction_op' if reduction else 'petridish_normal_op',
-                            run_mode=cell_desc.run_mode, in_len=len(input_ids),
+                            in_len=len(input_ids),
                             params={
-                                'ch_in':ch_out,
-                                'ch_out':ch_out,
+                                'conv': ConvMacroParams(ch_out, ch_out, cell_desc.run_mode!=RunMode.Search),
                                 # specify strides for each input
                                 '_strides':[2 if reduction and j < 2 else 1 \
                                            for j in input_ids],
-                                'affine':cell_desc!=RunMode.Search
                             })
         node = cell_desc.nodes[last_node_i]
         edge = EdgeDesc(op_desc, index=len(node.edges),
