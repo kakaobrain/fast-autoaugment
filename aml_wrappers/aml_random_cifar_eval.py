@@ -44,7 +44,8 @@ def launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment):
 
 
     # Create or attach compute cluster
-    cluster_name = conf_cluster['cluster_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
+    # cluster_name = conf_cluster['cluster_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
+    cluster_name = conf_cluster['cluster_name']
 
     try:
         compute_target = ComputeTarget(workspace=ws, name=cluster_name)
@@ -77,17 +78,18 @@ def launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment):
 
     # Note that experiment names have to be
     # <36 alphanumeric characters
-    exp_name = conf_experiment['experiment_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
+    #exp_name = conf_experiment['experiment_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
+    exp_name = conf_experiment['experiment_name']
 
     experiment = Experiment(ws, name=exp_name)
-    script_params = {'--nas.eval.loader.dataset.dataroot': input_ds.path('/').as_mount(),
+    script_params = {'--dataset.dataroot': input_ds.path('/').as_mount(),
                      '--common.logdir': output_ds.path('/').as_mount(),
                     }
 
     est = Estimator(source_directory=project_folder,
                     script_params=script_params,
                     compute_target=compute_target,
-                    entry_script='scripts/darts/cifar_search.py',
+                    entry_script='scripts/random/cifar_eval.py',
                     custom_docker_image=conf_docker['image_name'],
                     image_registry_details=image_registry_details,
                     user_managed=user_managed_dependencies,
