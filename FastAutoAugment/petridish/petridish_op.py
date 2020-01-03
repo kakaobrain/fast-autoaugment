@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from overrides import overrides
 
-from ..nas.model_desc import RunMode, OpDesc
+from ..nas.model_desc import ConvMacroParams, OpDesc
 from ..nas.operations import Op, FactorizedReduce
 
 
@@ -84,8 +84,7 @@ class PetridishOp(Op):
             self._edges.append(edge)
             op_desc.params['stride'] = op_desc.params['_strides'][i]
             for primitive in PetridishOp.PRIMITIVES:
-                primitive_op = Op.create(OpDesc(primitive, op_desc.run_mode,
-                                                params=op_desc.params),
+                primitive_op = Op.create(OpDesc(primitive, params=op_desc.params),
                                         alphas=alphas)
                 op = nn.Sequential(
                     StopGradientReduction(op_desc) if reduction else StopGradient(),
@@ -127,10 +126,8 @@ class PetridishOp(Op):
             sel = heapq.nlargest(3, l, key=lambda t: t[0])  # TODO: add config
 
         final_op_desc = OpDesc(name='petridish_final_op',
-                                run_mode=RunMode.EvalTrain,
                                 params={
-                                    'ch_out': self.desc.params['ch_out'],
-                                    'affine': True, # TODO: is this always right?
+                                    'conv': self.desc.params['conv'],
                                     'ins_and_ops': [(i, desc) for a, i, desc in sel]
                                 },
                                 in_len=self.desc.in_len
@@ -159,26 +156,26 @@ class PetridishFinalOp(Op):
         super().__init__()
 
         ins_and_ops:Sequence[Tuple[int, OpDesc]] = op_desc.params['ins_and_ops']
-        ch_out:int = op_desc.params['ch_out']
-        affine:bool = op_desc.params['affine']
+        conv_params:ConvMacroParams = op_desc.params['conv']
 
         self._ops = nn.ModuleList()
         self._ins:List[int] = []
 
         ch_out_sum = 0 #
         for i, op_desc in ins_and_ops:
+            op_desc.params['conv'] = conv_params
             self._ops.append(Op.create(op_desc))
-            ch_out_sum += op_desc.params['ch_out']
+            ch_out_sum += conv_params.ch_out
             self._ins.append(i)
 
         # 1x1 conv
-        self._conv = nn.Conv2d(ch_out_sum, ch_out, 1,
+        self._conv = nn.Conv2d(ch_out_sum, conv_params.ch_out, 1,
                                 stride=1, padding=0, bias=False)
-        self._bn = nn.BatchNorm2d(ch_out, affine=affine)
+        self._bn = nn.BatchNorm2d(conv_params.ch_out, affine=conv_params.affine)
 
     @overrides
     def forward(self, x:List[Tensor])->Tensor:
-        res = torch.cat([op(x[i]) for op, i in zip(self._ops, self._ins)])
+        res = torch.cat([op(x[i]) for op, i in zip(self._ops, self._ins)], dim=1)
         res = self._conv(res)
         return self._bn(res)
 

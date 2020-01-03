@@ -1,6 +1,6 @@
 from argparse import ArgumentError
-from typing import Callable, Iterable, Sequence, Tuple, Dict, Optional, List
-from abc import ABC, abstractmethod
+from typing import Callable, Iterable, Tuple, Dict, Optional
+from abc import ABC
 
 from overrides import overrides, EnforceOverrides
 
@@ -8,7 +8,7 @@ import torch
 from torch import nn, Tensor
 
 from ..common import utils
-from .model_desc import OpDesc, RunMode
+from .model_desc import OpDesc
 
 # type alias
 OpFactoryFn = Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']
@@ -81,9 +81,11 @@ class PoolBN(Op):
         """
         super().__init__()
 
-        ch_in = op_desc.params['ch_in']
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        affine = conv_params.affine
+
         stride = op_desc.params['stride']
-        affine = op_desc.params['affine']
         kernel_size = op_desc.params.get('kernel_size', 3)
         padding = op_desc.params.get('padding', 1)
 
@@ -123,10 +125,12 @@ class FacConv(Op):
     def __init__(self, op_desc:OpDesc, kernel_length:int, padding:int):
         super().__init__()
 
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        ch_out = conv_params.ch_out
+        affine = conv_params.affine
+
         stride = op_desc.params['stride']
-        ch_in = op_desc.params['ch_in']
-        ch_out = op_desc.params['ch_out']
-        affine = op_desc.params['affine']
 
         self.net = nn.Sequential(
             nn.ReLU(),
@@ -148,9 +152,10 @@ class ReLUConvBN(Op):
     """
 
     def __init__(self, op_desc:OpDesc, kernel_size:int, stride:int, padding:int):
-        ch_in = op_desc.params['ch_in']
-        ch_out = op_desc.params['ch_out']
-        affine = op_desc.params['affine']
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        ch_out = conv_params.ch_out
+        affine = conv_params.affine
 
         super(ReLUConvBN, self).__init__()
 
@@ -176,10 +181,10 @@ class DilConv(Op):
 
     def __init__(self, op_desc:OpDesc, kernel_size:int, stride:int,  padding:int, dilation:int):
         super(DilConv, self).__init__()
-
-        ch_in = op_desc.params['ch_in']
-        ch_out = op_desc.params['ch_out']
-        affine = op_desc.params['affine']
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        ch_out = conv_params.ch_out
+        affine = conv_params.affine
 
         self.op = nn.Sequential(
             nn.ReLU(),
@@ -250,9 +255,10 @@ class FactorizedReduce(Op):
     def __init__(self, op_desc:OpDesc):
         super(FactorizedReduce, self).__init__()
 
-        ch_in = op_desc.params['ch_in']
-        ch_out = op_desc.params['ch_out']
-        affine = op_desc.params['affine']
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        ch_out = conv_params.ch_out
+        affine = conv_params.affine
 
         assert ch_out % 2 == 0
 
@@ -283,9 +289,10 @@ class StemCifar(Op):
     def __init__(self, op_desc:OpDesc)->None:
         super().__init__()
 
-        ch_in = op_desc.params['ch_in']
-        ch_out = op_desc.params['ch_out']
-        affine = op_desc.params['affine']
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        ch_out = conv_params.ch_out
+        affine = conv_params.affine
 
         self._op = nn.Sequential( # 3 => 48
             # batchnorm is added after each layer. Bias is turned off due to
@@ -306,16 +313,17 @@ class Stem0Imagenet(Op):
     def __init__(self, op_desc)->None:
         super().__init__()
 
-        ch_in = op_desc.params['ch_in']
-        ch_out = op_desc.params['ch_out']
-        affine = op_desc.params['affine']
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        ch_out = conv_params.ch_out
+        affine = conv_params.affine
 
         self._op = nn.Sequential(
             nn.Conv2d(ch_in, ch_out//2, kernel_size=3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_out//2),
+            nn.BatchNorm2d(ch_out//2, affine=affine),
             nn.ReLU(inplace=True),
             nn.Conv2d(ch_out//2, ch_out, 3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_out)
+            nn.BatchNorm2d(ch_out, affine=affine)
         )
 
     @overrides
@@ -330,14 +338,15 @@ class Stem1Imagenet(Op):
     def __init__(self, op_desc)->None:
         super().__init__()
 
-        ch_in = op_desc.params['ch_in']
-        ch_out = op_desc.params['ch_out']
-        affine = op_desc.params['affine']
+        conv_params:ConvMacroParams = op_desc.params['conv']
+        ch_in = conv_params.ch_in
+        ch_out = conv_params.ch_out
+        affine = conv_params.affine
 
         self._op = nn.Sequential(
             nn.ReLU(inplace=True),
-            nn.Conv2d(ch_out, ch_out, 3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(ch_out)
+            nn.Conv2d(ch_in, ch_out, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(ch_out, affine=affine)
         )
 
     @overrides

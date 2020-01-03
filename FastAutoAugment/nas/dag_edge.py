@@ -13,7 +13,8 @@ class DagEdge(nn.Module):
         super().__init__()
         self._wrapped = self._op = Op.create(desc.op_desc,
                         alphas_edge.alphas() if alphas_edge else [])
-        if desc.op_desc.run_mode == RunMode.EvalTrain and self._op.can_drop_path():
+        if desc.run_mode == RunMode.EvalTrain and \
+                self._op.can_drop_path():
             self._wrapped = nn.Sequential(self._op, DropPath_())
         self._input_ids = desc.input_ids
         self.desc = desc
@@ -29,7 +30,8 @@ class DagEdge(nn.Module):
 
     def finalize(self)->Tuple[EdgeDesc, Optional[float]]:
         op_desc, rank = self._op.finalize()
-        return (EdgeDesc(op_desc, self.desc.index, self._input_ids), rank)
+        return (EdgeDesc(op_desc, self.desc.index, self._input_ids,
+                         self.desc.run_mode), rank)
 
     def alphas(self)->Iterable[nn.Parameter]:
         for alpha in self._op.alphas():

@@ -4,7 +4,9 @@ import random
 from overrides import overrides
 
 from ..nas.dag_mutator import DagMutator
-from ..nas.model_desc import ModelDesc, CellDesc, CellType, RunMode, OpDesc, EdgeDesc
+from ..nas.model_desc import ModelDesc, CellDesc, CellType, \
+                             ConvMacroParams, OpDesc, EdgeDesc
+
 
 class RandOps:
     """Container to store (op_names, to_states) for each nodes"""
@@ -49,23 +51,18 @@ class RandomDagMutator(DagMutator):
 
     def _mutate_cell(self, cell_desc:CellDesc, rand_ops:RandOps)->None:
         assert len(cell_desc.nodes) == len(rand_ops.ops_and_ins)
-
-        ch_out = cell_desc.n_node_channels
         reduction = (cell_desc.cell_type==CellType.Reduction)
 
         # Add random op for each edge
         for node, (op_names, to_states) in zip(cell_desc.nodes, rand_ops.ops_and_ins):
             for op_name, to_state in zip(op_names, to_states):
                 op_desc = OpDesc(op_name,
-                                    run_mode=cell_desc.run_mode,
                                     params={
-                                        'ch_in': ch_out,
-                                        'ch_out': ch_out,
-                                        'stride': 2 if reduction and to_state < 2 else 1,
-                                        'affine': cell_desc!=RunMode.Search
+                                        'conv': cell_desc.conv_params,
+                                        'stride': 2 if reduction and to_state < 2 else 1
                                     })
                 edge = EdgeDesc(op_desc, len(node.edges),
-                                input_ids=[to_state])
+                                input_ids=[to_state], run_mode=cell_desc.run_mode)
                 node.edges.append(edge)
 
 

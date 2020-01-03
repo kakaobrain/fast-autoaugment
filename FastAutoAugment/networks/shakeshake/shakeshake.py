@@ -44,5 +44,5 @@ class Shortcut(nn.Module):
         h2 = F.avg_pool2d(F.pad(h, (-1, 1, -1, 1)), 1, self.stride)
         h2 = self.conv2(h2)
 
-        h = torch.cat((h1, h2), 1)
+        h = torch.cat((h1, h2), dim=1)
         return self.bn(h)

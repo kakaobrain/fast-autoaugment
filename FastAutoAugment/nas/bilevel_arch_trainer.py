@@ -184,6 +184,7 @@ class _BilevelOptimizer:
         is a multiplier on RHS of eq 8. So this scalling is essential
         in making sure that finite differences approximation is not way off
         Below, we flatten each w, concate all and then take norm"""
+        # TODO: is cat along dim 0 correct?
         dw_norm = torch.cat([w.view(-1) for w in dw]).norm()
         epsilon = epsilon_unit / dw_norm
 

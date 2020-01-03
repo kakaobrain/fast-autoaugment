@@ -4,15 +4,15 @@ from copy import deepcopy
 from overrides import EnforceOverrides
 
 from ..common.config import Config
-from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
-                        EdgeDesc, CellDesc, AuxTowerDesc, RunMode
+from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, EdgeDesc, \
+                        CellDesc, AuxTowerDesc, RunMode, ConvMacroParams
 
 class ModelDescBuilder(EnforceOverrides):
     def __init__(self, conf_model_desc: Config,
                  run_mode:RunMode, template:Optional[ModelDesc]=None)->None:
         conf_data = conf_model_desc['dataset']
         self.ds_name = conf_data['name']
-        self.ch_in = conf_data['ch_in']
+        self.ds_ch = conf_data['channels']
         self.n_classes = conf_data['n_classes']
 
         self.init_ch_out = conf_model_desc['init_ch_out']
@@ -24,6 +24,7 @@ class ModelDescBuilder(EnforceOverrides):
         self.run_mode = run_mode
         self.template = template
 
+        self.affine = run_mode!=RunMode.Search
         self._set_templates()
         self._set_op_names()
 
@@ -39,18 +40,17 @@ class ModelDescBuilder(EnforceOverrides):
                     self.reduction_template = cell_desc
 
     def get_model_desc(self)->ModelDesc:
+        # create stems
         stem0_op, stem1_op = self._get_stem_ops()
-        cell_descs = self._get_cell_descs(stem0_op.params['ch_out'])
 
-        ch_out = cell_descs[-1].get_ch_out()
-        pool_op = OpDesc(self.pool_op_name, self.run_mode,
-                         params={
-                             'ch_in': ch_out,
-                             'ch_out': ch_out
-                         })
+        # create cell descriptions
+        cell_descs = self._get_cell_descs(stem0_op.params['conv'].ch_out)
+
+        pool_op = OpDesc(self.pool_op_name,
+                         params={'conv': cell_descs[-1].conv_params})
 
         return ModelDesc(stem0_op, stem1_op, pool_op,
-                         self.ch_in, self.n_classes, cell_descs)
+                         self.ds_ch, self.n_classes, cell_descs)
 
     def _set_op_names(self)->None:
         if self.ds_name == 'cifar10':
@@ -96,15 +96,18 @@ class ModelDescBuilder(EnforceOverrides):
             self._add_template_nodes(cell_descs[-1])
 
             # we concate all channels so next cell node gets channels from all nodes
-            pp_ch_out, p_ch_out = p_ch_out, cell_descs[-1].get_ch_out()
+            pp_ch_out, p_ch_out = p_ch_out, cell_descs[-1].conv_params.ch_out
             reduction_p = reduction
 
         return cell_descs
 
     def _add_template_nodes(self, cell_desc:CellDesc)->None:
+        """For specified cell, copy nodes from the template """
+
         if self.template is None:
             return
 
+        # select cell template
         ch_out = cell_desc.n_node_channels
         reduction = cell_desc.cell_type == CellType.Reduction
         cell_template = self.reduction_template if reduction else self.normal_template
@@ -112,22 +115,15 @@ class ModelDescBuilder(EnforceOverrides):
         if cell_template is None:
             return
 
+        # copy each template node to cell
         for node, template_node in zip(cell_desc.nodes, cell_template.nodes):
             for template_edge in template_node.edges:
                 params = deepcopy(template_edge.op_desc.params)
-                # TODO: we need better param management and rewriting
-                if 'ch_in' in params:
-                    params['ch_in'] = ch_out
-                if 'ch_out' in params:
-                    params['ch_out'] = ch_out
-                if 'affine' in params:
-                    params['affine'] = cell_desc.run_mode!=RunMode.Search
-                # TODO: make all params in OpDesc and EdgeDesc required
+                params['conv'] = cell_desc.conv_params
                 op_desc = OpDesc(template_edge.op_desc.name,
-                                    run_mode=self.run_mode,
                                     params=params, in_len=template_edge.op_desc.in_len)
                 edge = EdgeDesc(op_desc, len(node.edges),
-                                input_ids=template_edge.input_ids)
+                                input_ids=template_edge.input_ids, run_mode=cell_desc.run_mode)
                 node.edges.append(edge)
 
     def _is_reduction(self, cell_index:int)->bool:
@@ -156,26 +152,15 @@ class ModelDescBuilder(EnforceOverrides):
     def _get_s_ops(self, ch_out: int, p_ch_out: int, pp_ch_out:int,
                    reduction_p: bool)->Tuple[OpDesc, OpDesc]:
         # TODO: investigate why affine=False for search but True for test
-        if reduction_p:
-            s0_op = OpDesc('prepr_reduce', run_mode=self.run_mode,
-                            params={
-                                'ch_in': pp_ch_out,
-                                'ch_out': ch_out,
-                                'affine': self.run_mode!=RunMode.Search
-                            })
-        else:
-            s0_op = OpDesc('prepr_normal', run_mode=self.run_mode,
-                            params={
-                                'ch_in': pp_ch_out,
-                                'ch_out': ch_out,
-                                'affine': self.run_mode!=RunMode.Search
-                            })
-        s1_op = OpDesc('prepr_normal', run_mode=self.run_mode,
-                        params={
-                                    'ch_in': p_ch_out,
-                                    'ch_out': ch_out,
-                                    'affine': self.run_mode!=RunMode.Search
-                        })
+        s0_op = OpDesc('prepr_reduce' if reduction_p else 'prepr_normal',
+                    params={
+                        'conv': ConvMacroParams(pp_ch_out, ch_out, self.affine)
+                    })
+
+        s1_op = OpDesc('prepr_normal',
+                    params={
+                        'conv': ConvMacroParams(p_ch_out, ch_out, self.affine)
+                    })
 
         return s0_op, s1_op
 
@@ -192,18 +177,8 @@ class ModelDescBuilder(EnforceOverrides):
         # TODO: weired not always use two different stemps as in original code
         # TODO: why do we need stem_multiplier?
         # TODO: in original paper stems are always affine
-        stem_ch_out = self.init_ch_out*self.stem_multiplier
-        stem0_op = OpDesc(name=self.stem0_op_name, run_mode=self.run_mode,
-                            params={
-                            'ch_in': self.ch_in,
-                            'ch_out': stem_ch_out,
-                            'affine': self.run_mode!=RunMode.Search
-                            }
-                            )
-        stem1_op = OpDesc(name=self.stem1_op_name, run_mode=self.run_mode,
-                            params={
-                            'ch_in':self.ch_in,
-                            'ch_out':stem_ch_out,
-                            'affine':self.run_mode!=RunMode.Search
-                            })
+        conv_params = ConvMacroParams(self.ds_ch,
+            self.init_ch_out*self.stem_multiplier, self.affine)
+        stem0_op = OpDesc(name=self.stem0_op_name, params={'conv': conv_params})
+        stem1_op = OpDesc(name=self.stem1_op_name, params={'conv': conv_params})
         return stem0_op, stem1_op

@@ -34,7 +34,7 @@ class Model(nn.Module):
         self.final_pooling = Op.create(model_desc.pool_op)
         # since ch_p records last cell's output channels
         # it indicates the input channel number
-        self.linear = nn.Linear(model_desc.cell_descs[-1].get_ch_out(),
+        self.linear = nn.Linear(model_desc.cell_descs[-1].conv_params.ch_out,
                                 model_desc.n_classes)
 
         logger.info("Total param size = %f MB", utils.param_size(self))
@@ -77,7 +77,10 @@ class Model(nn.Module):
 
         logits_aux = None
         for cell in self._cells:
+            #print(s0.shape, s1.shape, end='')
             s0, s1 = s1, cell.forward(s0, s1)
+            #print('\t->\t', s0.shape, s1.shape)
+
             if cell.aux_tower is not None:
                 logits_aux = cell.aux_tower(s1)
 
@@ -92,7 +95,7 @@ class Model(nn.Module):
         return ModelDesc(stem0_op=self.desc.stem0_op,
                          stem1_op=self.desc.stem1_op,
                          pool_op=self.desc.pool_op,
-                         ch_in=self.desc.ch_in,
+                         ds_ch=self.desc.ds_ch,
                          n_classes=self.desc.n_classes,
                          cell_descs=cell_descs)
 
