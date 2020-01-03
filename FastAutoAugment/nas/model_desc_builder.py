@@ -3,10 +3,9 @@ from copy import deepcopy
 
 from overrides import EnforceOverrides
 
-from ..nas.operations import ConvMacroParams
 from ..common.config import Config
-from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, \
-                        EdgeDesc, CellDesc, AuxTowerDesc, RunMode
+from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, EdgeDesc, \
+                        CellDesc, AuxTowerDesc, RunMode, ConvMacroParams
 
 class ModelDescBuilder(EnforceOverrides):
     def __init__(self, conf_model_desc: Config,
@@ -25,6 +24,7 @@ class ModelDescBuilder(EnforceOverrides):
         self.run_mode = run_mode
         self.template = template
 
+        self.affine = run_mode!=RunMode.Search
         self._set_templates()
         self._set_op_names()
 
@@ -123,7 +123,7 @@ class ModelDescBuilder(EnforceOverrides):
                 op_desc = OpDesc(template_edge.op_desc.name,
                                     params=params, in_len=template_edge.op_desc.in_len)
                 edge = EdgeDesc(op_desc, len(node.edges),
-                                input_ids=template_edge.input_ids)
+                                input_ids=template_edge.input_ids, run_mode=cell_desc.run_mode)
                 node.edges.append(edge)
 
     def _is_reduction(self, cell_index:int)->bool:
@@ -152,21 +152,15 @@ class ModelDescBuilder(EnforceOverrides):
     def _get_s_ops(self, ch_out: int, p_ch_out: int, pp_ch_out:int,
                    reduction_p: bool)->Tuple[OpDesc, OpDesc]:
         # TODO: investigate why affine=False for search but True for test
-        affine = self.run_mode!=RunMode.Search
-        if reduction_p:
-            s0_op = OpDesc('prepr_reduce',
-                            params={
-                                'conv': ConvMacroParams(pp_ch_out, ch_out, affine)
-                            })
-        else:
-            s0_op = OpDesc('prepr_normal',
-                            params={
-                                'conv': ConvMacroParams(pp_ch_out, ch_out, affine)
-                            })
+        s0_op = OpDesc('prepr_reduce' if reduction_p else 'prepr_normal',
+                    params={
+                        'conv': ConvMacroParams(pp_ch_out, ch_out, self.affine)
+                    })
+
         s1_op = OpDesc('prepr_normal',
-                            params={
-                                'conv': ConvMacroParams(p_ch_out, ch_out, affine)
-                            })
+                    params={
+                        'conv': ConvMacroParams(p_ch_out, ch_out, self.affine)
+                    })
 
         return s0_op, s1_op
 
@@ -184,7 +178,7 @@ class ModelDescBuilder(EnforceOverrides):
         # TODO: why do we need stem_multiplier?
         # TODO: in original paper stems are always affine
         conv_params = ConvMacroParams(self.ds_ch,
-            self.init_ch_out*self.stem_multiplier, self.run_mode!=RunMode.Search)
+            self.init_ch_out*self.stem_multiplier, self.affine)
         stem0_op = OpDesc(name=self.stem0_op_name, params={'conv': conv_params})
         stem1_op = OpDesc(name=self.stem1_op_name, params={'conv': conv_params})
         return stem0_op, stem1_op

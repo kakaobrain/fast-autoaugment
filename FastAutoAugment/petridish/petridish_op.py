@@ -7,8 +7,8 @@ import torch.nn.functional as F
 
 from overrides import overrides
 
-from ..nas.model_desc import RunMode, OpDesc
-from ..nas.operations import Op, FactorizedReduce, ConvMacroParams
+from ..nas.model_desc import ConvMacroParams, OpDesc
+from ..nas.operations import Op, FactorizedReduce
 
 
 class StopForward(Op):
@@ -175,7 +175,7 @@ class PetridishFinalOp(Op):
 
     @overrides
     def forward(self, x:List[Tensor])->Tensor:
-        res = torch.cat([op(x[i]) for op, i in zip(self._ops, self._ins)])
+        res = torch.cat([op(x[i]) for op, i in zip(self._ops, self._ins)], dim=1)
         res = self._conv(res)
         return self._bn(res)
 

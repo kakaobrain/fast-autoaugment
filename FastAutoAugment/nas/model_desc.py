@@ -25,12 +25,13 @@ class OpDesc(DescBase):
 class EdgeDesc(DescBase):
     """Edge description between two nodes in the cell
     """
-    def __init__(self, op_desc:OpDesc, index:int, input_ids:List[int])->None:
+    def __init__(self, op_desc:OpDesc, index:int, input_ids:List[int],
+                 run_mode:RunMode)->None:
         assert op_desc.in_len == len(input_ids)
         self.op_desc = op_desc
         self.index = index
         self.input_ids = input_ids
-
+        self.run_mode = run_mode
 
 class NodeDesc(DescBase):
     def __init__(self, edges:List[EdgeDesc]=[]) -> None:
@@ -67,6 +68,7 @@ class CellDesc(DescBase):
         self.s0_op, self.s1_op = s0_op, s1_op
         self.aux_tower_desc = aux_tower_desc
         self.n_out_nodes, self.n_node_channels = n_out_nodes, n_node_channels
+        self.run_mode = run_mode
         self.conv_params = ConvMacroParams(s0_op.params['conv'].ch_out,
                                            n_out_nodes*n_node_channels,
                                            run_mode!=RunMode.Search)

@@ -77,9 +77,9 @@ class Model(nn.Module):
 
         logits_aux = None
         for cell in self._cells:
-            print(s0.shape, s1.shape, end='')
+            #print(s0.shape, s1.shape, end='')
             s0, s1 = s1, cell.forward(s0, s1)
-            print('\t->\t', s0.shape, s1.shape)
+            #print('\t->\t', s0.shape, s1.shape)
 
             if cell.aux_tower is not None:
                 logits_aux = cell.aux_tower(s1)
