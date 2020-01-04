@@ -8,7 +8,7 @@ import torch
 from torch import nn, Tensor
 
 from ..common import utils
-from .model_desc import OpDesc
+from .model_desc import OpDesc, ConvMacroParams
 
 # type alias
 OpFactoryFn = Callable[[OpDesc, Iterable[nn.Parameter]], 'Op']
@@ -147,10 +147,6 @@ class FacConv(Op):
 
 
 class ReLUConvBN(Op):
-    """
-    Stack of relu-conv-bn
-    """
-
     def __init__(self, op_desc:OpDesc, kernel_size:int, stride:int, padding:int):
         conv_params:ConvMacroParams = op_desc.params['conv']
         ch_in = conv_params.ch_in

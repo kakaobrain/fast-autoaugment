@@ -54,31 +54,34 @@ class ConvMacroParams:
         self.affine = affine
 
 class CellDesc(DescBase):
-    """Cell description
-    """
     def __init__(self, cell_type:CellType, index:int, nodes:List[NodeDesc],
-            s0_op:OpDesc, s1_op:OpDesc, aux_tower_desc:Optional[AuxTowerDesc],
+            s0_op:OpDesc, s1_op:OpDesc,
             n_out_nodes:int, n_node_channels:int,
             alphas_from:int, run_mode:RunMode)->None:
         assert s0_op.params['conv'].ch_out == s1_op.params['conv'].ch_out
+        assert s0_op.params['conv'].ch_out == n_node_channels
 
         self.cell_type = cell_type
         self.index = index
         self.nodes = nodes
         self.s0_op, self.s1_op = s0_op, s1_op
-        self.aux_tower_desc = aux_tower_desc
         self.n_out_nodes, self.n_node_channels = n_out_nodes, n_node_channels
         self.run_mode = run_mode
-        self.conv_params = ConvMacroParams(s0_op.params['conv'].ch_out,
-                                           n_out_nodes*n_node_channels,
-                                           run_mode!=RunMode.Search)
         self.alphas_from = alphas_from # cell index with which we share alphas
+
+        self.cell_ch_out = n_out_nodes * n_node_channels
+        self.conv_params = ConvMacroParams(n_node_channels,
+                                           n_node_channels,
+                                           run_mode!=RunMode.Search)
 
 class ModelDesc(DescBase):
     def __init__(self, stem0_op:OpDesc, stem1_op:OpDesc, pool_op:OpDesc,
-                 ds_ch:int, n_classes:int, cell_descs:List[CellDesc])->None:
+                 ds_ch:int, n_classes:int, cell_descs:List[CellDesc],
+                 aux_tower_descs:List[Optional[AuxTowerDesc]])->None:
+        assert len(cell_descs) == len(aux_tower_descs)
         self.stem0_op, self.stem1_op, self.pool_op = stem0_op, stem1_op, pool_op
         self.ds_ch = ds_ch
         self.n_classes = n_classes
         self.cell_descs = cell_descs
+        self.aux_tower_descs = aux_tower_descs
 

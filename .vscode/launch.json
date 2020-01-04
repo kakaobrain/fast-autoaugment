@@ -78,6 +78,14 @@
                 "--config-defaults", "confs/random_cifar.yaml"
             ]
         },
+        {
+            "name": "TestRanddom cifar10",
+            "type": "python",
+            "request": "launch",
+            "program": "${cwd}/scripts/random/cifar_eval.py",
+            "console": "integratedTerminal"
+            ]
+        },
 
         {
             "name": "SearchAug wresnet40x2 cifar10",
