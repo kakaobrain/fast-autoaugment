@@ -14,9 +14,9 @@ class DartsMicroBuilder(MicroBuilder):
     @overrides
     def build(self, model_desc:ModelDesc)->None:
         for cell_desc in model_desc.cell_descs:
-            self._mutate_cell(cell_desc)
+            self._build_cell(cell_desc)
 
-    def _mutate_cell(self, cell_desc:CellDesc)->None:
+    def _build_cell(self, cell_desc:CellDesc)->None:
         reduction = (cell_desc.cell_type==CellType.Reduction)
 
         # add mixed op for each edge

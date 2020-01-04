@@ -47,9 +47,9 @@ class RandomMicroBuilder(MicroBuilder):
             else:
                 raise NotImplementedError(f'CellType {cell_desc.cell_type} is not recognized')
 
-            self._mutate_cell(cell_desc, rand_ops)
+            self._build_cell(cell_desc, rand_ops)
 
-    def _mutate_cell(self, cell_desc:CellDesc, rand_ops:RandOps)->None:
+    def _build_cell(self, cell_desc:CellDesc, rand_ops:RandOps)->None:
         assert len(cell_desc.nodes) == len(rand_ops.ops_and_ins)
         reduction = (cell_desc.cell_type==CellType.Reduction)
 
