@@ -6,7 +6,7 @@ from FastAutoAugment.nas.model_desc import RunMode
 from FastAutoAugment.nas import nas_utils
 
 if __name__ == '__main__':
-    conf = common_init(config_filepath='confs/cifar_random.yaml',
+    conf = common_init(config_filepath='confs/random_cifar.yaml',
                        experiment_name='cifar_random_search')
 
     # region config
