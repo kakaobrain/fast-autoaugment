@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Callable, Tuple, Optional
 
 from torch import nn, Tensor
 from torch.optim.optimizer import Optimizer
@@ -95,21 +95,30 @@ class Trainer(EnforceOverrides):
             self.pre_step(x, y, optim)
 
             optim.zero_grad()
+
             if self._aux_weight > 0.:
                 logits, aux_logits = self.model(x)
-                loss = self._lossfn(logits, y)
-                loss += self._aux_weight * self._lossfn(aux_logits, y)
             else:
-                logits, *_ = self.model(x)
-                loss = self._lossfn(logits, y)
+                (logits, *_), aux_logits = self.model(x), None
+            loss = self.compute_loss(self._lossfn, x, y, logits,
+                                    self._aux_weight, aux_logits)
 
             loss.backward()
+
             if self._grad_clip:
                 # TODO: original darts clips alphas as well but pt.darts doesn't
                 nn.utils.clip_grad_norm_(self.model.parameters(), self._grad_clip)
             optim.step()
 
             self.post_step(x, y, logits, loss, steps)
+
+    def compute_loss(self, lossfn:Callable,
+                     x:Tensor, y:Tensor, logits:Tensor,
+                     aux_weight:float, aux_logits:Optional[Tensor])->Tensor:
+        loss = lossfn(logits, y)
+        if aux_weight > 0.0:
+            loss += aux_weight * lossfn(aux_logits, y)
+        return loss
 
     def _set_drop_path(self, epoch:int, epochs:int)->None:
         if self._drop_path_prob:

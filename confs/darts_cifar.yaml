@@ -60,6 +60,7 @@ nas:
       # additional vals for the derived class
       max_final_edges: 2 # max edge that can be in final arch per node
       plotsdir: 'plots' # use default subfolder in logdir
+      alphas_reg: 0.0   # weight to be applied to sum(abs(alpahas)) to loss term
       lossfn:
         type: "CrossEntropyLoss"
       optimizer:
