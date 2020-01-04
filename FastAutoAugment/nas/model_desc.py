@@ -56,22 +56,22 @@ class ConvMacroParams:
 class CellDesc(DescBase):
     def __init__(self, cell_type:CellType, index:int, nodes:List[NodeDesc],
             s0_op:OpDesc, s1_op:OpDesc,
-            n_out_nodes:int, n_node_channels:int,
+            out_nodes:int, node_ch_out:int,
             alphas_from:int, run_mode:RunMode)->None:
         assert s0_op.params['conv'].ch_out == s1_op.params['conv'].ch_out
-        assert s0_op.params['conv'].ch_out == n_node_channels
+        assert s0_op.params['conv'].ch_out == node_ch_out
 
         self.cell_type = cell_type
         self.index = index
         self.nodes = nodes
         self.s0_op, self.s1_op = s0_op, s1_op
-        self.n_out_nodes, self.n_node_channels = n_out_nodes, n_node_channels
+        self.out_nodes, self.node_ch_out = out_nodes, node_ch_out
         self.run_mode = run_mode
         self.alphas_from = alphas_from # cell index with which we share alphas
 
-        self.cell_ch_out = n_out_nodes * n_node_channels
-        self.conv_params = ConvMacroParams(n_node_channels,
-                                           n_node_channels,
+        self.cell_ch_out = out_nodes * node_ch_out
+        self.conv_params = ConvMacroParams(node_ch_out,
+                                           node_ch_out,
                                            run_mode!=RunMode.Search)
 
 class ModelDesc(DescBase):

@@ -18,7 +18,7 @@ class ModelDescBuilder(EnforceOverrides):
         self.init_ch_out = conf_model_desc['init_ch_out']
         self.n_cells = conf_model_desc['n_cells']
         self.n_nodes = conf_model_desc['n_nodes']
-        self.n_out_nodes = conf_model_desc['n_out_nodes']
+        self.out_nodes = conf_model_desc['out_nodes']
         self.stem_multiplier = conf_model_desc['stem_multiplier']
         self.aux_tower = conf_model_desc['aux_tower']
         self.run_mode = run_mode
@@ -92,7 +92,7 @@ class ModelDescBuilder(EnforceOverrides):
                 cell_type=cell_type, index=ci,
                 nodes=nodes,
                 s0_op=s0_op, s1_op=s1_op,
-                n_out_nodes=self.n_out_nodes, n_node_channels=ch_out,
+                out_nodes=self.out_nodes, node_ch_out=ch_out,
                 alphas_from=alphas_from,
                 run_mode=self.run_mode
             ))
@@ -114,7 +114,7 @@ class ModelDescBuilder(EnforceOverrides):
             return
 
         # select cell template
-        ch_out = cell_desc.n_node_channels
+        ch_out = cell_desc.node_ch_out
         reduction = cell_desc.cell_type == CellType.Reduction
         cell_template = self.reduction_template if reduction else self.normal_template
 

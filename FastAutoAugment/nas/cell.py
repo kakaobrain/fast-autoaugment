@@ -61,7 +61,7 @@ class Cell(nn.Module, ABC, EnforceOverrides):
 
         # TODO: Below assumes same shape except for channels but this won't
         #   happen for max pool etc shapes?
-        return torch.cat(states[-self.desc.n_out_nodes:], dim=1)
+        return torch.cat(states[-self.desc.out_nodes:], dim=1)
 
     def finalize(self, max_edges:int)->CellDesc:
         nodes_desc:List[NodeDesc] = []
@@ -76,8 +76,8 @@ class Cell(nn.Module, ABC, EnforceOverrides):
                         index=self.desc.index,
                         nodes=nodes_desc,
                         s0_op=self.desc.s0_op, s1_op=self.desc.s1_op,
-                        n_out_nodes=self.desc.n_out_nodes,
-                        n_node_channels=self.desc.n_node_channels,
+                        out_nodes=self.desc.out_nodes,
+                        node_ch_out=self.desc.node_ch_out,
                         alphas_from=self.desc.alphas_from,
                         run_mode=self.desc.run_mode)
 
