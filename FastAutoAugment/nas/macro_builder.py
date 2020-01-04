@@ -7,7 +7,7 @@ from ..common.config import Config
 from .model_desc import ModelDesc, OpDesc, CellType, NodeDesc, EdgeDesc, \
                         CellDesc, AuxTowerDesc, RunMode, ConvMacroParams
 
-class ModelDescBuilder(EnforceOverrides):
+class MacroBuilder(EnforceOverrides):
     def __init__(self, conf_model_desc: Config,
                  run_mode:RunMode, template:Optional[ModelDesc]=None)->None:
         conf_data = conf_model_desc['dataset']

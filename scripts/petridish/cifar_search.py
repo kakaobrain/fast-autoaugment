@@ -1,7 +1,7 @@
 from FastAutoAugment.nas.arch_trainer import ArchTrainer
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas import search
-from FastAutoAugment.petridish.petridish_mutator import PetridishMutator
+from FastAutoAugment.petridish.petridish_micro_builder import PetridishMicroBuilder
 
 
 if __name__ == '__main__':
@@ -12,9 +12,9 @@ if __name__ == '__main__':
     conf_search = conf['nas']['search']
     # endregion
 
-    dag_mutator = PetridishMutator()
+    micro_builder = PetridishMicroBuilder()
     trainer_class = ArchTrainer
 
-    search.search_arch(conf_search, dag_mutator, trainer_class)
+    search.search_arch(conf_search, micro_builder, trainer_class)
 
     exit(0)

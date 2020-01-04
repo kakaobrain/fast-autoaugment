@@ -6,11 +6,11 @@ import torch
 from ..common.common import get_logger, logdir_abspath
 from ..common.config import Config
 from .model_desc import ModelDesc, RunMode
-from .dag_mutator import DagMutator
+from .micro_builder import MicroBuilder
 from .arch_trainer import ArchTrainer
 from . import nas_utils
 
-def search_arch(conf_search:Config, dag_mutator:DagMutator,
+def search_arch(conf_search:Config, micro_builder:MicroBuilder,
                 trainer_class:Type[ArchTrainer])->None:
     logger = get_logger()
 
@@ -24,7 +24,7 @@ def search_arch(conf_search:Config, dag_mutator:DagMutator,
     # create model
     model = nas_utils.create_model(conf_model_desc, device,
                                    run_mode=RunMode.Search,
-                                   dag_mutator=dag_mutator)
+                                   micro_builder=micro_builder)
 
     # get data
     train_dl, val_dl, _ = nas_utils.get_data(conf_loader)

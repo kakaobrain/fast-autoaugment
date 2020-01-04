@@ -4,29 +4,33 @@ import os
 from torch.utils.data.dataloader import DataLoader
 
 from .model_desc import RunMode, ModelDesc
-from .model_desc_builder import ModelDescBuilder
-from .dag_mutator import DagMutator
+from .macro_builder import MacroBuilder
+from .micro_builder import MicroBuilder
 from ..common.config import Config
 from .model import Model
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, logdir_abspath
 
 def create_model_desc(conf_model_desc: Config, run_mode:RunMode,
-                 dag_mutator: Optional[DagMutator]=None,
+                 micro_builder: Optional[MicroBuilder]=None,
                  template_model_desc:Optional[ModelDesc]=None) -> ModelDesc:
-    builder = ModelDescBuilder(conf_model_desc,
+    builder = MacroBuilder(conf_model_desc,
                                run_mode=RunMode.Search,
                                template=template_model_desc)
     model_desc = builder.get_model_desc()
-    if dag_mutator:
-        dag_mutator.mutate(model_desc)
+
+    if micro_builder:
+        micro_builder.register_ops()
+        # if nodes are already built by template, do not invoke micro builder
+        if template_model_desc is None:
+            micro_builder.build(model_desc)
     return model_desc
 
 def create_model(conf_model_desc: Config, device, run_mode:RunMode,
-                 dag_mutator: Optional[DagMutator]=None,
+                 micro_builder: Optional[MicroBuilder]=None,
                  template_model_desc:Optional[ModelDesc]=None) -> Model:
     model_desc = create_model_desc(conf_model_desc, run_mode,
-                                   dag_mutator=dag_mutator,
+                                   micro_builder=micro_builder,
                                    template_model_desc=template_model_desc)
 
     model = Model(model_desc)

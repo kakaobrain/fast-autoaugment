@@ -2,13 +2,14 @@ from overrides import overrides
 
 from  ..nas.model_desc import ModelDesc, CellDesc, CellDesc, OpDesc, \
                               EdgeDesc, ConvMacroParams, CellType
-from ..nas.dag_mutator import DagMutator
+from ..nas.micro_builder import MicroBuilder
 from ..nas.operations import Op
 from .petridish_op import PetridishOp, PetridishFinalOp
 
 
-class PetridishMutator(DagMutator):
-    def __init__(self) -> None:
+class PetridishMicroBuilder(MicroBuilder):
+    @overrides
+    def register_ops(self) -> None:
         Op.register_op('petridish_normal_op',
                     lambda op_desc, alphas: PetridishOp(op_desc, alphas, False))
         Op.register_op('petridish_reduction_op',
@@ -18,7 +19,7 @@ class PetridishMutator(DagMutator):
 
 
     @overrides
-    def mutate(self, model_desc:ModelDesc)->None:
+    def build(self, model_desc:ModelDesc)->None:
         for cell_desc in model_desc.cell_descs:
             self._mutate_cell(cell_desc)
 

@@ -1,17 +1,18 @@
 from overrides import overrides
 
-from ..nas.dag_mutator import DagMutator
+from ..nas.micro_builder import MicroBuilder
 from ..nas.operations import Op
 from ..nas.model_desc import ModelDesc, CellDesc, CellType, OpDesc, EdgeDesc
 from .mixed_op import MixedOp
 
-class DartsDagMutator(DagMutator):
-    def __init__(self) -> None:
+class DartsMicroBuilder(MicroBuilder):
+    @overrides
+    def register_ops(self) -> None:
         Op.register_op('mixed_op',
                        lambda op_desc, alphas: MixedOp(op_desc, alphas))
 
     @overrides
-    def mutate(self, model_desc:ModelDesc)->None:
+    def build(self, model_desc:ModelDesc)->None:
         for cell_desc in model_desc.cell_descs:
             self._mutate_cell(cell_desc)
 

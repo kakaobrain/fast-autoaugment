@@ -1,7 +1,7 @@
-from FastAutoAugment.nas.bilevel_arch_trainer import BilevelArchTrainer
+from FastAutoAugment.darts.bilevel_arch_trainer import BilevelArchTrainer
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas import search
-from FastAutoAugment.darts.darts_dag_mutator import DartsDagMutator
+from FastAutoAugment.darts.darts_micro_builder import DartsMicroBuilder
 
 
 if __name__ == '__main__':
@@ -12,9 +12,9 @@ if __name__ == '__main__':
     conf_search = conf['nas']['search']
     # endregion
 
-    dag_mutator = DartsDagMutator()
+    micro_builder = DartsMicroBuilder()
     trainer_class = BilevelArchTrainer
 
-    search.search_arch(conf_search, dag_mutator, trainer_class)
+    search.search_arch(conf_search, micro_builder, trainer_class)
 
     exit(0)
