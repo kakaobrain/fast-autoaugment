@@ -1,15 +1,19 @@
+from typing import Optional
+import os
+
 import torch
 import yaml
 
 from ..common import utils
-
 from ..common.trainer import Trainer
 from ..common.config import Config
 from ..common.common import get_logger, logdir_abspath
 from .model_desc import RunMode
+from .micro_builder import MicroBuilder
 from . import nas_utils
+from torch import mode
 
-def eval_arch(conf_eval:Config):
+def eval_arch(conf_eval:Config, micro_builder:Optional[MicroBuilder]):
     logger = get_logger()
 
     # region conf vars
@@ -23,6 +27,10 @@ def eval_arch(conf_eval:Config):
     # load model desc file to get template model
     model_desc_filepath = logdir_abspath(model_desc_file)
     assert model_desc_filepath
+    if not os.path.exists(model_desc_filepath):
+        raise RuntimeError("Model description file for evaluation is not found."
+              "Typically this file should be generated from the search."
+              "Please copy this file to '{}'".format(model_desc_filepath))
     with open(model_desc_filepath, 'r') as f:
         template_model_desc = yaml.load(f, Loader=yaml.Loader)
 
@@ -31,6 +39,7 @@ def eval_arch(conf_eval:Config):
     # create model
     model = nas_utils.create_model(conf_model_desc, device,
                                    run_mode=RunMode.EvalTrain,
+                                   micro_builder=micro_builder,
                                    template_model_desc=template_model_desc)
 
     # get data

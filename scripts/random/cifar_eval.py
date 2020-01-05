@@ -1,6 +1,6 @@
 from FastAutoAugment.common.common import common_init
 from FastAutoAugment.nas.evaluate import eval_arch
-from FastAutoAugment.random_arch.random_dag_mutator import RandomDagMutator
+from FastAutoAugment.random_arch.random_micro_builder import RandomMicroBuilder
 from FastAutoAugment.nas.model_desc import RunMode
 
 from FastAutoAugment.nas import nas_utils
@@ -20,12 +20,13 @@ if __name__ == '__main__':
     # NOTE: there is no search here as the models are just randomly sampled
     model_desc = nas_utils.create_model_desc(conf_model_desc,
                                              run_mode=RunMode.Search,
-                                             dag_mutator=RandomDagMutator())
+                                             micro_builder=RandomMicroBuilder())
 
     # save model to location specified by eval config
     nas_utils.save_model_desc(model_desc_filename, model_desc)
 
     # evaluate architecture using eval settings
-    eval_arch(conf_eval)
+    micro_builder = RandomMicroBuilder()
+    eval_arch(conf_eval, micro_builder=micro_builder)
 
     exit(0)

@@ -8,7 +8,7 @@ from torch import nn
 
 from ..common.common import get_logger
 from .dag_edge import DagEdge
-from .model_desc import CellDesc, EdgeDesc, NodeDesc
+from .model_desc import AuxTowerDesc, CellDesc, EdgeDesc, NodeDesc
 from .operations import Op
 
 class Cell(nn.Module, ABC, EnforceOverrides):
@@ -22,23 +22,14 @@ class Cell(nn.Module, ABC, EnforceOverrides):
 
         self._dag =  Cell._create_dag(desc.nodes, alphas_cell)
 
-        self.aux_tower = None
-        if desc.aux_tower_desc:
-            self.aux_tower = AuxTower(desc.aux_tower_desc.ch_in,
-                                      desc.aux_tower_desc.n_classes,
-                                      pool_stride=3)
-
-
     @staticmethod
     def _create_dag(nodes_desc:List[NodeDesc],
                     alphas_cell:Optional['Cell'])->nn.ModuleList:
-        logger = get_logger()
-
         dag = nn.ModuleList()
         for i, node_desc in enumerate(nodes_desc):
             edges:nn.ModuleList = nn.ModuleList()
             dag.append(edges)
-            logger.warn(f'node {i} in cell did not had any edges!')
+            assert len(node_desc.edges) > 0
             for j, edge_desc in enumerate(node_desc.edges):
                 edges.append(DagEdge(edge_desc,
                     alphas_edge=alphas_cell._dag[i][j] if alphas_cell else None))
@@ -70,12 +61,12 @@ class Cell(nn.Module, ABC, EnforceOverrides):
 
         # TODO: Below assumes same shape except for channels but this won't
         #   happen for max pool etc shapes?
-        return torch.cat(states[-self.desc.n_out_nodes:], dim=1)
+        return torch.cat(states[-self.desc.out_nodes:], dim=1)
 
     def finalize(self, max_edges:int)->CellDesc:
         nodes_desc:List[NodeDesc] = []
-        for i, node_desc in enumerate(self.desc.nodes):
-            edge_desc_ranks = [edge.finalize() for edge in self._dag[i]]
+        for node in self._dag:
+            edge_desc_ranks = [edge.finalize() for edge in node]
             if len(edge_desc_ranks) > max_edges:
                  edge_desc_ranks.sort(key=lambda d:d[1], reverse=True)
                  edge_desc_ranks = edge_desc_ranks[:max_edges]
@@ -85,31 +76,8 @@ class Cell(nn.Module, ABC, EnforceOverrides):
                         index=self.desc.index,
                         nodes=nodes_desc,
                         s0_op=self.desc.s0_op, s1_op=self.desc.s1_op,
-                        aux_tower_desc=self.desc.aux_tower_desc,
-                        n_out_nodes=self.desc.n_out_nodes,
-                        n_node_channels=self.desc.n_node_channels,
+                        out_nodes=self.desc.out_nodes,
+                        node_ch_out=self.desc.node_ch_out,
                         alphas_from=self.desc.alphas_from,
                         run_mode=self.desc.run_mode)
 
-class AuxTower(nn.Module):
-    def __init__(self, init_ch_out:int, n_classes:int, pool_stride:int):
-        """assuming input size 14x14"""
-        # TODO: assert input size
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.ReLU(inplace=True),
-            nn.AvgPool2d(5, stride=pool_stride, padding=0, count_include_pad=False),
-            nn.Conv2d(init_ch_out, 128, 1, bias=False),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 768, 2, bias=False),
-            # TODO: This batchnorm was omitted in orginal implementation due to a typo.
-            # nn.BatchNorm2d(768),
-            nn.ReLU(inplace=True)
-        )
-        self.linear = nn.Linear(768, n_classes)
-
-    def forward(self, x:torch.Tensor):
-        x = self.features(x)
-        x = self.linear(x.view(x.size(0), -1))
-        return x

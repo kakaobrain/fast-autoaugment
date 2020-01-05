@@ -1,7 +1,7 @@
 import torch
 
 from FastAutoAugment.common.common import common_init
-from FastAutoAugment.darts.darts_dag_mutator import DartsDagMutator
+from FastAutoAugment.darts.darts_micro_builder import DartsMicroBuilder
 from FastAutoAugment.nas.search_arch import create_model
 
 
@@ -15,10 +15,10 @@ def test_cell_shape():
     conf_search = conf['nas']['search']
     conf_model_desc = conf_search['model_desc']
 
-    dag_mutator = DartsDagMutator()
+    micro_builder = DartsMicroBuilder()
     device = torch.device('cuda')
 
-    model = create_model(conf_data, conf_model_desc, dag_mutator, device)
+    model = create_model(conf_data, conf_model_desc, micro_builder, device)
 
     x = torch.randn(64, 3, 32, 32).to(device)
 

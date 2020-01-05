@@ -8,7 +8,7 @@ from typing import Iterable, Tuple, Optional
 
 from .cell import Cell
 from .operations import Op, DropPath_
-from .model_desc import ModelDesc
+from .model_desc import ModelDesc, AuxTowerDesc
 from ..common.common import get_logger
 from ..common import utils
 
@@ -23,18 +23,22 @@ class Model(nn.Module):
         self._stem1_op = Op.create(model_desc.stem1_op)
 
         self._cells = nn.ModuleList()
+        self._aux_towers = nn.ModuleList()
 
-        for i, cell_desc in enumerate(model_desc.cell_descs):
+        for i, (cell_desc, aux_tower_desc) in \
+                enumerate(zip(model_desc.cell_descs, model_desc.aux_tower_descs)):
             alphas_cell = None if cell_desc.alphas_from==i  \
                                else self._cells[cell_desc.alphas_from]
             cell = Cell(cell_desc, alphas_cell)
             self._cells.append(cell)
+            self._aux_towers.append(AuxTower(aux_tower_desc, pool_stride=3) \
+                                    if aux_tower_desc else None)
 
         # adaptive pooling output size to 1x1
         self.final_pooling = Op.create(model_desc.pool_op)
         # since ch_p records last cell's output channels
         # it indicates the input channel number
-        self.linear = nn.Linear(model_desc.cell_descs[-1].conv_params.ch_out,
+        self.linear = nn.Linear(model_desc.cell_descs[-1].cell_ch_out,
                                 model_desc.n_classes)
 
         logger.info("Total param size = %f MB", utils.param_size(self))
@@ -76,12 +80,12 @@ class Model(nn.Module):
         s1 = self._stem1_op(x)
 
         logits_aux = None
-        for cell in self._cells:
+        for cell, aux_tower in zip(self._cells, self._aux_towers):
             #print(s0.shape, s1.shape, end='')
             s0, s1 = s1, cell.forward(s0, s1)
             #print('\t->\t', s0.shape, s1.shape)
 
-            if cell.aux_tower is not None:
+            if aux_tower is not None: # TODO: this won't work for multiple aux towers
                 logits_aux = cell.aux_tower(s1)
 
         # s1 is now the last cell's output
@@ -97,7 +101,8 @@ class Model(nn.Module):
                          pool_op=self.desc.pool_op,
                          ds_ch=self.desc.ds_ch,
                          n_classes=self.desc.n_classes,
-                         cell_descs=cell_descs)
+                         cell_descs=cell_descs,
+                         aux_tower_descs=self.desc.aux_tower_descs)
 
     def drop_path_prob(self, p:float):
         """ Set drop path probability
@@ -107,3 +112,27 @@ class Model(nn.Module):
         for module in self.modules():
             if isinstance(module, DropPath_):
                 module.p = p
+
+class AuxTower(nn.Module):
+    def __init__(self, aux_tower_desc:AuxTowerDesc, pool_stride:int):
+        """assuming input size 14x14"""
+        # TODO: assert input size
+        super().__init__()
+
+        self.features = nn.Sequential(
+            nn.ReLU(inplace=True),
+            nn.AvgPool2d(5, stride=pool_stride, padding=0, count_include_pad=False),
+            nn.Conv2d(aux_tower_desc.ch_in, 128, 1, bias=False),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(128, 768, 2, bias=False),
+            # TODO: This batchnorm was omitted in orginal implementation due to a typo.
+            # nn.BatchNorm2d(768),
+            nn.ReLU(inplace=True)
+        )
+        self.linear = nn.Linear(768, aux_tower_desc.n_classes)
+
+    def forward(self, x:torch.Tensor):
+        x = self.features(x)
+        x = self.linear(x.view(x.size(0), -1))
+        return x

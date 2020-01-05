@@ -3,7 +3,7 @@ import random
 
 from overrides import overrides
 
-from ..nas.dag_mutator import DagMutator
+from ..nas.micro_builder import MicroBuilder
 from ..nas.model_desc import ModelDesc, CellDesc, CellType, \
                              ConvMacroParams, OpDesc, EdgeDesc
 
@@ -30,9 +30,9 @@ class RandOps:
             self.ops_and_ins.append((op_names, to_states))
 
 
-class RandomDagMutator(DagMutator):
+class RandomMicroBuilder(MicroBuilder):
     @overrides
-    def mutate(self, model_desc:ModelDesc)->None:
+    def build(self, model_desc:ModelDesc)->None:
         # create random op sets for two cell types
         n_nodes = len(model_desc.cell_descs[0].nodes)
         max_edges = 2
@@ -47,9 +47,9 @@ class RandomDagMutator(DagMutator):
             else:
                 raise NotImplementedError(f'CellType {cell_desc.cell_type} is not recognized')
 
-            self._mutate_cell(cell_desc, rand_ops)
+            self._build_cell(cell_desc, rand_ops)
 
-    def _mutate_cell(self, cell_desc:CellDesc, rand_ops:RandOps)->None:
+    def _build_cell(self, cell_desc:CellDesc, rand_ops:RandOps)->None:
         assert len(cell_desc.nodes) == len(rand_ops.ops_and_ins)
         reduction = (cell_desc.cell_type==CellType.Reduction)
 
