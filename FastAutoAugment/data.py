@@ -6,6 +6,7 @@ import torchvision
 from PIL import Image
 
 from torch.utils.data import SubsetRandomSampler, Sampler, Subset, ConcatDataset
+import torch.distributed as dist
 from torchvision.transforms import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
 from theconf import Config as C
@@ -14,6 +15,7 @@ from FastAutoAugment.archive import arsaug_policy, autoaug_policy, autoaug_paper
 from FastAutoAugment.augmentations import *
 from FastAutoAugment.common import get_logger
 from FastAutoAugment.imagenet import ImageNet
+from FastAutoAugment.networks.efficientnet_pytorch.model import EfficientNet
 
 logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
@@ -28,7 +30,7 @@ _IMAGENET_PCA = {
 _CIFAR_MEAN, _CIFAR_STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
 
 
-def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=False, target_lb=-1):
+def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, multinode=False, target_lb=-1):
     if 'cifar' in dataset or 'svhn' in dataset:
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -41,8 +43,16 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
             transforms.Normalize(_CIFAR_MEAN, _CIFAR_STD),
         ])
     elif 'imagenet' in dataset:
+        input_size = 224
+        sized_size = 256
+
+        if 'efficientnet' in C.get()['model']['type']:
+            input_size = EfficientNet.get_image_size(C.get()['model']['type'])
+            sized_size = input_size + 32    # TODO
+            logger.info('size changed to %d/%d.' % (input_size, sized_size))
+
         transform_train = transforms.Compose([
-            transforms.RandomResizedCrop(224, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
+            transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(
                 brightness=0.4,
@@ -55,8 +65,8 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
         ])
 
         transform_test = transforms.Compose([
-            transforms.Resize(256, interpolation=Image.BICUBIC),
-            transforms.CenterCrop(224),
+            transforms.Resize(sized_size, interpolation=Image.BICUBIC),
+            transforms.CenterCrop(input_size),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -84,7 +94,7 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
             transform_train.transforms.insert(0, Augmentation(autoaug_paper_cifar10()))
         elif C.get()['aug'] == 'autoaug_extend':
             transform_train.transforms.insert(0, Augmentation(autoaug_policy()))
-        elif C.get()['aug'] in ['default', 'inception', 'inception320']:
+        elif C.get()['aug'] in ['default']:
             pass
         else:
             raise ValueError('not found augmentations. %s' % C.get()['aug'])
@@ -182,25 +192,24 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
         train_sampler = SubsetRandomSampler(train_idx)
         valid_sampler = SubsetSampler(valid_idx)
 
-        if horovod:
-            import horovod.torch as hvd
-            train_sampler = torch.utils.data.distributed.DistributedSampler(train_sampler, num_replicas=hvd.size(), rank=hvd.rank())
+        if multinode:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(Subset(total_trainset, train_idx), num_replicas=dist.get_world_size(), rank=dist.get_rank())
     else:
         valid_sampler = SubsetSampler([])
 
-        if horovod:
-            import horovod.torch as hvd
-            train_sampler = torch.utils.data.distributed.DistributedSampler(valid_sampler, num_replicas=hvd.size(), rank=hvd.rank())
+        if multinode:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(total_trainset, num_replicas=dist.get_world_size(), rank=dist.get_rank())
+            logger.info(f'----- dataset with DistributedSampler  {dist.get_rank()}/{dist.get_world_size()}')
 
     trainloader = torch.utils.data.DataLoader(
-        total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=32, pin_memory=True,
+        total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=8, pin_memory=True,
         sampler=train_sampler, drop_last=True)
     validloader = torch.utils.data.DataLoader(
-        total_trainset, batch_size=batch, shuffle=False, num_workers=16, pin_memory=True,
+        total_trainset, batch_size=batch, shuffle=False, num_workers=4, pin_memory=True,
         sampler=valid_sampler, drop_last=False)
 
     testloader = torch.utils.data.DataLoader(
-        testset, batch_size=batch, shuffle=False, num_workers=32, pin_memory=True,
+        testset, batch_size=batch, shuffle=False, num_workers=8, pin_memory=True,
         drop_last=False
     )
     return train_sampler, trainloader, validloader, testloader

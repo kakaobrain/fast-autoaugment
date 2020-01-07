@@ -3,14 +3,14 @@ model:
 dataset: imagenet
 aug: fa_reduced_imagenet
 cutout: 0
-batch: 256
+batch: 64
 epoch: 270
 lr: 0.05
 lr_schedule:
   type: 'resnet'
   warmup:
-    multiplier: 2
-    epoch: 3
+    multiplier: 1
+    epoch: 5
 optimizer:
   type: sgd
   nesterov: True

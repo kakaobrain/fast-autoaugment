@@ -45,6 +45,24 @@ Notes
 * But with recent our code clean-up and bugfixes, we've found that the baseline performs similar to the baseline even using 224x224.
 * When we use 224x224, resnet-200 performs **20.0 / 5.2**. Download link for the trained model is [here](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/imagenet_resnet200_res224.pth).
 
+EfficientNet
+
+| Model | Baseline   | AutoAugment | RandAugment | Fast AutoAugment |    |
+|-------|------------|-------------|-------------|------------------|----|
+| B0    | 23.2       | 22.7        | -           |
+| B1    | 21.2       | 20.8        | -           |
+| B2    | 20.2       | 19.7        | -           |
+| B3    | 19.0       | 18.3        | -           |
+| B4    | 17.4       | 17.0        | -           |
+| B5    | 16.8       | 16.3        | 16.1        |
+| B6    | -          | 15.8        | -           |
+| B7    | -          | 15.5        | 15.0        |
+
+```
+horovodrun -np 32 --mpi-args "--mca btl_vader_single_copy_mechanism none" -H task1:4,task2:4,task3:4,task4:4,task5:4,task6:4,task7:4,task8:4 python FastAutoAugment/train.py -c confs/efficientnet_b0.yaml
+horovodrun -np 128 --mpi-args "--mca btl_vader_single_copy_mechanism none" -H task1:8,task2:8,task3:8,task4:8,task5:8,task6:8,task7:8,task8:8,task9:8,task10:8,task11:8,task12:8,task13:8,task14:8,task15:8,task16:8 python FastAutoAugment/train.py -c confs/efficientnet_b4.yaml
+```
+
 ### SVHN Test
 
 Search : **1.5 GPU Hours**

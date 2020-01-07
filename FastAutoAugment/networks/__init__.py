@@ -2,6 +2,7 @@ import torch
 
 from torch import nn
 from torch.nn import DataParallel
+from torch.nn.parallel import DistributedDataParallel
 import torch.backends.cudnn as cudnn
 # from torchvision import models
 
@@ -10,9 +11,9 @@ from FastAutoAugment.networks.pyramidnet import PyramidNet
 from FastAutoAugment.networks.shakeshake.shake_resnet import ShakeResNet
 from FastAutoAugment.networks.wideresnet import WideResNet
 from FastAutoAugment.networks.shakeshake.shake_resnext import ShakeResNeXt
+from FastAutoAugment.networks.efficientnet_pytorch import EfficientNet
 
-
-def get_model(conf, num_class=10, data_parallel=True):
+def get_model(conf, num_class=10, local_rank=-1):
     name = conf['type']
 
     if name == 'resnet50':
@@ -38,16 +39,23 @@ def get_model(conf, num_class=10, data_parallel=True):
 
     elif name == 'pyramid':
         model = PyramidNet('cifar10', depth=conf['depth'], alpha=conf['alpha'], num_classes=num_class, bottleneck=conf['bottleneck'])
+
+    elif 'efficientnet' in name:
+        model = EfficientNet.from_name(name)
+        if local_rank >= 0:
+            model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+#         model = EfficientNet.from_pretrained(name)
     else:
         raise NameError('no model named, %s' % name)
 
-    if data_parallel:
-        model = model.cuda()
-        model = DataParallel(model)
-    else:
-        import horovod.torch as hvd
-        device = torch.device('cuda', hvd.local_rank())
+    if local_rank >= 0:
+        device = torch.device('cuda', local_rank)
         model = model.to(device)
+        model = DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
+    else:
+        model = model.cuda()
+#         model = DataParallel(model)
+
     cudnn.benchmark = True
     return model
 
