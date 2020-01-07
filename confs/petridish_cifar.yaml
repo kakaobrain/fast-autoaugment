@@ -7,7 +7,7 @@ nas:
       n_nodes: 1 # start node for petridish, at each iteration we add one more
       out_nodes: 1 # start output is concatination of only node
     trainer:
-      alphas_reg:  0.001   # as per paper
+      l1_alphas:  0.001   # as per paper
       epochs: 80 # as per paper
       lr_schedule:
         lr_min: 0.0 # as per paper
