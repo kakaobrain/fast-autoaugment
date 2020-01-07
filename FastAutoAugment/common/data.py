@@ -85,6 +85,11 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
 
     assert val_ratio > 0.0 or validloader is None
 
+    logger.info('Dataset sizes: train={}, val={}, test={}'.format(
+        len(trainloader) if trainloader is not None else 'None',
+        len(validloader) if validloader is not None else 'None',
+        len(testloader) if testloader is not None else 'None'))
+
     # we have to return train_sampler because of horovod
     return trainloader, validloader, testloader, train_sampler
 
@@ -217,6 +222,7 @@ def _get_datasets(dataset, dataroot, load_train:bool, load_test:bool,
 
     if dataset == 'cifar10':
         if load_train:
+            # NOTE: train transforms will also be applied to validation set
             trainset = torchvision.datasets.CIFAR10(root=dataroot, train=True,
                 download=True, transform=transform_train)
         if load_test:
@@ -366,7 +372,7 @@ def _get_train_sampler(val_ratio:float, val_fold:int, trainset, horovod,
         # TODO: random_state should be None so np.random is used
         # TODO: keep hardcoded n_splits=5?
         sss = StratifiedShuffleSplit(n_splits=5, test_size=val_ratio,
-            random_state=0)
+                                     random_state=0)
         sss = sss.split(list(range(len(trainset))), trainset.targets)
 
         # we have 5 plits, but will select only one of them by val_fold
@@ -377,8 +383,10 @@ def _get_train_sampler(val_ratio:float, val_fold:int, trainset, horovod,
             train_idx = [i for i in train_idx if trainset.targets[i] == target_lb]
             valid_idx = [i for i in valid_idx if trainset.targets[i] == target_lb]
 
+        # NOTE: we apply random sampler for validation set as well because
+        #       this set is used for training alphas for darts
         train_sampler = SubsetRandomSampler(train_idx)
-        valid_sampler = SubsetSampler(valid_idx)
+        valid_sampler = SubsetRandomSampler(valid_idx)
 
         if horovod: # train sampler for horovod
             import horovod.torch as hvd
@@ -401,7 +409,7 @@ def _get_train_sampler(val_ratio:float, val_fold:int, trainset, horovod,
 def _add_augs(transform_train, aug:str, cutout:int):
     logger = get_logger()
 
-    # TODO: total_aug remains None in original code
+    # TODO: total_aug remains None in original fastaug code
     total_aug = augs = None
 
     logger.info('Additional augmentation = "{}"'.format(aug))
@@ -429,6 +437,8 @@ def _add_augs(transform_train, aug:str, cutout:int):
             raise ValueError('Augmentations not found: %s' % aug)
 
     # add cutout transform
+    # TODO: use PyTorch built-in cutout
+    logger.info('Cutout = "{}"'.format(cutout))
     if cutout > 0:
         transform_train.transforms.append(CutoutDefault(cutout))
 
