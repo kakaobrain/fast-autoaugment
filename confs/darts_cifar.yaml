@@ -36,7 +36,7 @@ nas:
       n_nodes: 4 # number of nodes in a cell
       out_nodes: 4 # last n nodes to concate output from
       stem_multiplier: 3 # output channels multiplier for the stem
-      aux_tower: False
+      aux_weight: &search_aux_weight 0.0 # weight for loss from auxiliary towers in test time arch
       dataset: *dataset
     loader:
       aug: "" # additional augmentations to use
@@ -51,10 +51,10 @@ nas:
       horovod: *horovod
       dataset: *dataset
     trainer:
-      aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
+      aux_weight: *search_aux_weight
       drop_path_prob: 0.0 # probability that given edge will be dropped
       grad_clip: 5.0 # grads above this value is clipped
-      logger_freq: 10 # after every N updates dump loss and other metrics in logger
+      logger_freq: 50 # after every N updates dump loss and other metrics in logger
       title: "search_train"
       epochs: 50
       # additional vals for the derived class
@@ -78,7 +78,11 @@ nas:
       lr_schedule:
         type: "cosine"
         lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler
-      validation: null
+      validation:
+        title: "search_val"
+        logger_freq: 1000
+        lossfn:
+          type: "CrossEntropyLoss"
   eval:
     model_desc_file: "best_model_desc.yaml"
     save_filename: "model.pt" # file to which trained model will be saved
@@ -90,7 +94,7 @@ nas:
       n_nodes: 4 # number of nodes in a cell
       out_nodes: 4 # last n nodes to concate output from
       stem_multiplier: 3 # output channels multiplier for the stem
-      aux_tower: True
+      aux_weight: &eval_aux_weight 0.4 # weight for loss from auxiliary towers in test time arch
       dataset: *dataset
     loader:
       aug: "" # additional augmentations to use
@@ -105,10 +109,10 @@ nas:
       horovod: *horovod
       dataset: *dataset
     trainer:
-      aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
+      aux_weight: *eval_aux_weight
       drop_path_prob: 0.2 # probability that given edge will be dropped
       grad_clip: 5.0 # grads above this value is clipped
-      logger_freq: 10 # after every N updates dump loss and other metrics in logger
+      logger_freq: 50 # after every N updates dump loss and other metrics in logger
       title: "eval_train"
       epochs: 600
       lossfn:

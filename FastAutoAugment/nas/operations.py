@@ -117,6 +117,13 @@ class SkipConnect(Op):
     def forward(self, x:Tensor)->Tensor:
         return self._op(x)
 
+    @overrides
+    def can_drop_path(self)->bool:
+        # TODO: original darts drops path only for identity, not FactorizedReduce
+        #   but that seems wrong. Here we drop path for skip connect.
+        return False
+
+
 class FacConv(Op):
     """ Factorized conv
     ReLU - Conv(Kx1) - Conv(1xK) - BN

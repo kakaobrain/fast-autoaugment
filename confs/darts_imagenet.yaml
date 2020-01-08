@@ -13,7 +13,6 @@ nas:
       n_nodes: 4 # number of nodes in a cell
       out_nodes: 4 # last n nodes to concate output from
       stem_multiplier: 1 # output channels multiplier for the stem
-      aux_tower: True
     loader:
       batch: 128
     trainer:

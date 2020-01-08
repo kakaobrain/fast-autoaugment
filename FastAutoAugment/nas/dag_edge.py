@@ -13,8 +13,8 @@ class DagEdge(nn.Module):
         super().__init__()
         self._wrapped = self._op = Op.create(desc.op_desc,
                         alphas_edge.alphas() if alphas_edge else [])
-        if desc.run_mode == RunMode.EvalTrain and \
-                self._op.can_drop_path():
+        if desc.run_mode == RunMode.EvalTrain and self._op.can_drop_path():
+            assert self.training
             self._wrapped = nn.Sequential(self._op, DropPath_())
         self._input_ids = desc.input_ids
         self.desc = desc
