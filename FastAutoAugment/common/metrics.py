@@ -91,11 +91,11 @@ class Metrics:
             self.best_epoch = self.epoch
             self.best_top1 = self.top1.avg
 
-        if self.logger_freq > 0:
-            logger = get_logger()
-            logger.info(f"[{self.title}] "
-                        f"[{self.epoch:3d}/{self.epochs}] "
-                        f"Final Prec@1 {self.top1.avg:.4%}")
+        # if self.logger_freq > 0:
+        #     logger = get_logger()
+        #     logger.info(f"[{self.title}] "
+        #                 f"[{self.epoch:3d}/{self.epochs}] "
+        #                 f"Final Prec@1 {self.top1.avg:.4%}")
 
     def is_best(self) -> bool:
         return self.epoch == self.best_epoch

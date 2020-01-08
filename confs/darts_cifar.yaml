@@ -54,7 +54,7 @@ nas:
       aux_weight: 0.0 # weight for loss from auxiliary towers in test time arch
       drop_path_prob: 0.0 # probability that given edge will be dropped
       grad_clip: 5.0 # grads above this value is clipped
-      logger_freq: 10 # after every N updates dump loss and other metrics in logger
+      logger_freq: 50 # after every N updates dump loss and other metrics in logger
       title: "search_train"
       epochs: 50
       # additional vals for the derived class
@@ -108,7 +108,7 @@ nas:
       aux_weight: 0.4 # weight for loss from auxiliary towers in test time arch
       drop_path_prob: 0.2 # probability that given edge will be dropped
       grad_clip: 5.0 # grads above this value is clipped
-      logger_freq: 10 # after every N updates dump loss and other metrics in logger
+      logger_freq: 50 # after every N updates dump loss and other metrics in logger
       title: "eval_train"
       epochs: 600
       lossfn:
