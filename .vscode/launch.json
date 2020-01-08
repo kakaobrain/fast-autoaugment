@@ -79,12 +79,11 @@
             ]
         },
         {
-            "name": "TestRanddom cifar10",
+            "name": "TestRandom cifar10",
             "type": "python",
             "request": "launch",
             "program": "${cwd}/scripts/random/cifar_eval.py",
             "console": "integratedTerminal"
-            ]
         },
 
         {
