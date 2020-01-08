@@ -1,6 +1,6 @@
 from typing import Tuple, Optional
-import os
 
+import yaml
 from torch.utils.data.dataloader import DataLoader
 
 from .model_desc import RunMode, ModelDesc
@@ -10,6 +10,7 @@ from ..common.config import Config
 from .model import Model
 from ..common.data import get_dataloaders
 from ..common.common import get_logger, logdir_abspath
+
 
 def create_model_desc(conf_model_desc: Config, run_mode:RunMode,
                  micro_builder: Optional[MicroBuilder]=None,
@@ -77,3 +78,9 @@ def save_model_desc(model_desc_filename:Optional[str], model_desc:ModelDesc)\
         with open(model_desc_filepath, 'w') as f:
             f.write(model_desc.serialize())
     return model_desc_filepath
+
+def load_model_desc(model_desc_filename:str)->ModelDesc:
+    model_desc_filepath = logdir_abspath(model_desc_filename)
+    assert model_desc_filepath
+    with open(model_desc_filepath, 'r') as f:
+        return yaml.load(f, Loader=yaml.Loader)
