@@ -28,6 +28,7 @@ class PetridishMicroBuilder(MicroBuilder):
 
         # Petridish cell will start out with 1 node.
         # At each iteration we pick the last node available and add petridish op to it
+        # NOTE: Where is it enforced that the cell already has 1 node. How is that node created?
         last_node_i = len(cell_desc.nodes)-1
         input_ids = list(range(last_node_i + 2)) # all previous states are input
         op_desc = OpDesc('petridish_reduction_op' if reduction else 'petridish_normal_op',

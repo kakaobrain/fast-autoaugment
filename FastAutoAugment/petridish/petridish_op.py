@@ -104,6 +104,9 @@ class PetridishOp(Op):
         # TODO: check with Dey: Do we really need StopForwardReductionOp
         #   or StopGradientReductionOp because these two will only make sense
         #   for cell stems.
+        # NOTE: Consider the case where prev_prev is normal, prev is reduction
+        # then s_0 is twice as big in each dimension as s_1 and the number of channels
+        # won't match. So you have to use StopGradientReductionOp on s_1 to make it match.
         self._sf = StopForward()
 
     @overrides

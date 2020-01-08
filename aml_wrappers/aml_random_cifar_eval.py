@@ -78,39 +78,28 @@ def launch_experiment(ws, conf_aml, conf_cluster, conf_docker, conf_experiment):
 
     # Note that experiment names have to be
     # <36 alphanumeric characters
-    #exp_name = conf_experiment['experiment_name'] + datetime.datetime.now().strftime('%Y%m%d%I%M')
     exp_name = conf_experiment['experiment_name']
+    experiment = Experiment(ws, name=exp_name)    
 
-    experiment = Experiment(ws, name=exp_name)
-    script_params = {'--dataset.dataroot': input_ds.path('/').as_mount(),
-                     '--common.logdir': output_ds.path('/').as_mount(),
-                    }
+    # TODO: Make config
+    for i in tqdm(range(200)):
+        log_dir = exp_name + f'_{i}'    
+        script_params = {'--nas.eval.loader.dataset.dataroot': input_ds.path('/').as_mount(),
+                         '--common.logdir': output_ds.path('/{}'.format(log_dir)).as_mount(),
+                        }
 
-    est = Estimator(source_directory=project_folder,
-                    script_params=script_params,
-                    compute_target=compute_target,
-                    entry_script='scripts/random/cifar_eval.py',
-                    custom_docker_image=conf_docker['image_name'],
-                    image_registry_details=image_registry_details,
-                    user_managed=user_managed_dependencies,
-                    source_directory_data_store=input_ds)
+        est = Estimator(source_directory=project_folder,
+                        script_params=script_params,
+                        compute_target=compute_target,
+                        entry_script='scripts/random/cifar_eval.py',
+                        custom_docker_image=conf_docker['image_name'],
+                        image_registry_details=image_registry_details,
+                        user_managed=user_managed_dependencies,
+                        source_directory_data_store=input_ds)
 
-    run = experiment.submit(est)
-
-
-def get_experiment(ws, exp_name):
-    experiment_exists = ws.experiments.get(exp_name, None)
-    if experiment_exists is not None:
-        return experiment_exists
-    else:
-        print('Unable to find an experiment in the current workspace with name {}'.format(exp_name))
+        run = experiment.submit(est)
 
 
-def cancel_experiment(ws, experiment_name):
-    exp = get_experiment(ws, experiment_name)
-    print('Cancelling existing experiment with name: {}'.format(experiment_name))
-    for run in tqdm(list(exp.get_runs())):
-        run.cancel()
 
 
 if __name__ == "__main__":
