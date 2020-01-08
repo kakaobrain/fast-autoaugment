@@ -44,7 +44,7 @@ class Metrics:
 
     def report_cur(self, steps: int):
         if self.logger_freq > 0 and \
-                (self.step % self.logger_freq == 0 or self.step == steps-1):
+                (self.step % self.logger_freq == 0 or self.step == steps):
             logger = get_logger()
             logger.info(
                 f"[{self.title}] "

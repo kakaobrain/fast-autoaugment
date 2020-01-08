@@ -78,7 +78,11 @@ nas:
       lr_schedule:
         type: "cosine"
         lr_min: 0.001 # min learning rate, this will be used in eta_min param of scheduler
-      validation: null
+      validation:
+        title: "search_val"
+        logger_freq: 1000
+        lossfn:
+          type: "CrossEntropyLoss"
   eval:
     model_desc_file: "best_model_desc.yaml"
     save_filename: "model.pt" # file to which trained model will be saved
