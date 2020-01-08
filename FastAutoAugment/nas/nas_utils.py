@@ -15,7 +15,7 @@ def create_model_desc(conf_model_desc: Config, run_mode:RunMode,
                  micro_builder: Optional[MicroBuilder]=None,
                  template_model_desc:Optional[ModelDesc]=None) -> ModelDesc:
     builder = MacroBuilder(conf_model_desc,
-                               run_mode=RunMode.Search,
+                               run_mode=run_mode,
                                template=template_model_desc)
     model_desc = builder.get_model_desc()
 

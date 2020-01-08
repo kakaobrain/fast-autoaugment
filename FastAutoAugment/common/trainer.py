@@ -98,7 +98,7 @@ class Trainer(EnforceOverrides):
 
             optim.zero_grad()
 
-            if self._aux_weight > 0.:
+            if self._aux_weight > 0.0:
                 logits, aux_logits = self.model(x)
             else:
                 (logits, *_), aux_logits = self.model(x), None
