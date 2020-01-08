@@ -11,6 +11,7 @@ from .metrics import Metrics
 from .tester import Tester
 from .config import Config
 from . import utils
+from ..common.common import get_logger
 
 class Trainer(EnforceOverrides):
     def __init__(self, conf_train:Config, model:nn.Module, device)->None:
@@ -117,9 +118,13 @@ class Trainer(EnforceOverrides):
     def compute_loss(self, lossfn:Callable,
                      x:Tensor, y:Tensor, logits:Tensor,
                      aux_weight:float, aux_logits:Optional[Tensor])->Tensor:
+        logger = get_logger()
         loss = lossfn(logits, y)
         if aux_weight > 0.0:
-            loss += aux_weight * lossfn(aux_logits, y)
+            if aux_logits is not None:
+                loss += aux_weight * lossfn(aux_logits, y)
+            else:
+                logger.warn(f'aux_weight is {aux_weight} but aux tower was not generated')
         return loss
 
     def _set_drop_path(self, epoch:int, epochs:int)->None:
