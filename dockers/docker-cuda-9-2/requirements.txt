@@ -1,0 +1,13 @@
+git+https://github.com/wbaek/theconf
+git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git@v0.2
+git+https://github.com/ildoonet/pystopwatch2.git
+git+https://github.com/hyperopt/hyperopt.git
+pretrainedmodels
+tqdm
+tensorboardx
+sklearn
+ray
+matplotlib
+psutil
+requests
+# horovod==0.16.1   # need to install seperately. see readme.
