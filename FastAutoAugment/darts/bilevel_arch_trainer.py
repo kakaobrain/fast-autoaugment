@@ -31,12 +31,15 @@ class BilevelArchTrainer(ArchTrainer):
 
     @overrides
     def get_optimizer(self) -> Optimizer:
+        # return optim that only operates on w, not alphas
         return utils.get_optimizer(self._conf_w_optim, self.model.weights())
 
     @overrides
     def pre_fit(self, train_dl: DataLoader, val_dl: Optional[DataLoader],
                 optim: Optimizer, sched: _LRScheduler) -> None:
 
+        # optimizers, schedulers needs to be recreated for each fit call
+        # as they have state
         assert val_dl is not None
         w_momentum = self._conf_w_optim['momentum']
         w_decay = self._conf_w_optim['decay']
@@ -86,7 +89,6 @@ class _BilevelOptimizer:
         # create a copy of model which we will use
         # to compute grads for alphas without disturbing
         # original weights
-        # TODO: see if there are any issues in deepcopy for pytorch
         self._vmodel = copy.deepcopy(model)
 
         # this is the optimizer to optimize alphas parameter
@@ -94,7 +96,7 @@ class _BilevelOptimizer:
 
     @staticmethod
     def _get_loss(model, lossfn, x, y):
-        logits, *_ = model(x)
+        logits, *_ = model(x) # might also return aux tower logits
         return lossfn(logits, y)
 
     def _update_vmodel(self, x, y, lr: float, w_optim: Optimizer) -> None:

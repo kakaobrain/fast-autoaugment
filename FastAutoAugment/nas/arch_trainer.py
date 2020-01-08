@@ -19,7 +19,7 @@ class ArchTrainer(Trainer, EnforceOverrides):
     def __init__(self, conf_train: Config, model: Model, device) -> None:
         super().__init__(conf_train, model, device)
 
-        self._alphas_reg = conf_train['alphas_reg']
+        self._l1_alphas = conf_train['l1_alphas']
         self._max_final_edges = conf_train['max_final_edges']
         self._plotsdir = common.logdir_abspath(conf_train['plotsdir'], True)
 
@@ -29,9 +29,9 @@ class ArchTrainer(Trainer, EnforceOverrides):
                      aux_weight: float, aux_logits: Optional[Tensor]) -> Tensor:
         loss = super().compute_loss(lossfn, x, y, logits,
                                     aux_weight, aux_logits)
-        if self._alphas_reg > 0.0:
+        if self._l1_alphas > 0.0:
             l_extra = sum(torch.sum(a.abs()) for a in self.model.alphas())
-            loss += self._alphas_reg * l_extra
+            loss += self._l1_alphas * l_extra
         return loss
 
     @overrides
