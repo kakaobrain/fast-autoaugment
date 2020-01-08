@@ -118,7 +118,7 @@ class Trainer(EnforceOverrides):
                      x:Tensor, y:Tensor, logits:Tensor,
                      aux_weight:float, aux_logits:Optional[Tensor])->Tensor:
         loss = lossfn(logits, y)
-        if aux_weight > 0.0:
+        if aux_weight > 0.0 and aux_logits:
             loss += aux_weight * lossfn(aux_logits, y)
         return loss
 
