@@ -85,7 +85,8 @@ class Model(nn.Module):
             s0, s1 = s1, cell.forward(s0, s1)
             #print('\t->\t', s0.shape, s1.shape)
 
-            if aux_tower is not None: # TODO: this won't work for multiple aux towers
+            # TODO: this mimics darts but won't work for multiple aux towers
+            if aux_tower is not None and self.training:
                 logits_aux = aux_tower(s1)
 
         # s1 is now the last cell's output
