@@ -20,7 +20,7 @@ class MacroBuilder(EnforceOverrides):
         self.n_nodes = conf_model_desc['n_nodes']
         self.out_nodes = conf_model_desc['out_nodes']
         self.stem_multiplier = conf_model_desc['stem_multiplier']
-        self.aux_tower = conf_model_desc['aux_tower']
+        self.aux_weight = conf_model_desc['aux_weight']
         self.run_mode = run_mode
         self.template = template
 
@@ -152,7 +152,7 @@ class MacroBuilder(EnforceOverrides):
     def _get_aux_tower(self, cell_desc:CellDesc) -> Optional[AuxTowerDesc]:
         # TODO: shouldn't we be adding aux tower at *every* 1/3rd?
         if self.run_mode==RunMode.EvalTrain                        \
-                and self.aux_tower                                 \
+                and self.aux_weight > 0.0                          \
                 and cell_desc.index == 2*self.n_cells//3:
             return AuxTowerDesc(cell_desc.cell_ch_out, self.n_classes)
         return None
