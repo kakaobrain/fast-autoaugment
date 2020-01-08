@@ -85,7 +85,7 @@ def get_dataloaders(dataset:str, batch_size, dataroot:str, aug, cutout:int,
 
     assert val_ratio > 0.0 or validloader is None
 
-    logger.info('Dataset sizes: train={}, val={}, test={}'.format(
+    logger.info('Dataset batches: train={}, val={}, test={}'.format(
         len(trainloader) if trainloader is not None else 'None',
         len(validloader) if validloader is not None else 'None',
         len(testloader) if testloader is not None else 'None'))
@@ -438,7 +438,7 @@ def _add_augs(transform_train, aug:str, cutout:int):
 
     # add cutout transform
     # TODO: use PyTorch built-in cutout
-    logger.info('Cutout = "{}"'.format(cutout))
+    logger.info('Cutout = {}'.format(cutout))
     if cutout > 0:
         transform_train.transforms.append(CutoutDefault(cutout))
 

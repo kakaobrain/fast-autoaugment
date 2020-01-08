@@ -35,6 +35,8 @@ class Trainer(EnforceOverrides):
                         if conf_validation else None
 
     def fit(self, train_dl:DataLoader, val_dl:Optional[DataLoader])->None:
+        # optimizers, schedulers needs to be recreated for each fit call
+        # as they have state
         optim = self.get_optimizer()
         lr_scheduler = self.get_scheduler(optim)
         self._metrics = self._create_metrics(self._epochs, optim)
@@ -107,7 +109,7 @@ class Trainer(EnforceOverrides):
 
             if self._grad_clip:
                 # TODO: original darts clips alphas as well but pt.darts doesn't
-                nn.utils.clip_grad_norm_(self.model.parameters(), self._grad_clip)
+                nn.utils.clip_grad_norm_(self.model.weights(), self._grad_clip)
             optim.step()
 
             self.post_step(x, y, logits, loss, steps)
