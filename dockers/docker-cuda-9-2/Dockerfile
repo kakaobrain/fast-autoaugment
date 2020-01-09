@@ -41,12 +41,12 @@ RUN curl -so /miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-latest
 
 ENV PATH=/miniconda/bin:$PATH
 
-ADD petridishpytorch92.yml /tmp/petridishpytorch92.yml
+ADD petridishpytorchcuda92.yml /tmp/petridishpytorchcuda92.yml
 
-RUN conda env create -f /tmp/petridishpytorch92.yml && \
-    echo "source activate petridishpytorch92" >> ~/.bashrc
+RUN conda env create -f /tmp/petridishpytorchcuda92.yml && \
+    echo "source activate petridishpytorchcuda92" >> ~/.bashrc
 
-ENV PATH /miniconda/envs/petridishpytorch/bin:$PATH
+ENV PATH /miniconda/envs/petridishpytorchcuda92/bin:$PATH
 
 ADD requirements.txt /tmp/requirements.txt
 
