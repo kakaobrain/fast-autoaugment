@@ -26,8 +26,10 @@ class Tester(EnforceOverrides):
         self._metrics = self._create_metrics(epochs=1)
 
     def test(self, test_dl: DataLoader)->None:
+        # recreate metrics for this run
+        self._metrics = self._create_metrics(epochs=1)
         steps = len(test_dl)
-        self.pre_epoch(steps, self._metrics)
+        self.pre_test(test_dl, steps, self._metrics)
         self.model.eval()
         with torch.no_grad():
             for x, y in test_dl:
@@ -40,14 +42,14 @@ class Tester(EnforceOverrides):
                 logits, *_ = self.model(x) # ignore aux logits in test mode
                 loss = self._lossfn(logits, y)
                 self.post_step(x, y, logits, loss, steps, self._metrics)
-        self.post_epoch(steps, self._metrics)
+        self.post_test(test_dl, steps, self._metrics)
 
     def get_metrics(self)->Metrics:
         return self._metrics
 
-    def pre_epoch(self, epoch_steps:int, metrics:Metrics)->None:
+    def pre_test(self, test_dl:DataLoader, epoch_steps:int, metrics:Metrics)->None:
         metrics.pre_epoch()
-    def post_epoch(self, epoch_steps:int, metrics:Metrics)->None:
+    def post_test(self, test_dl:DataLoader, epoch_steps:int, metrics:Metrics)->None:
         metrics.post_epoch()
     def pre_step(self, x:Tensor, y:Tensor, metrics:Metrics)->None:
         metrics.pre_step(x, y)
