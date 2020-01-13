@@ -18,10 +18,12 @@ from torch.utils import model_zoo
 
 
 # Parameters for the entire model (stem, all blocks, and head)
+from FastAutoAugment.networks.efficientnet_pytorch.condconv import CondConv2d
+
 GlobalParams = collections.namedtuple('GlobalParams', [
     'batch_norm_momentum', 'batch_norm_epsilon', 'dropout_rate',
     'num_classes', 'width_coefficient', 'depth_coefficient',
-    'depth_divisor', 'min_depth', 'drop_connect_rate', 'image_size'])
+    'depth_divisor', 'min_depth', 'drop_connect_rate', 'image_size', 'condconv_num_expert'])
 
 # Parameters for an individual model block
 BlockArgs = collections.namedtuple('BlockArgs', [
@@ -87,10 +89,12 @@ def drop_connect(inputs, p, training):
     return output
 
 
-def get_same_padding_conv2d(image_size=None):
+def get_same_padding_conv2d(image_size=None, condconv_num_expert=1):
     """ Chooses static padding if you have specified an image size, and dynamic padding otherwise.
         Static padding is necessary for ONNX exporting of models. """
-    if image_size is None:
+    if condconv_num_expert > 1:
+        return partial(CondConv2d, num_experts=condconv_num_expert)
+    elif image_size is None:
         return Conv2dDynamicSamePadding
     else:
         return partial(Conv2dStaticSamePadding, image_size=image_size)
@@ -269,6 +273,7 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.
         depth_divisor=8,
         min_depth=None,
         image_size=image_size,
+        condconv_num_expert=1
     )
 
     return blocks_args, global_params

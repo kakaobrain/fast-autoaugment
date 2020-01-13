@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from functools import partial
 from .utils import (
     round_filters,
     round_repeats,
@@ -36,8 +37,13 @@ class MBConvBlock(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
 
+        self.condconv_num_expert = global_params.condconv_num_expert
+        if self._is_condconv():
+            self.routing_fn = nn.Linear(self._block_args.input_filters, self.condconv_num_expert)
+
         # Get static or dynamic convolution depending on image size
-        Conv2d = get_same_padding_conv2d(image_size=global_params.image_size)
+        Conv2d = get_same_padding_conv2d(image_size=global_params.image_size, condconv_num_expert=global_params.condconv_num_expert)
+        Conv2dse = get_same_padding_conv2d(image_size=global_params.image_size)
 
         # Expansion phase
         inp = self._block_args.input_filters  # number of input channels
@@ -57,14 +63,17 @@ class MBConvBlock(nn.Module):
         # Squeeze and Excitation layer, if desired
         if self.has_se:
             num_squeezed_channels = max(1, int(self._block_args.input_filters * self._block_args.se_ratio))
-            self._se_reduce = Conv2d(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)
-            self._se_expand = Conv2d(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1)
+            self._se_reduce = Conv2dse(in_channels=oup, out_channels=num_squeezed_channels, kernel_size=1)
+            self._se_expand = Conv2dse(in_channels=num_squeezed_channels, out_channels=oup, kernel_size=1)
 
         # Output phase
         final_oup = self._block_args.output_filters
         self._project_conv = Conv2d(in_channels=oup, out_channels=final_oup, kernel_size=1, bias=False)
         self._bn2 = norm_layer(num_features=final_oup, momentum=self._bn_mom, eps=self._bn_eps)
         self._swish = MemoryEfficientSwish()
+
+    def _is_condconv(self):
+        return self.condconv_num_expert > 1
 
     def forward(self, inputs, drop_connect_rate=None):
         """
@@ -73,11 +82,24 @@ class MBConvBlock(nn.Module):
         :return: output of block
         """
 
+        if self._is_condconv():
+            feat = F.adaptive_avg_pool2d(inputs, 1).flatten(1)
+            routing_w = torch.sigmoid(self.routing_fn(feat))
+
+            if self._block_args.expand_ratio != 1:
+                _expand_conv = partial(self._expand_conv, routing_weights=routing_w)
+            _depthwise_conv = partial(self._depthwise_conv, routing_weights=routing_w)
+            _project_conv = partial(self._project_conv, routing_weights=routing_w)
+        else:
+            if self._block_args.expand_ratio != 1:
+                _expand_conv = self._expand_conv
+            _depthwise_conv, _project_conv = self._depthwise_conv, self._project_conv
+
         # Expansion and Depthwise Convolution
         x = inputs
         if self._block_args.expand_ratio != 1:
-            x = self._swish(self._bn0(self._expand_conv(inputs)))
-        x = self._swish(self._bn1(self._depthwise_conv(x)))
+            x = self._swish(self._bn0(_expand_conv(inputs)))
+        x = self._swish(self._bn1(_depthwise_conv(x)))
 
         # Squeeze and Excitation
         if self.has_se:
@@ -85,7 +107,7 @@ class MBConvBlock(nn.Module):
             x_squeezed = self._se_expand(self._swish(self._se_reduce(x_squeezed)))
             x = torch.sigmoid(x_squeezed) * x
 
-        x = self._bn2(self._project_conv(x))
+        x = self._bn2(_project_conv(x))
 
         # Skip connection and drop connect
         input_filters, output_filters = self._block_args.input_filters, self._block_args.output_filters
@@ -170,7 +192,6 @@ class EfficientNet(nn.Module):
         self._swish = MemoryEfficientSwish()
         for block in self._blocks:
             block.set_swish()
-
 
     def extract_features(self, inputs):
         """ Returns output of the final convolution layer """

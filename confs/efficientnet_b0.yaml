@@ -1,5 +1,6 @@
 model:
   type: efficientnet-b0
+  condconv_num_expert: 1  # if this is greater than 1(eg. 4), it activates condconv.
 dataset: imagenet
 aug: fa_reduced_imagenet
 cutout: 0
