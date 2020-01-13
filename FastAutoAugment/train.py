@@ -212,7 +212,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=0, writer=writers[1], is_master=is_master)
             rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=0, writer=writers[2], is_master=is_master)
             if ema is not None and len(ema) > 0:
-                model_ema.load_state_dict({f'module.{k}': v for k, v in ema.state_dict().items()})
+                model_ema.load_state_dict({k.replace('module.', ''): v for k, v in ema.state_dict().items()})
                 rs['valid'] = run_epoch(model_ema, validloader, criterion, None, desc_default='valid(EMA)', epoch=0, writer=writers[1], verbose=is_master)
                 rs['test'] = run_epoch(model_ema, testloader_, criterion, None, desc_default='*test(EMA)', epoch=0, writer=writers[2], verbose=is_master)
         for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
@@ -245,7 +245,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                 rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
 
                 if ema is not None:
-                    model_ema.load_state_dict({f'module.{k}': v for k, v in ema.state_dict().items()})
+                    model_ema.load_state_dict({k.replace('module.', ''): v for k, v in ema.state_dict().items()})
                     rs['valid'] = run_epoch(model_ema, validloader, criterion, None, desc_default='valid(EMA)', epoch=epoch, writer=writers[1], verbose=is_master)
                     rs['test'] = run_epoch(model_ema, testloader_, criterion, None, desc_default='*test(EMA)', epoch=epoch, writer=writers[2], verbose=is_master)
 

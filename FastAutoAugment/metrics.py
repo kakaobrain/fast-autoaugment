@@ -35,10 +35,12 @@ class CrossEntropyLabelSmooth(torch.nn.Module):
         log_probs = self.logsoftmax(input)
         targets = torch.zeros_like(log_probs).scatter_(1, target.unsqueeze(1), 1)
         targets = (1 - self.epsilon) * targets + self.epsilon / self.num_classes
+        targets = targets / torch.sum(targets, dim=1, keepdim=True)   # force to be summed to one
+        targets = targets.detach()
         loss = (-targets * log_probs)
 
         if self.reduction in ['avg', 'mean']:
-            loss = loss.mean(0).sum()
+            loss = torch.mean(torch.sum(loss, dim=1))
         elif self.reduction == 'sum':
             loss = loss.sum()
         return loss

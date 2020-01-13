@@ -1,6 +1,7 @@
 import logging
 import os
 
+import random
 import torch
 import torchvision
 from PIL import Image
@@ -49,27 +50,43 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, multinode
         if 'efficientnet' in C.get()['model']['type']:
             input_size = EfficientNet.get_image_size(C.get()['model']['type'])
             sized_size = input_size + 32    # TODO
+            # sized_size = int(round(input_size / 224. * 256))
+            # sized_size = input_size
             logger.info('size changed to %d/%d.' % (input_size, sized_size))
 
-        transform_train = transforms.Compose([
-            transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
-            transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(
-                brightness=0.4,
-                contrast=0.4,
-                saturation=0.4,
-            ),
-            transforms.ToTensor(),
-            Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
+            transform_train = transforms.Compose([
+                transforms.RandomResizedCrop(input_size, scale=(0.1, 1.0), interpolation=Image.BICUBIC),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
 
-        transform_test = transforms.Compose([
-            transforms.Resize(sized_size, interpolation=Image.BICUBIC),
-            transforms.CenterCrop(input_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
+            transform_test = transforms.Compose([
+                EfficientNetCenterCrop(input_size),
+                transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
+        else:
+            transform_train = transforms.Compose([
+                transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
+                transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(
+                    brightness=0.4,
+                    contrast=0.4,
+                    saturation=0.4,
+                ),
+                transforms.ToTensor(),
+                Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
+
+            transform_test = transforms.Compose([
+                transforms.Resize(sized_size, interpolation=Image.BICUBIC),
+                transforms.CenterCrop(input_size),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
     else:
         raise ValueError('dataset=%s' % dataset)
 
@@ -252,6 +269,31 @@ class Augmentation(object):
                     continue
                 img = apply_augment(img, name, level)
         return img
+
+
+class EfficientNetCenterCrop:
+    def __init__(self, imgsize):
+        self.imgsize = imgsize
+
+    def __call__(self, img):
+        """Crop the given PIL Image and resize it to desired size.
+
+        Args:
+            img (PIL Image): Image to be cropped. (0,0) denotes the top left corner of the image.
+            output_size (sequence or int): (height, width) of the crop box. If int,
+                it is used for both directions
+        Returns:
+            PIL Image: Cropped image.
+        """
+        image_width, image_height = img.size
+        image_short = min(image_width, image_height)
+
+        crop_size = float(self.imgsize) / (self.imgsize + 32) * image_short
+
+        crop_height, crop_width = crop_size, crop_size
+        crop_top = int(round((image_height - crop_height) / 2.))
+        crop_left = int(round((image_width - crop_width) / 2.))
+        return img.crop((crop_left, crop_top, crop_left + crop_width, crop_top + crop_height))
 
 
 class SubsetSampler(Sampler):
