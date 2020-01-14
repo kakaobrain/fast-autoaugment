@@ -265,7 +265,6 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.
 
     for blocks_arg in blocks_args[-3:]:
         blocks_arg._replace(condconv_num_expert=condconv_num_expert)
-        print('condconv activated')
 
     global_params = GlobalParams(
         batch_norm_momentum=0.99,

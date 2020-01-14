@@ -25,6 +25,7 @@ from FastAutoAugment.lr_scheduler import adjust_learning_rate_resnet
 from FastAutoAugment.metrics import accuracy, Accumulator, CrossEntropyLabelSmooth
 from FastAutoAugment.networks import get_model, num_class
 from FastAutoAugment.rmsprop import RMSpropTF
+from FastAutoAugment.aug_mixup import CrossEntropyMixUpLabelSmooth, mixup
 from warmup_scheduler import GradualWarmupScheduler
 
 logger = get_logger('Fast AutoAugment')
@@ -48,8 +49,13 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
         if optimizer:
             optimizer.zero_grad()
 
-        preds = model(data)
-        loss = loss_fn(preds, label)
+        if C.get().conf.get('mixup', 0.0) <= 0.0:
+            preds = model(data)
+            loss = loss_fn(preds, label)
+        else:   # mixup
+            data, targets, shuffled_targets, lam = mixup(data, label, C.get().conf.get('mixup', 0.0))
+            preds = model(data)
+            loss = loss_fn(preds, targets, shuffled_targets, lam)
 
         if optimizer is not None:
             loss.backward()
@@ -113,7 +119,10 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     model_ema = get_model(C.get()['model'], num_class(C.get()['dataset']), local_rank=-1)
     model_ema.eval()
 
-    criterion = CrossEntropyLabelSmooth(num_class(C.get()['dataset']), C.get().conf.get('lb_smooth', 0))
+    if C.get().conf.get('mixup', 0.0) <= 0.0:
+        criterion = CrossEntropyLabelSmooth(num_class(C.get()['dataset']), C.get().conf.get('lb_smooth', 0))
+    else:
+        criterion = CrossEntropyMixUpLabelSmooth(num_class(C.get()['dataset']), C.get().conf.get('lb_smooth', 0))
     if C.get()['optimizer']['type'] == 'sgd':
         optimizer = optim.SGD(
             model.parameters(),
