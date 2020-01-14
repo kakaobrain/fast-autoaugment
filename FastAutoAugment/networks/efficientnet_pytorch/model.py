@@ -37,12 +37,12 @@ class MBConvBlock(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
 
-        self.condconv_num_expert = global_params.condconv_num_expert
+        self.condconv_num_expert = block_args.condconv_num_expert
         if self._is_condconv():
             self.routing_fn = nn.Linear(self._block_args.input_filters, self.condconv_num_expert)
 
         # Get static or dynamic convolution depending on image size
-        Conv2d = get_same_padding_conv2d(image_size=global_params.image_size, condconv_num_expert=global_params.condconv_num_expert)
+        Conv2d = get_same_padding_conv2d(image_size=global_params.image_size, condconv_num_expert=block_args.condconv_num_expert)
         Conv2dse = get_same_padding_conv2d(image_size=global_params.image_size)
 
         # Expansion phase
@@ -159,8 +159,7 @@ class EfficientNet(nn.Module):
 
         # Build blocks
         self._blocks = nn.ModuleList([])
-        for block_args in self._blocks_args:
-
+        for idx, block_args in enumerate(self._blocks_args):
             # Update block input and output filters based on depth multiplier.
             block_args = block_args._replace(
                 input_filters=round_filters(block_args.input_filters, self._global_params),
@@ -225,9 +224,9 @@ class EfficientNet(nn.Module):
         return x
 
     @classmethod
-    def from_name(cls, model_name, override_params=None, norm_layer=None):
+    def from_name(cls, model_name, override_params=None, norm_layer=None, condconv_num_expert=1):
         cls._check_model_name_is_valid(model_name)
-        blocks_args, global_params = get_model_params(model_name, override_params)
+        blocks_args, global_params = get_model_params(model_name, override_params, condconv_num_expert=condconv_num_expert)
         return cls(blocks_args, global_params, norm_layer=norm_layer)
 
     @classmethod

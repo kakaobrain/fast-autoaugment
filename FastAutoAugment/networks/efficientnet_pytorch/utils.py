@@ -23,12 +23,12 @@ from FastAutoAugment.networks.efficientnet_pytorch.condconv import CondConv2d
 GlobalParams = collections.namedtuple('GlobalParams', [
     'batch_norm_momentum', 'batch_norm_epsilon', 'dropout_rate',
     'num_classes', 'width_coefficient', 'depth_coefficient',
-    'depth_divisor', 'min_depth', 'drop_connect_rate', 'image_size', 'condconv_num_expert'])
+    'depth_divisor', 'min_depth', 'drop_connect_rate', 'image_size'])
 
 # Parameters for an individual model block
 BlockArgs = collections.namedtuple('BlockArgs', [
     'kernel_size', 'num_repeat', 'input_filters', 'output_filters',
-    'expand_ratio', 'id_skip', 'stride', 'se_ratio'])
+    'expand_ratio', 'id_skip', 'stride', 'se_ratio', 'condconv_num_expert'])
 
 # Change namedtuple defaults
 GlobalParams.__new__.__defaults__ = (None,) * len(GlobalParams._fields)
@@ -202,7 +202,9 @@ class BlockDecoder(object):
             expand_ratio=int(options['e']),
             id_skip=('noskip' not in block_string),
             se_ratio=float(options['se']) if 'se' in options else None,
-            stride=[int(options['s'][0])])
+            stride=[int(options['s'][0])],
+            condconv_num_expert=0
+        )
 
     @staticmethod
     def _encode_block_string(block):
@@ -250,7 +252,7 @@ class BlockDecoder(object):
 
 
 def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.2,
-                 drop_connect_rate=0.2, image_size=None, num_classes=1000):
+                 drop_connect_rate=0.2, image_size=None, num_classes=1000, condconv_num_expert=1):
     """ Creates a efficientnet model. """
 
     blocks_args = [
@@ -260,6 +262,10 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.
         'r1_k3_s11_e6_i192_o320_se0.25',
     ]
     blocks_args = BlockDecoder.decode(blocks_args)
+
+    for blocks_arg in blocks_args[-3:]:
+        blocks_arg._replace(condconv_num_expert=condconv_num_expert)
+        print('condconv activated')
 
     global_params = GlobalParams(
         batch_norm_momentum=0.99,
@@ -273,19 +279,18 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.
         depth_divisor=8,
         min_depth=None,
         image_size=image_size,
-        condconv_num_expert=1
     )
 
     return blocks_args, global_params
 
 
-def get_model_params(model_name, override_params):
+def get_model_params(model_name, override_params, condconv_num_expert=1):
     """ Get the block args and global params for a given model """
     if model_name.startswith('efficientnet'):
         w, d, s, p = efficientnet_params(model_name)
         # note: all models have drop connect rate = 0.2
         blocks_args, global_params = efficientnet(
-            width_coefficient=w, depth_coefficient=d, dropout_rate=p, image_size=s)
+            width_coefficient=w, depth_coefficient=d, dropout_rate=p, image_size=s, condconv_num_expert=condconv_num_expert)
     else:
         raise NotImplementedError('model name is not pre-defined: %s' % model_name)
     if override_params:

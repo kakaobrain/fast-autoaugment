@@ -41,7 +41,7 @@ def get_model(conf, num_class=10, local_rank=-1):
         model = PyramidNet('cifar10', depth=conf['depth'], alpha=conf['alpha'], num_classes=num_class, bottleneck=conf['bottleneck'])
 
     elif 'efficientnet' in name:
-        model = EfficientNet.from_name(name, override_params={'condconv_num_expert': conf['condconv_num_expert']})
+        model = EfficientNet.from_name(name, condconv_num_expert=conf['condconv_num_expert'])
         if local_rank >= 0:
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 #         model = EfficientNet.from_pretrained(name)
