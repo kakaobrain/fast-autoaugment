@@ -49,7 +49,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
         if optimizer:
             optimizer.zero_grad()
 
-        if C.get().conf.get('mixup', 0.0) <= 0.0:
+        if C.get().conf.get('mixup', 0.0) <= 0.0 or optimizer is None:
             preds = model(data)
             loss = loss_fn(preds, label)
         else:   # mixup
@@ -119,9 +119,8 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     model_ema = get_model(C.get()['model'], num_class(C.get()['dataset']), local_rank=-1)
     model_ema.eval()
 
-    if C.get().conf.get('mixup', 0.0) <= 0.0:
-        criterion = CrossEntropyLabelSmooth(num_class(C.get()['dataset']), C.get().conf.get('lb_smooth', 0))
-    else:
+    criterion_ce = criterion = CrossEntropyLabelSmooth(num_class(C.get()['dataset']), C.get().conf.get('lb_smooth', 0))
+    if C.get().conf.get('mixup', 0.0) > 0.0:
         criterion = CrossEntropyMixUpLabelSmooth(num_class(C.get()['dataset']), C.get().conf.get('lb_smooth', 0))
     if C.get()['optimizer']['type'] == 'sgd':
         optimizer = optim.SGD(
@@ -250,13 +249,13 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
         if epoch % 5 == 0 or epoch == max_epoch:
             with torch.no_grad():
-                rs['valid'] = run_epoch(model, validloader, criterion, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
-                rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
+                rs['valid'] = run_epoch(model, validloader, criterion_ce, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
+                rs['test'] = run_epoch(model, testloader_, criterion_ce, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
 
                 if ema is not None:
                     model_ema.load_state_dict({k.replace('module.', ''): v for k, v in ema.state_dict().items()})
-                    rs['valid'] = run_epoch(model_ema, validloader, criterion, None, desc_default='valid(EMA)', epoch=epoch, writer=writers[1], verbose=is_master)
-                    rs['test'] = run_epoch(model_ema, testloader_, criterion, None, desc_default='*test(EMA)', epoch=epoch, writer=writers[2], verbose=is_master)
+                    rs['valid'] = run_epoch(model_ema, validloader, criterion_ce, None, desc_default='valid(EMA)', epoch=epoch, writer=writers[1], verbose=is_master)
+                    rs['test'] = run_epoch(model_ema, testloader_, criterion_ce, None, desc_default='*test(EMA)', epoch=epoch, writer=writers[2], verbose=is_master)
 
             if metric == 'last' or rs[metric]['top1'] > best_top1:
                 if metric != 'last':
@@ -275,7 +274,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
                 # save checkpoint
                 if is_master and save_path:
-                    logger.info('save model@%d to %s' % (epoch, save_path))
+                    logger.info('save model@%d to %s, err=%.4f' % (epoch, save_path, 1 - best_top1))
                     torch.save({
                         'epoch': epoch,
                         'log': {
@@ -287,17 +286,6 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                         'model': model.state_dict(),
                         'ema': ema.state_dict(),
                     }, save_path)
-                    torch.save({
-                        'epoch': epoch,
-                        'log': {
-                            'train': rs['train'].get_dict(),
-                            'valid': rs['valid'].get_dict(),
-                            'test': rs['test'].get_dict(),
-                        },
-                        'optimizer': optimizer.state_dict(),
-                        'model': model.state_dict(),
-                        'ema': ema.state_dict(),
-                    }, save_path.replace('.pth', '_e%d_top1_%.3f_%.3f' % (epoch, rs['train']['top1'], rs['test']['top1']) + '.pth'))
 
     del model
 

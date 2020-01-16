@@ -6,7 +6,6 @@ Reference :
 
 import numpy as np
 import torch
-import torch.nn as nn
 
 from FastAutoAugment.metrics import CrossEntropyLabelSmooth
 
