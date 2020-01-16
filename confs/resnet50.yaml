@@ -5,7 +5,7 @@ aug: fa_reduced_imagenet
 cutout: 0
 batch: 128
 epoch: 270
-lr: 0.1
+lr: 0.05
 lr_schedule:
   type: 'resnet'
   warmup:

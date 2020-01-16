@@ -53,7 +53,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
             preds = model(data)
             loss = loss_fn(preds, label)
         else:   # mixup
-            data, targets, shuffled_targets, lam = mixup(data, label, C.get().conf.get('mixup', 0.0))
+            data, targets, shuffled_targets, lam = mixup(data, label, C.get()['mixup'])
             preds = model(data)
             loss = loss_fn(preds, targets, shuffled_targets, lam)
 
@@ -100,6 +100,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
 
 
 def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='last', save_path=None, only_eval=False, local_rank=-1):
+    total_batch = C.get()["batch"]
     if local_rank >= 0:
         dist.init_process_group(backend='nccl', init_method='env://', world_size=int(os.environ['WORLD_SIZE']))
         device = torch.device('cuda', local_rank)
@@ -107,6 +108,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
         C.get()['lr'] *= dist.get_world_size()
         logger.info(f'local batch={C.get()["batch"]} world_size={dist.get_world_size()} ----> total batch={C.get()["batch"] * dist.get_world_size()}')
+        total_batch = C.get()["batch"] * dist.get_world_size()
 
     if not reporter:
         reporter = lambda **kwargs: 0
@@ -141,14 +143,13 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     else:
         raise ValueError('invalid optimizer type=%s' % C.get()['optimizer']['type'])
 
-    is_master = True
-    if local_rank >= 0:
-        for param in model.parameters():
-            dist.broadcast(param.data, 0)
-        if dist.get_rank() != 0:
-            is_master = False
-        logger.info(f'multinode init. local_rank={dist.get_rank()} is_master={is_master}')
-        torch.cuda.synchronize()
+    if total_batch >= 1024:
+        #
+        from torchlars import LARS
+        optimizer = LARS(optimizer)
+        logger.info("LARS Enabled, batch=%d" % total_batch)
+
+    is_master = local_rank < 0 or dist.get_rank() == 0
 
     lr_scheduler_type = C.get()['lr_schedule'].get('type', 'cosine')
     if lr_scheduler_type == 'cosine':
@@ -183,7 +184,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
     result = OrderedDict()
     epoch_start = 1
-    if save_path != 'test.pth':
+    if save_path != 'test.pth' and is_master:
         if save_path and os.path.exists(save_path):
             logger.info('%s file found. loading...' % save_path)
             data = torch.load(save_path)
@@ -209,6 +210,12 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             if only_eval:
                 logger.warning('model checkpoint not found. only-evaluation mode is off.')
             only_eval = False
+
+    if local_rank >= 0:
+        for param in model.parameters():
+            dist.broadcast(param.data, 0)
+        logger.info(f'multinode init. local_rank={dist.get_rank()} is_master={is_master}')
+        torch.cuda.synchronize()
 
     if only_eval:
         logger.info('evaluation only+')
