@@ -59,8 +59,8 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
 
         if optimizer is not None:
             loss.backward()
-            if C.get()['optimizer'].get('clip', 5) > 0:
-                nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer'].get('clip', 5))
+            if C.get()['optimizer']['clip'] > 0:
+                nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer']['clip'])
             optimizer.step()
 
             if ema is not None:
@@ -143,11 +143,11 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     else:
         raise ValueError('invalid optimizer type=%s' % C.get()['optimizer']['type'])
 
-    if total_batch >= 1024:
-        #
-        from torchlars import LARS
-        optimizer = LARS(optimizer)
-        logger.info("LARS Enabled, batch=%d" % total_batch)
+    # if total_batch >= 1024:
+    #     #
+    #     from torchlars import LARS
+    #     optimizer = LARS(optimizer)
+    #     logger.info("LARS Enabled, batch=%d" % total_batch)
 
     is_master = local_rank < 0 or dist.get_rank() == 0
 
@@ -293,6 +293,11 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                         'model': model.state_dict(),
                         'ema': ema.state_dict(),
                     }, save_path)
+
+        if C.get()['optimizer']['ema_interval'] > 0 and epoch % C.get()['optimizer']['ema_interval'] == 0:
+            model.load_state_dict(ema.state_dict())
+            for param in model.parameters():
+                dist.broadcast(param.data, 0)
 
     del model
 

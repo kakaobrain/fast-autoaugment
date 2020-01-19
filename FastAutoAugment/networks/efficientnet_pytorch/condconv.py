@@ -76,10 +76,8 @@ def get_condconv_initializer(initializer, num_experts, expert_shape):
     def condconv_initializer(weight):
         """CondConv initializer function."""
         num_params = np.prod(expert_shape)
-        if (len(weight.shape) != 2 or weight.shape[0] != num_experts or
-                weight.shape[1] != num_params):
-            raise (ValueError(
-                'CondConv variables must have shape [num_experts, num_params]'))
+        if (len(weight.shape) != 2 or weight.shape[0] != num_experts or weight.shape[1] != num_params):
+            raise (ValueError('CondConv variables must have shape [num_experts, num_params]'))
         for i in range(num_experts):
             initializer(weight[i].view(expert_shape))
     return condconv_initializer
@@ -99,6 +97,7 @@ class CondConv2d(nn.Module):
 
         if isinstance(stride, container_abcs.Iterable) and len(stride) == 1:
             stride = stride[0]
+        print('CondConv', num_experts)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -126,12 +125,20 @@ class CondConv2d(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        init_weight = get_condconv_initializer(partial(nn.init.kaiming_uniform_, a=math.sqrt(5)), self.num_experts, self.weight_shape)
+        num_input_fmaps = self.weight.size(1)
+        num_output_fmaps = self.weight.size(0)
+        receptive_field_size = 1
+        if self.weight.dim() > 2:
+            receptive_field_size = self.weight[0][0].numel()
+        fan_in = num_input_fmaps * receptive_field_size
+        fan_out = num_output_fmaps * receptive_field_size
+
+        init_weight = get_condconv_initializer(partial(nn.init.normal_, mean=0.0, std=np.sqrt(2.0 / fan_out)), self.num_experts, self.weight_shape)
         init_weight(self.weight)
         if self.bias is not None:
-            fan_in = np.prod(self.weight_shape[1:])
-            bound = 1 / math.sqrt(fan_in)
-            init_bias = get_condconv_initializer(partial(nn.init.uniform_, a=-bound, b=bound), self.num_experts, self.bias_shape)
+            # fan_in = np.prod(self.weight_shape[1:])
+            # bound = 1 / math.sqrt(fan_in)
+            init_bias = get_condconv_initializer(partial(nn.init.constant_, val=0), self.num_experts, self.bias_shape)
             init_bias(self.bias)
 
     def forward(self, x, routing_weights):

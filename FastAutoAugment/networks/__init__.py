@@ -5,6 +5,7 @@ from torch.nn import DataParallel
 from torch.nn.parallel import DistributedDataParallel
 import torch.backends.cudnn as cudnn
 # from torchvision import models
+import numpy as np
 
 from FastAutoAugment.networks.resnet import ResNet
 from FastAutoAugment.networks.pyramidnet import PyramidNet
@@ -45,6 +46,28 @@ def get_model(conf, num_class=10, local_rank=-1):
         if local_rank >= 0:
             model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 #         model = EfficientNet.from_pretrained(name)
+        def kernel_initializer(module):
+
+            def get_fan_in_out(module):
+                num_input_fmaps = module.weight.size(1)
+                num_output_fmaps = module.weight.size(0)
+                receptive_field_size = 1
+                if module.weight.dim() > 2:
+                    receptive_field_size = module.weight[0][0].numel()
+                fan_in = num_input_fmaps * receptive_field_size
+                fan_out = num_output_fmaps * receptive_field_size
+                return fan_in, fan_out
+
+            if isinstance(module, torch.nn.Conv2d):     # see : https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/efficientnet_model.py#L58
+                fan_in, fan_out = get_fan_in_out(module)
+                torch.nn.init.normal_(module.weight, mean=0.0, std=np.sqrt(2.0 / fan_out))
+                if module.bias is not None:
+                    torch.nn.init.constant_(module.bias, val=0)
+            elif isinstance(module, torch.nn.Linear):
+                fan_in, fan_out = get_fan_in_out(module)
+                delta = 1.0 / np.sqrt(fan_out)
+                torch.nn.init.uniform_(module.weight, a=-delta, b=delta)
+        model.apply(kernel_initializer)
     else:
         raise NameError('no model named, %s' % name)
 
