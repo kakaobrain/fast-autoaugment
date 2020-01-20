@@ -263,8 +263,11 @@ def efficientnet(width_coefficient=None, depth_coefficient=None, dropout_rate=0.
     ]
     blocks_args = BlockDecoder.decode(blocks_args)
 
+    blocks_args_new = blocks_args[:-3]
     for blocks_arg in blocks_args[-3:]:
-        blocks_arg._replace(condconv_num_expert=condconv_num_expert)
+        blocks_arg = blocks_arg._replace(condconv_num_expert=condconv_num_expert)
+        blocks_args_new.append(blocks_arg)
+    blocks_args = blocks_args_new
 
     global_params = GlobalParams(
         batch_norm_momentum=0.99,

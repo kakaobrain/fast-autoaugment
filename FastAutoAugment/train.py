@@ -213,7 +213,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
     if local_rank >= 0:
         for name, x in model.state_dict().items():
-            dist.broadcast(x.data, 0)
+            dist.broadcast(x, 0)
         # for param in model.parameters():
         #     dist.broadcast(param.data, 0)
         logger.info(f'multinode init. local_rank={dist.get_rank()} is_master={is_master}')
@@ -296,7 +296,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         if C.get()['optimizer']['ema_interval'] > 0 and epoch % C.get()['optimizer']['ema_interval'] == 0:
             model.load_state_dict(ema.state_dict())
             for name, x in model.state_dict().items():
-                dist.broadcast(x.data, 0)
+                dist.broadcast(x, 0)
             # for param in model.parameters():
             #     dist.broadcast(param.data, 0)
 

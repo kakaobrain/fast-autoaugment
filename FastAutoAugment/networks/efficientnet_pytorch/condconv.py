@@ -142,10 +142,11 @@ class CondConv2d(nn.Module):
             init_bias(self.bias)
 
     def forward(self, x, routing_weights):
+        x_orig = x
         B, C, H, W = x.shape
-        weight = torch.matmul(routing_weights, self.weight)
+        weight = torch.matmul(routing_weights, self.weight)     # (Expert x out x in x 3x3) --> (B x out x in x 3x3)
         new_weight_shape = (B * self.out_channels, self.in_channels // self.groups) + self.kernel_size
-        weight = weight.view(new_weight_shape)
+        weight = weight.view(new_weight_shape)                  # (B*out x in x 3 x 3)
         bias = None
         if self.bias is not None:
             bias = torch.matmul(routing_weights, self.bias)
@@ -160,23 +161,30 @@ class CondConv2d(nn.Module):
             out = F.conv2d(
                 x, weight, bias, stride=self.stride, padding=self.padding,
                 dilation=self.dilation, groups=self.groups * B)
+
+        # out : (1 x B*out x ...)
         out = out.permute([1, 0, 2, 3]).view(B, self.out_channels, out.shape[-2], out.shape[-1])
 
-        # Literal port (from TF definition)
-        # x = torch.split(x, 1, 0)
-        # weight = torch.split(weight, 1, 0)
-        # if self.bias is not None:
-        #     bias = torch.matmul(routing_weights, self.bias)
-        #     bias = torch.split(bias, 1, 0)
-        # else:
-        #     bias = [None] * B
-        # out = []
-        # for xi, wi, bi in zip(x, weight, bias):
-        #     wi = wi.view(*self.weight_shape)
-        #     if bi is not None:
-        #         bi = bi.view(*self.bias_shape)
-        #     out.append(self.conv_fn(
-        #         xi, wi, bi, stride=self.stride, padding=self.padding,
-        #         dilation=self.dilation, groups=self.groups))
-        # out = torch.cat(out, 0)
         return out
+
+    # def forward_legacy(self, x, routing_weights):
+    #     # Literal port (from TF definition)
+    #     B, C, H, W = x.shape
+    #     weight = torch.matmul(routing_weights, self.weight)  # (Expert x out x in x 3x3) --> (B x out x in x 3x3)
+    #     x = torch.split(x, 1, 0)
+    #     weight = torch.split(weight, 1, 0)
+    #     if self.bias is not None:
+    #         bias = torch.matmul(routing_weights, self.bias)
+    #         bias = torch.split(bias, 1, 0)
+    #     else:
+    #         bias = [None] * B
+    #     out = []
+    #     for xi, wi, bi in zip(x, weight, bias):
+    #         wi = wi.view(*self.weight_shape)
+    #         if bi is not None:
+    #             bi = bi.view(*self.bias_shape)
+    #         out.append(conv2d_same(
+    #             xi, wi, bi, stride=self.stride, padding=self.padding,
+    #             dilation=self.dilation, groups=self.groups))
+    #     out = torch.cat(out, 0)
+    #     return out
