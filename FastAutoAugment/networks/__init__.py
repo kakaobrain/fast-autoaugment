@@ -12,7 +12,7 @@ from FastAutoAugment.networks.pyramidnet import PyramidNet
 from FastAutoAugment.networks.shakeshake.shake_resnet import ShakeResNet
 from FastAutoAugment.networks.wideresnet import WideResNet
 from FastAutoAugment.networks.shakeshake.shake_resnext import ShakeResNeXt
-from FastAutoAugment.networks.efficientnet_pytorch import EfficientNet
+from FastAutoAugment.networks.efficientnet_pytorch import EfficientNet, RoutingFn
 
 def get_model(conf, num_class=10, local_rank=-1):
     name = conf['type']
@@ -63,10 +63,14 @@ def get_model(conf, num_class=10, local_rank=-1):
                 torch.nn.init.normal_(module.weight, mean=0.0, std=np.sqrt(2.0 / fan_out))
                 if module.bias is not None:
                     torch.nn.init.constant_(module.bias, val=0)
+            elif isinstance(module, RoutingFn):
+                torch.nn.init.xavier_uniform_(module.weight)
+                torch.nn.init.constant_(module.bias, val=0)
             elif isinstance(module, torch.nn.Linear):
                 fan_in, fan_out = get_fan_in_out(module)
                 delta = 1.0 / np.sqrt(fan_out)
                 torch.nn.init.uniform_(module.weight, a=-delta, b=delta)
+                torch.nn.init.constant_(module.bias, val=0)
         model.apply(kernel_initializer)
     else:
         raise NameError('no model named, %s' % name)

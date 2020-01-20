@@ -251,10 +251,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         if math.isnan(rs['train']['loss']):
             raise Exception('train loss is NaN.')
 
-        if not is_master:
-            continue
-
-        if epoch % 5 == 0 or epoch == max_epoch:
+        if is_master and (epoch % 5 == 0 or epoch == max_epoch):
             with torch.no_grad():
                 rs['valid'] = run_epoch(model, validloader, criterion_ce, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
                 rs['test'] = run_epoch(model, testloader_, criterion_ce, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)

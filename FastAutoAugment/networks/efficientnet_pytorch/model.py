@@ -15,6 +15,10 @@ from .utils import (
 )
 
 
+class RoutingFn(nn.Linear):
+    pass
+
+
 class MBConvBlock(nn.Module):
     """
     Mobile Inverted Residual Bottleneck Block
@@ -39,7 +43,7 @@ class MBConvBlock(nn.Module):
 
         self.condconv_num_expert = block_args.condconv_num_expert
         if self._is_condconv():
-            self.routing_fn = nn.Linear(self._block_args.input_filters, self.condconv_num_expert)
+            self.routing_fn = RoutingFn(self._block_args.input_filters, self.condconv_num_expert)
 
         # Get static or dynamic convolution depending on image size
         Conv2d = get_same_padding_conv2d(image_size=global_params.image_size, condconv_num_expert=block_args.condconv_num_expert)

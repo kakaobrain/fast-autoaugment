@@ -107,6 +107,12 @@ $ python FastAutoAugment/train.py -c confs/resnet200_b512.yaml --aug fa_reduced_
 
 By adding --only-eval and --save arguments, you can test trained models without training.
 
+If you want to train with multi-gpu/node, use `torch.distributed.launch` such as
+
+```bash
+$ python -m torch.distributed.launch --nproc_per_node={num_gpu_per_node} --nnodes={num_node} --master_addr={master} --master_port={master_port} --node_rank={0,1,2,...,num_node} FastAutoAugment/train.py -c confs/efficientnet_b4.yaml --aug fa_reduced_imagenet
+```
+
 ## Citation
 
 If you use any part of this code in your research, please cite our [paper](https://arxiv.org/abs/1905.00397).
@@ -119,11 +125,6 @@ If you use any part of this code in your research, please cite our [paper](https
   year={2019}
 }
 ```
-
-## Contact for Issues
-- Ildoo Kim, ildoo.kim@kakaobrain.com
-- Sungbin Lim, sungbin.lim@kakaobrain.com
-
 
 ## References & Opensources
 

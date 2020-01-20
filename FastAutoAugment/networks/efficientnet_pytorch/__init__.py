@@ -1,5 +1,5 @@
 __version__ = "0.5.1"
-from .model import EfficientNet
+from .model import EfficientNet, RoutingFn
 from .utils import (
     GlobalParams,
     BlockArgs,
