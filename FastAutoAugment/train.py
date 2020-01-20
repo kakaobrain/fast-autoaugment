@@ -294,7 +294,8 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                     }, save_path)
 
         if C.get()['optimizer']['ema_interval'] > 0 and epoch % C.get()['optimizer']['ema_interval'] == 0:
-            model.load_state_dict(ema.state_dict())
+            if ema is not None:
+                model.load_state_dict(ema.state_dict())
             for name, x in model.state_dict().items():
                 dist.broadcast(x, 0)
             # for param in model.parameters():
