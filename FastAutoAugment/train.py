@@ -19,7 +19,7 @@ import torch.distributed as dist
 from tqdm import tqdm
 from theconf import Config as C, ConfigArgumentParser
 
-from FastAutoAugment.common import get_logger, EMA
+from FastAutoAugment.common import get_logger, EMA, add_filehandler
 from FastAutoAugment.data import get_dataloaders
 from FastAutoAugment.lr_scheduler import adjust_learning_rate_resnet
 from FastAutoAugment.metrics import accuracy, Accumulator, CrossEntropyLabelSmooth
@@ -56,8 +56,9 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
             data, targets, shuffled_targets, lam = mixup(data, label, C.get()['mixup'])
             preds = model(data)
             loss = loss_fn(preds, targets, shuffled_targets, lam)
+            del shuffled_targets, lam
 
-        if optimizer is not None:
+        if optimizer:
             loss.backward()
             if C.get()['optimizer']['clip'] > 0:
                 nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer']['clip'])
@@ -99,7 +100,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
     return metrics
 
 
-def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='last', save_path=None, only_eval=False, local_rank=-1):
+def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metric='last', save_path=None, only_eval=False, local_rank=-1, evaluation_interval=5):
     total_batch = C.get()["batch"]
     if local_rank >= 0:
         dist.init_process_group(backend='nccl', init_method='env://', world_size=int(os.environ['WORLD_SIZE']))
@@ -143,13 +144,9 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     else:
         raise ValueError('invalid optimizer type=%s' % C.get()['optimizer']['type'])
 
-    # if total_batch >= 1024:
-    #     #
-    #     from torchlars import LARS
-    #     optimizer = LARS(optimizer)
-    #     logger.info("LARS Enabled, batch=%d" % total_batch)
-
     is_master = local_rank < 0 or dist.get_rank() == 0
+    if is_master:
+        add_filehandler(logger, args.save + '.log')
 
     lr_scheduler_type = C.get()['lr_schedule'].get('type', 'cosine')
     if lr_scheduler_type == 'cosine':
@@ -184,26 +181,24 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
     result = OrderedDict()
     epoch_start = 1
-    if save_path != 'test.pth' and is_master:
+    if save_path != 'test.pth':     # and is_master: --> should load all data(not able to be broadcasted)
         if save_path and os.path.exists(save_path):
             logger.info('%s file found. loading...' % save_path)
             data = torch.load(save_path)
-            if 'model' in data or 'state_dict' in data:
-                key = 'model' if 'model' in data else 'state_dict'
-                logger.info('checkpoint epoch@%d' % data['epoch'])
-                if not isinstance(model, (DataParallel, DistributedDataParallel)):
-                    model.load_state_dict({k.replace('module.', ''): v for k, v in data[key].items()})
-                else:
-                    model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data[key].items()})
-                optimizer.load_state_dict(data['optimizer'])
-                if data['epoch'] < C.get()['epoch']:
-                    epoch_start = data['epoch']
-                else:
-                    only_eval = True
-                if ema is not None:
-                    ema.shadow = data.get('ema', {}) if isinstance(data.get('ema', {}), dict) else data['ema'].state_dict()
+            key = 'model' if 'model' in data else 'state_dict'
+
+            logger.info('checkpoint epoch@%d' % data['epoch'])
+            if not isinstance(model, (DataParallel, DistributedDataParallel)):
+                model.load_state_dict({k.replace('module.', ''): v for k, v in data[key].items()})
             else:
-                model.load_state_dict({k: v for k, v in data.items()})
+                model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data[key].items()})
+            optimizer.load_state_dict(data['optimizer'])
+            if data['epoch'] < C.get()['epoch']:
+                epoch_start = data['epoch']
+            else:
+                only_eval = True
+            if ema is not None:
+                ema.shadow = data.get('ema', {}) if isinstance(data.get('ema', {}), dict) else data['ema'].state_dict()
             del data
         else:
             logger.info('"%s" file not found. skip to pretrain weights...' % save_path)
@@ -214,8 +209,6 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     if local_rank >= 0:
         for name, x in model.state_dict().items():
             dist.broadcast(x, 0)
-        # for param in model.parameters():
-        #     dist.broadcast(param.data, 0)
         logger.info(f'multinode init. local_rank={dist.get_rank()} is_master={is_master}')
         torch.cuda.synchronize()
 
@@ -262,6 +255,13 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                     model_ema.load_state_dict({k.replace('module.', ''): v for k, v in ema.state_dict().items()})
                     rs['valid'] = run_epoch(model_ema, validloader, criterion_ce, None, desc_default='valid(EMA)', epoch=epoch, writer=writers[1], verbose=is_master)
                     rs['test'] = run_epoch(model_ema, testloader_, criterion_ce, None, desc_default='*test(EMA)', epoch=epoch, writer=writers[2], verbose=is_master)
+
+            logger.info(
+                f'epoch={epoch} '
+                f'[train] loss={rs["train"]["loss"]:.4f} top1={rs["train"]["top1"]:.4f} '
+                f'[valid] loss={rs["valid"]["loss"]:.4f} top1={rs["valid"]["top1"]:.4f} '
+                f'[test] loss={rs["test"]["loss"]:.4f} top1={rs["test"]["top1"]:.4f} '
+            )
 
             if metric == 'last' or rs[metric]['top1'] > best_top1:
                 if metric != 'last':
@@ -315,6 +315,7 @@ if __name__ == '__main__':
     parser.add_argument('--cv-ratio', type=float, default=0.0)
     parser.add_argument('--cv', type=int, default=0)
     parser.add_argument('--local_rank', type=int, default=-1)
+    parser.add_argument('--evaluation-interval', type=int, default=5)
     parser.add_argument('--only-eval', action='store_true')
     args = parser.parse_args()
 
@@ -328,7 +329,7 @@ if __name__ == '__main__':
 
     import time
     t = time.time()
-    result = train_and_eval(args.tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, save_path=args.save, only_eval=args.only_eval, local_rank=args.local_rank, metric='test')
+    result = train_and_eval(args.tag, args.dataroot, test_ratio=args.cv_ratio, cv_fold=args.cv, save_path=args.save, only_eval=args.only_eval, local_rank=args.local_rank, metric='test', evaluation_interval=args.evaluation_interval)
     elapsed = time.time() - t
 
     logger.info('done.')

@@ -27,26 +27,24 @@ class RMSpropTF(Optimizer):
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
     """
 
-    def __init__(self, params, lr=1e-2, alpha=0.99, eps=1e-8, weight_decay=0, momentum=0, centered=False):
+    def __init__(self, params, lr=1e-2, alpha=0.99, eps=1e-8, momentum=0, weight_decay=0.0):
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {}".format(eps))
         if not 0.0 <= momentum:
             raise ValueError("Invalid momentum value: {}".format(momentum))
-        if not 0.0 <= weight_decay:
-            raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
         if not 0.0 <= alpha:
             raise ValueError("Invalid alpha value: {}".format(alpha))
+        assert momentum > 0.0
 
-        defaults = dict(lr=lr, momentum=momentum, alpha=alpha, eps=eps, centered=centered, weight_decay=weight_decay)
+        defaults = dict(lr=lr, momentum=momentum, alpha=alpha, eps=eps, weight_decay=weight_decay)
         super(RMSpropTF, self).__init__(params, defaults)
 
     def __setstate__(self, state):
         super(RMSpropTF, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('momentum', 0)
-            group.setdefault('centered', False)
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -70,34 +68,22 @@ class RMSpropTF(Optimizer):
                 # State initialization
                 if len(state) == 0:
                     state['step'] = 0
-                    state['square_avg'] = torch.zeros_like(p.data)  #, memory_format=torch.preserve_format)
+                    state['ms'] = torch.ones_like(p.data)  #, memory_format=torch.preserve_format)
                     if group['momentum'] > 0:
-                        state['momentum_buffer'] = torch.zeros_like(p.data)  #, memory_format=torch.preserve_format)
-                    if group['centered']:
-                        state['grad_avg'] = torch.zeros_like(p.data)  #, memory_format=torch.preserve_format)
+                        state['mom'] = torch.zeros_like(p.data)  #, memory_format=torch.preserve_format)
 
-                square_avg = state['square_avg']
-                alpha = group['alpha']
+                # weight decay -----
+                grad = grad.add(group['weight_decay'], p.data)
 
+                ms = state['ms']
+                rho = group['alpha']
+                mom = state['mom']
                 state['step'] += 1
 
-                if group['weight_decay'] != 0:
-                    grad = grad.add(group['weight_decay'], p.data)
-
-                square_avg.mul_(alpha).addcmul_(1 - alpha, grad, grad)
-
-                if group['centered']:
-                    grad_avg = state['grad_avg']
-                    grad_avg.mul_(alpha).add_(1 - alpha, grad)
-                    avg = (square_avg.addcmul(-1, grad_avg, grad_avg) + group['eps']).sqrt()
-                else:
-                    avg = (square_avg + group['eps']).sqrt()
-
-                if group['momentum'] > 0:
-                    buf = state['momentum_buffer']
-                    buf.mul_(group['momentum']).addcdiv_(grad, avg)
-                    p.data.add_(-group['lr'], buf)
-                else:
-                    p.data.addcdiv_(-group['lr'], grad, avg)
+                # ms.mul_(rho).addcmul_(1 - rho, grad, grad)
+                # ms.addcmul_(1 - rho, torch.mul(grad, grad), grad)
+                ms.add_(torch.mul(grad, grad).add_(-ms) * (1. - rho))
+                mom.mul_(group['momentum']).addcdiv_(grad * group['lr'], (ms + group['eps']).sqrt())
+                p.data.add_(-1.0, mom)
 
         return loss

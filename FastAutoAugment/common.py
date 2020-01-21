@@ -18,9 +18,9 @@ def get_logger(name, level=logging.DEBUG):
     return logger
 
 
-def add_filehandler(logger, filepath):
+def add_filehandler(logger, filepath, level=logging.DEBUG):
     fh = logging.FileHandler(filepath)
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(level)
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
