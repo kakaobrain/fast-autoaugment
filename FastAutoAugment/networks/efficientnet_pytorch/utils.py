@@ -85,7 +85,7 @@ def drop_connect(inputs, p, training):
     random_tensor = keep_prob
     random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=inputs.dtype, device=inputs.device)
     binary_tensor = torch.floor(random_tensor)
-    output = inputs / keep_prob * binary_tensor
+    output = inputs / keep_prob * binary_tensor.detach()
     return output
 
 

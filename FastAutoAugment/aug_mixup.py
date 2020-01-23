@@ -17,6 +17,7 @@ def mixup(data, targets, alpha):
 
     lam = np.random.beta(alpha, alpha)
     lam = max(lam, 1. - lam)
+    assert 0.0 <= lam <= 1.0, lam
     data = data * lam + shuffled_data * (1 - lam)
 
     return data, targets, shuffled_targets, lam

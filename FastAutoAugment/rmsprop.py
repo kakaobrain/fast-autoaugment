@@ -32,7 +32,7 @@ class RMSpropTF(Optimizer):
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
             raise ValueError("Invalid epsilon value: {}".format(eps))
-        if not 0.0 <= momentum:
+        if not 0.0 < momentum:
             raise ValueError("Invalid momentum value: {}".format(momentum))
         if not 0.0 <= alpha:
             raise ValueError("Invalid alpha value: {}".format(alpha))
@@ -40,14 +40,22 @@ class RMSpropTF(Optimizer):
 
         defaults = dict(lr=lr, momentum=momentum, alpha=alpha, eps=eps, weight_decay=weight_decay)
         super(RMSpropTF, self).__init__(params, defaults)
+        self.initialized = False
 
     def __setstate__(self, state):
         super(RMSpropTF, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('momentum', 0)
 
+    def load_state_dict(self, state_dict):
+        super(RMSpropTF, self).load_state_dict(state_dict)
+        self.initialized = True
+
     def step(self, closure=None):
         """Performs a single optimization step.
+        We modified pytorch's RMSProp to be same as Tensorflow's
+        See : https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/kernels/training_ops.cc#L485
+
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
@@ -67,13 +75,14 @@ class RMSpropTF(Optimizer):
 
                 # State initialization
                 if len(state) == 0:
+                    assert not self.initialized
                     state['step'] = 0
                     state['ms'] = torch.ones_like(p.data)  #, memory_format=torch.preserve_format)
-                    if group['momentum'] > 0:
-                        state['mom'] = torch.zeros_like(p.data)  #, memory_format=torch.preserve_format)
+                    state['mom'] = torch.zeros_like(p.data)  #, memory_format=torch.preserve_format)
 
                 # weight decay -----
-                grad = grad.add(group['weight_decay'], p.data)
+                if group['weight_decay'] > 0:
+                    grad = grad.add(group['weight_decay'], p.data)
 
                 ms = state['ms']
                 rho = group['alpha']
@@ -83,6 +92,7 @@ class RMSpropTF(Optimizer):
                 # ms.mul_(rho).addcmul_(1 - rho, grad, grad)
                 # ms.addcmul_(1 - rho, torch.mul(grad, grad), grad)
                 ms.add_(torch.mul(grad, grad).add_(-ms) * (1. - rho))
+                assert group['momentum'] > 0
                 mom.mul_(group['momentum']).addcdiv_(grad * group['lr'], (ms + group['eps']).sqrt())
                 p.data.add_(-1.0, mom)
 

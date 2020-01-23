@@ -32,7 +32,7 @@ logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
 
 
-def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None, is_master=True, ema=None):
+def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None, is_master=True, ema=None, weight_decay=0.0):
     tqdm_disable = bool(os.environ.get('TASK_NAME', '')) and not is_master    # KakaoBrain Environment
     if verbose:
         loader = tqdm(loader, disable=tqdm_disable)
@@ -42,12 +42,10 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
     cnt = 0
     total_steps = len(loader)
     steps = 0
+    params_without_bn = [params for name, params in model.named_parameters() if not ('_bn' in name or '.bn' in name)]
     for data, label in loader:
         steps += 1
         data, label = data.cuda(), label.cuda()
-
-        if optimizer:
-            optimizer.zero_grad()
 
         if C.get().conf.get('mixup', 0.0) <= 0.0 or optimizer is None:
             preds = model(data)
@@ -59,10 +57,12 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
             del shuffled_targets, lam
 
         if optimizer:
+            loss += weight_decay * sum([p.to(dtype=torch.float).norm(2) for p in params_without_bn])
             loss.backward()
             if C.get()['optimizer']['clip'] > 0:
                 nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer']['clip'])
             optimizer.step()
+            optimizer.zero_grad()
 
             if ema is not None:
                 ema(model, (epoch - 1) * total_steps + steps)
@@ -130,14 +130,14 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             model.parameters(),
             lr=C.get()['lr'],
             momentum=C.get()['optimizer'].get('momentum', 0.9),
-            weight_decay=C.get()['optimizer']['decay'],
-            nesterov=C.get()['optimizer']['nesterov']
+            weight_decay=0.0,
+            nesterov=C.get()['optimizer'].get('nesterov', True)
         )
     elif C.get()['optimizer']['type'] == 'rmsprop':
         optimizer = RMSpropTF(
             model.parameters(),
             lr=C.get()['lr'],
-            weight_decay=C.get()['optimizer']['decay'],
+            weight_decay=0.0,
             alpha=0.9, momentum=0.9,
             eps=0.001
         )
@@ -187,18 +187,21 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             data = torch.load(save_path)
             key = 'model' if 'model' in data else 'state_dict'
 
-            logger.info('checkpoint epoch@%d' % data['epoch'])
-            if not isinstance(model, (DataParallel, DistributedDataParallel)):
-                model.load_state_dict({k.replace('module.', ''): v for k, v in data[key].items()})
+            if 'epoch' not in data:
+                model.load_state_dict(data)
             else:
-                model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data[key].items()})
-            optimizer.load_state_dict(data['optimizer'])
-            if data['epoch'] < C.get()['epoch']:
-                epoch_start = data['epoch']
-            else:
-                only_eval = True
-            if ema is not None:
-                ema.shadow = data.get('ema', {}) if isinstance(data.get('ema', {}), dict) else data['ema'].state_dict()
+                logger.info('checkpoint epoch@%d' % data['epoch'])
+                if not isinstance(model, (DataParallel, DistributedDataParallel)):
+                    model.load_state_dict({k.replace('module.', ''): v for k, v in data[key].items()})
+                else:
+                    model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data[key].items()})
+                optimizer.load_state_dict(data['optimizer'])
+                if data['epoch'] < C.get()['epoch']:
+                    epoch_start = data['epoch']
+                else:
+                    only_eval = True
+                if ema is not None:
+                    ema.shadow = data.get('ema', {}) if isinstance(data.get('ema', {}), dict) else data['ema'].state_dict()
             del data
         else:
             logger.info('"%s" file not found. skip to pretrain weights...' % save_path)
@@ -240,13 +243,31 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
         model.train()
         rs = dict()
-        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler, ema=ema)
+        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler, ema=ema, weight_decay=C.get()['optimizer']['decay'])
         model.eval()
 
         if math.isnan(rs['train']['loss']):
             raise Exception('train loss is NaN.')
 
-        if is_master and (epoch % 5 == 0 or epoch == max_epoch):
+        if C.get()['optimizer']['ema_interval'] > 0 and epoch % C.get()['optimizer']['ema_interval'] == 0:
+            logger.info(f'ema synced+ rank={dist.get_rank()}')
+            if ema is not None:
+                model.load_state_dict(ema.state_dict())
+            for name, x in model.state_dict().items():
+                # print(name)
+                dist.broadcast(x, 0)
+            torch.cuda.synchronize()
+            logger.info(f'ema synced- rank={dist.get_rank()}')
+
+            optimizer = RMSpropTF(
+                model.parameters(),
+                lr=C.get()['lr'],
+                weight_decay=0.0,
+                alpha=0.9, momentum=0.9,
+                eps=0.001
+            )       # TODO : ????
+
+        if is_master and (epoch % evaluation_interval == 0 or epoch == max_epoch):
             with torch.no_grad():
                 rs['valid'] = run_epoch(model, validloader, criterion_ce, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
                 rs['test'] = run_epoch(model, testloader_, criterion_ce, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
@@ -292,14 +313,6 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                         'model': model.state_dict(),
                         'ema': ema.state_dict(),
                     }, save_path)
-
-        if C.get()['optimizer']['ema_interval'] > 0 and epoch % C.get()['optimizer']['ema_interval'] == 0:
-            if ema is not None:
-                model.load_state_dict(ema.state_dict())
-            for name, x in model.state_dict().items():
-                dist.broadcast(x, 0)
-            # for param in model.parameters():
-            #     dist.broadcast(param.data, 0)
 
     del model
 
