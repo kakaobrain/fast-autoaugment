@@ -77,16 +77,25 @@ def round_repeats(repeats, global_params):
     return int(math.ceil(multiplier * repeats))
 
 
-def drop_connect(inputs, p, training):
+def drop_connect(inputs, drop_p, training):
     """ Drop connect. """
-    if not training: return inputs
+    if not training:
+        return inputs * (1. - drop_p)
     batch_size = inputs.shape[0]
-    keep_prob = 1 - p
-    random_tensor = keep_prob
-    random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=inputs.dtype, device=inputs.device)
-    binary_tensor = torch.floor(random_tensor)
-    output = inputs / keep_prob * binary_tensor.detach()
+    random_tensor = torch.rand([batch_size, 1, 1, 1], dtype=inputs.dtype, device=inputs.device)
+    binary_tensor = random_tensor > drop_p
+    output = inputs * binary_tensor.float()
+    # output = inputs / (1. - drop_p) * binary_tensor.float()
     return output
+
+    # if not training: return inputs
+    # batch_size = inputs.shape[0]
+    # keep_prob = 1 - drop_p
+    # random_tensor = keep_prob
+    # random_tensor += torch.rand([batch_size, 1, 1, 1], dtype=inputs.dtype, device=inputs.device)
+    # binary_tensor = torch.floor(random_tensor)
+    # output = inputs / keep_prob * binary_tensor
+    # return output
 
 
 def get_same_padding_conv2d(image_size=None, condconv_num_expert=1):

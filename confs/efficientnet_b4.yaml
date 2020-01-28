@@ -17,4 +17,5 @@ optimizer:
   decay: 0.00001
   clip: 0
   ema: 0.9999
+  ema_interval: -1
 lb_smooth: 0.1

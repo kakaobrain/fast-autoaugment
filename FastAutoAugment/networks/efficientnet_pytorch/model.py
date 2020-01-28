@@ -117,7 +117,7 @@ class MBConvBlock(nn.Module):
         input_filters, output_filters = self._block_args.input_filters, self._block_args.output_filters
         if self.id_skip and self._block_args.stride == 1 and input_filters == output_filters:
             if drop_connect_rate:
-                x = drop_connect(x, p=drop_connect_rate, training=self.training)
+                x = drop_connect(x, drop_p=drop_connect_rate, training=self.training)
             x = x + inputs  # skip connection
         return x
 

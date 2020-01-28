@@ -24,7 +24,7 @@ from FastAutoAugment.data import get_dataloaders
 from FastAutoAugment.lr_scheduler import adjust_learning_rate_resnet
 from FastAutoAugment.metrics import accuracy, Accumulator, CrossEntropyLabelSmooth
 from FastAutoAugment.networks import get_model, num_class
-from FastAutoAugment.rmsprop import RMSpropTF
+from FastAutoAugment.tf_port.rmsprop import RMSpropTF
 from FastAutoAugment.aug_mixup import CrossEntropyMixUpLabelSmooth, mixup
 from warmup_scheduler import GradualWarmupScheduler
 
@@ -32,17 +32,19 @@ logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
 
 
-def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None, is_master=True, ema=None, weight_decay=0.0):
+def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None, is_master=True, ema=None, wd=0.0):
     tqdm_disable = bool(os.environ.get('TASK_NAME', '')) and not is_master    # KakaoBrain Environment
     if verbose:
         loader = tqdm(loader, disable=tqdm_disable)
         loader.set_description('[%s %04d/%04d]' % (desc_default, epoch, C.get()['epoch']))
 
+    params_without_bn = [params for name, params in model.named_parameters() if not ('_bn' in name or '.bn' in name)]
+
+    loss_ema = None
     metrics = Accumulator()
     cnt = 0
     total_steps = len(loader)
     steps = 0
-    params_without_bn = [params for name, params in model.named_parameters() if not ('_bn' in name or '.bn' in name)]
     for data, label in loader:
         steps += 1
         data, label = data.cuda(), label.cuda()
@@ -57,7 +59,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
             del shuffled_targets, lam
 
         if optimizer:
-            loss += weight_decay * sum([p.to(dtype=torch.float).norm(2) for p in params_without_bn])
+            loss += wd * (1. / 2.) * sum([torch.sum(p ** 2) for p in params_without_bn])
             loss.backward()
             if C.get()['optimizer']['clip'] > 0:
                 nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer']['clip'])
@@ -74,10 +76,15 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
             'top5': top5.item() * len(data),
         })
         cnt += len(data)
+        if loss_ema:
+            loss_ema = loss_ema * 0.9 + loss.item() * 0.1
+        else:
+            loss_ema = loss.item()
         if verbose:
             postfix = metrics / cnt
             if optimizer:
                 postfix['lr'] = optimizer.param_groups[0]['lr']
+            postfix['loss_ema'] = loss_ema
             loader.set_postfix(postfix)
 
         if scheduler is not None:
@@ -154,7 +161,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
     elif lr_scheduler_type == 'resnet':
         scheduler = adjust_learning_rate_resnet(optimizer)
     elif lr_scheduler_type == 'efficientnet':
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda x: 0.97 ** int(x / 2.4))
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda x: 0.97 ** int((x + C.get()['lr_schedule']['warmup']['epoch']) / 2.4))
     else:
         raise ValueError('invalid lr_schduler=%s' % lr_scheduler_type)
 
@@ -195,6 +202,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                     model.load_state_dict({k.replace('module.', ''): v for k, v in data[key].items()})
                 else:
                     model.load_state_dict({k if 'module.' in k else 'module.'+k: v for k, v in data[key].items()})
+                logger.info('optimizer.load_state_dict+')
                 optimizer.load_state_dict(data['optimizer'])
                 if data['epoch'] < C.get()['epoch']:
                     epoch_start = data['epoch']
@@ -243,7 +251,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
         model.train()
         rs = dict()
-        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler, ema=ema, weight_decay=C.get()['optimizer']['decay'])
+        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler, ema=ema, wd=C.get()['optimizer']['decay'])
         model.eval()
 
         if math.isnan(rs['train']['loss']):
@@ -258,14 +266,6 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                 dist.broadcast(x, 0)
             torch.cuda.synchronize()
             logger.info(f'ema synced- rank={dist.get_rank()}')
-
-            optimizer = RMSpropTF(
-                model.parameters(),
-                lr=C.get()['lr'],
-                weight_decay=0.0,
-                alpha=0.9, momentum=0.9,
-                eps=0.001
-            )       # TODO : ????
 
         if is_master and (epoch % evaluation_interval == 0 or epoch == max_epoch):
             with torch.no_grad():

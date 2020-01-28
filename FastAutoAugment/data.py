@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import os
 
+import math
 import random
 import torch
 import torchvision
@@ -57,7 +58,9 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, multinode
             logger.info('size changed to %d/%d.' % (input_size, sized_size))
 
             transform_train = transforms.Compose([
-                transforms.RandomResizedCrop(input_size, scale=(0.1, 1.0), interpolation=Image.BICUBIC),
+                EfficientNetRandomCrop(input_size),
+                transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
+                # transforms.RandomResizedCrop(input_size, scale=(0.1, 1.0), interpolation=Image.BICUBIC),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -271,6 +274,62 @@ class Augmentation(object):
                     continue
                 img = apply_augment(img, name, level)
         return img
+
+
+class EfficientNetRandomCrop:
+    def __init__(self, imgsize, min_covered=0.1, aspect_ratio_range=(3./4, 4./3), area_range=(0.08, 1.0), max_attempts=10):
+        assert 0.0 < min_covered
+        assert 0 < aspect_ratio_range[0] <= aspect_ratio_range[1]
+        assert 0 < area_range[0] <= area_range[1]
+        assert 1 <= max_attempts
+
+        self.min_covered = min_covered
+        self.aspect_ratio_range = aspect_ratio_range
+        self.area_range = area_range
+        self.max_attempts = max_attempts
+        self._fallback = EfficientNetCenterCrop(imgsize)
+
+    def __call__(self, img):
+        # https://github.com/tensorflow/tensorflow/blob/9274bcebb31322370139467039034f8ff852b004/tensorflow/core/kernels/sample_distorted_bounding_box_op.cc#L111
+        original_width, original_height = img.size
+        min_area = self.area_range[0] * (original_width * original_height)
+        max_area = self.area_range[1] * (original_width * original_height)
+
+        for _ in range(self.max_attempts):
+            aspect_ratio = random.uniform(*self.aspect_ratio_range)
+            height = int(round(math.sqrt(min_area / aspect_ratio)))
+            max_height = int(round(math.sqrt(max_area / aspect_ratio)))
+
+            if max_height * aspect_ratio > original_width:
+                max_height = (original_width + 0.5 - 1e-7) / aspect_ratio
+                max_height = int(max_height)
+                if max_height * aspect_ratio > original_width:
+                    max_height -= 1
+
+            if max_height > original_height:
+                max_height = original_height
+
+            if height >= max_height:
+                height = max_height
+
+            height = int(round(random.uniform(height, max_height)))
+            width = int(round(height * aspect_ratio))
+            area = width * height
+
+            if area < min_area or area > max_area:
+                continue
+            if width > original_width or height > original_height:
+                continue
+            if area < self.min_covered * (original_width * original_height):
+                continue
+            if width == original_width and height == original_height:
+                return self._fallback(img)      # https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/preprocessing.py#L102
+
+            x = random.randint(0, original_width - width)
+            y = random.randint(0, original_height - height)
+            return img.crop((x, y, x + width, y + height))
+
+        return self._fallback(img)
 
 
 class EfficientNetCenterCrop:

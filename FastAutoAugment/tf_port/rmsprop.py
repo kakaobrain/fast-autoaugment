@@ -84,16 +84,18 @@ class RMSpropTF(Optimizer):
                 if group['weight_decay'] > 0:
                     grad = grad.add(group['weight_decay'], p.data)
 
-                ms = state['ms']
                 rho = group['alpha']
+                ms = state['ms']
                 mom = state['mom']
                 state['step'] += 1
 
                 # ms.mul_(rho).addcmul_(1 - rho, grad, grad)
-                # ms.addcmul_(1 - rho, torch.mul(grad, grad), grad)
                 ms.add_(torch.mul(grad, grad).add_(-ms) * (1. - rho))
                 assert group['momentum'] > 0
-                mom.mul_(group['momentum']).addcdiv_(grad * group['lr'], (ms + group['eps']).sqrt())
+
+                # new rmsprop
+                mom.mul_(group['momentum']).addcdiv_(group['lr'], grad, (ms + group['eps']).sqrt())
+
                 p.data.add_(-1.0, mom)
 
         return loss
