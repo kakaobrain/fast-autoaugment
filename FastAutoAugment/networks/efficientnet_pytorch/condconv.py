@@ -94,6 +94,7 @@ class CondConv2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3,
                  stride=1, padding='', dilation=1, groups=1, bias=False, num_experts=4):
         super(CondConv2d, self).__init__()
+        assert num_experts > 1
 
         if isinstance(stride, container_abcs.Iterable) and len(stride) == 1:
             stride = stride[0]

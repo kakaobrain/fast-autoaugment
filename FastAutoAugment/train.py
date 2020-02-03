@@ -32,10 +32,9 @@ logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
 
 
-def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None, is_master=True, ema=None, wd=0.0):
-    tqdm_disable = bool(os.environ.get('TASK_NAME', '')) and not is_master    # KakaoBrain Environment
+def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, writer=None, verbose=1, scheduler=None, is_master=True, ema=None, wd=0.0, tqdm_disabled=False):
     if verbose:
-        loader = tqdm(loader, disable=tqdm_disable)
+        loader = tqdm(loader, disable=tqdm_disabled)
         loader.set_description('[%s %04d/%04d]' % (desc_default, epoch, C.get()['epoch']))
 
     params_without_bn = [params for name, params in model.named_parameters() if not ('_bn' in name or '.bn' in name)]
@@ -92,7 +91,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
 
         del preds, loss, top1, top5, data, label
 
-    if tqdm_disable:
+    if tqdm_disabled and verbose:
         if optimizer:
             logger.info('[%s %03d/%03d] %s lr=%.6f', desc_default, epoch, C.get()['epoch'], metrics / cnt, optimizer.param_groups[0]['lr'])
         else:
@@ -117,6 +116,10 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         C.get()['lr'] *= dist.get_world_size()
         logger.info(f'local batch={C.get()["batch"]} world_size={dist.get_world_size()} ----> total batch={C.get()["batch"] * dist.get_world_size()}')
         total_batch = C.get()["batch"] * dist.get_world_size()
+
+    is_master = local_rank < 0 or dist.get_rank() == 0
+    if is_master:
+        add_filehandler(logger, args.save + '.log')
 
     if not reporter:
         reporter = lambda **kwargs: 0
@@ -150,10 +153,6 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         )
     else:
         raise ValueError('invalid optimizer type=%s' % C.get()['optimizer']['type'])
-
-    is_master = local_rank < 0 or dist.get_rank() == 0
-    if is_master:
-        add_filehandler(logger, args.save + '.log')
 
     lr_scheduler_type = C.get()['lr_schedule'].get('type', 'cosine')
     if lr_scheduler_type == 'cosine':
@@ -223,6 +222,8 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         logger.info(f'multinode init. local_rank={dist.get_rank()} is_master={is_master}')
         torch.cuda.synchronize()
 
+    tqdm_disabled = bool(os.environ.get('TASK_NAME', '')) and local_rank != 0  # KakaoBrain Environment
+
     if only_eval:
         logger.info('evaluation only+')
         model.eval()
@@ -234,8 +235,8 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
             rs['test'] = run_epoch(model, testloader_, criterion, None, desc_default='*test', epoch=0, writer=writers[2], is_master=is_master)
             if ema is not None and len(ema) > 0:
                 model_ema.load_state_dict({k.replace('module.', ''): v for k, v in ema.state_dict().items()})
-                rs['valid'] = run_epoch(model_ema, validloader, criterion, None, desc_default='valid(EMA)', epoch=0, writer=writers[1], verbose=is_master)
-                rs['test'] = run_epoch(model_ema, testloader_, criterion, None, desc_default='*test(EMA)', epoch=0, writer=writers[2], verbose=is_master)
+                rs['valid'] = run_epoch(model_ema, validloader, criterion_ce, None, desc_default='valid(EMA)', epoch=0, writer=writers[1], verbose=is_master, tqdm_disabled=tqdm_disabled)
+                rs['test'] = run_epoch(model_ema, testloader_, criterion_ce, None, desc_default='*test(EMA)', epoch=0, writer=writers[2], verbose=is_master, tqdm_disabled=tqdm_disabled)
         for key, setname in itertools.product(['loss', 'top1', 'top5'], ['train', 'valid', 'test']):
             if setname not in rs:
                 continue
@@ -251,7 +252,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
         model.train()
         rs = dict()
-        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=is_master, scheduler=scheduler, ema=ema, wd=C.get()['optimizer']['decay'])
+        rs['train'] = run_epoch(model, trainloader, criterion, optimizer, desc_default='train', epoch=epoch, writer=writers[0], verbose=(is_master and local_rank <= 0), scheduler=scheduler, ema=ema, wd=C.get()['optimizer']['decay'], tqdm_disabled=tqdm_disabled)
         model.eval()
 
         if math.isnan(rs['train']['loss']):
@@ -269,13 +270,13 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
 
         if is_master and (epoch % evaluation_interval == 0 or epoch == max_epoch):
             with torch.no_grad():
-                rs['valid'] = run_epoch(model, validloader, criterion_ce, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master)
-                rs['test'] = run_epoch(model, testloader_, criterion_ce, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master)
+                rs['valid'] = run_epoch(model, validloader, criterion_ce, None, desc_default='valid', epoch=epoch, writer=writers[1], verbose=is_master, tqdm_disabled=tqdm_disabled)
+                rs['test'] = run_epoch(model, testloader_, criterion_ce, None, desc_default='*test', epoch=epoch, writer=writers[2], verbose=is_master, tqdm_disabled=tqdm_disabled)
 
                 if ema is not None:
                     model_ema.load_state_dict({k.replace('module.', ''): v for k, v in ema.state_dict().items()})
-                    rs['valid'] = run_epoch(model_ema, validloader, criterion_ce, None, desc_default='valid(EMA)', epoch=epoch, writer=writers[1], verbose=is_master)
-                    rs['test'] = run_epoch(model_ema, testloader_, criterion_ce, None, desc_default='*test(EMA)', epoch=epoch, writer=writers[2], verbose=is_master)
+                    rs['valid'] = run_epoch(model_ema, validloader, criterion_ce, None, desc_default='valid(EMA)', epoch=epoch, writer=writers[1], verbose=is_master, tqdm_disabled=tqdm_disabled)
+                    rs['test'] = run_epoch(model_ema, testloader_, criterion_ce, None, desc_default='*test(EMA)', epoch=epoch, writer=writers[2], verbose=is_master, tqdm_disabled=tqdm_disabled)
 
             logger.info(
                 f'epoch={epoch} '

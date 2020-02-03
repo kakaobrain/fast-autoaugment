@@ -6,7 +6,7 @@ Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) implementation in 
 - Fast AutoAugment speeds up the search time by orders of magnitude while maintaining the comparable performances.
 
 <p align="center">
-<img src="./img/search.jpg" height=350>
+<img src="etc/search.jpg" height=350>
 </p>
 
 ## Results

@@ -62,7 +62,13 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, multinode
                 transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
                 # transforms.RandomResizedCrop(input_size, scale=(0.1, 1.0), interpolation=Image.BICUBIC),
                 transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(
+                    brightness=0.4,
+                    contrast=0.4,
+                    saturation=0.4,
+                ),
                 transforms.ToTensor(),
+                Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
 
