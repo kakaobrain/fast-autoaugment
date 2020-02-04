@@ -258,7 +258,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
         if math.isnan(rs['train']['loss']):
             raise Exception('train loss is NaN.')
 
-        if C.get()['optimizer']['ema_interval'] > 0 and epoch % C.get()['optimizer']['ema_interval'] == 0:
+        if ema is not None and C.get()['optimizer']['ema_interval'] > 0 and epoch % C.get()['optimizer']['ema_interval'] == 0:
             logger.info(f'ema synced+ rank={dist.get_rank()}')
             if ema is not None:
                 model.load_state_dict(ema.state_dict())
