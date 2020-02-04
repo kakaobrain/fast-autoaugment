@@ -1,0 +1,21 @@
+model:
+  type: resnet50
+dataset: imagenet
+aug: fa_reduced_imagenet
+cutout: 0
+batch: 128
+epoch: 270
+lr: 0.05
+lr_schedule:
+  type: 'resnet'
+  warmup:
+    multiplier: 1
+    epoch: 5
+optimizer:
+  type: sgd
+  nesterov: True
+  decay: 0.0001
+  clip: 0
+  ema: 0
+#lb_smooth: 0.1
+mixup: 0.2

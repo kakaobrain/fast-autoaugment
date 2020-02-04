@@ -57,47 +57,28 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, multinode
             # sized_size = input_size
             logger.info('size changed to %d/%d.' % (input_size, sized_size))
 
-            transform_train = transforms.Compose([
-                EfficientNetRandomCrop(input_size),
-                transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
-                # transforms.RandomResizedCrop(input_size, scale=(0.1, 1.0), interpolation=Image.BICUBIC),
-                transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(
-                    brightness=0.4,
-                    contrast=0.4,
-                    saturation=0.4,
-                ),
-                transforms.ToTensor(),
-                Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
+        transform_train = transforms.Compose([
+            EfficientNetRandomCrop(input_size),
+            transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
+            # transforms.RandomResizedCrop(input_size, scale=(0.1, 1.0), interpolation=Image.BICUBIC),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(
+                brightness=0.4,
+                contrast=0.4,
+                saturation=0.4,
+            ),
+            transforms.ToTensor(),
+            Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
 
-            transform_test = transforms.Compose([
-                EfficientNetCenterCrop(input_size),
-                transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
-        else:
-            transform_train = transforms.Compose([
-                transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
-                transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(
-                    brightness=0.4,
-                    contrast=0.4,
-                    saturation=0.4,
-                ),
-                transforms.ToTensor(),
-                Lighting(0.1, _IMAGENET_PCA['eigval'], _IMAGENET_PCA['eigvec']),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
+        transform_test = transforms.Compose([
+            EfficientNetCenterCrop(input_size),
+            transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
 
-            transform_test = transforms.Compose([
-                transforms.Resize(sized_size, interpolation=Image.BICUBIC),
-                transforms.CenterCrop(input_size),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-            ])
     else:
         raise ValueError('dataset=%s' % dataset)
 
