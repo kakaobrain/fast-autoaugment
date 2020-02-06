@@ -312,7 +312,7 @@ def train_and_eval(tag, dataroot, test_ratio=0.0, cv_fold=0, reporter=None, metr
                         },
                         'optimizer': optimizer.state_dict(),
                         'model': model.state_dict(),
-                        'ema': ema.state_dict(),
+                        'ema': ema.state_dict() if ema is not None else None,
                     }, save_path)
 
     del model
