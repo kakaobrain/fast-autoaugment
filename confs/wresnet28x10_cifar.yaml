@@ -1,17 +1,17 @@
 model:
-  type: pyramid
-  depth: 272
-  alpha: 200
-  bottleneck: True
+  type: wresnet28_10
 dataset: cifar10
 aug: fa_reduced_cifar10
 cutout: 16
-batch: 64
-epoch: 1800
-lr: 0.05
+batch: 128
+epoch: 200
+lr: 0.1
 lr_schedule:
   type: 'cosine'
+  warmup:
+    multiplier: 1
+    epoch: 5
 optimizer:
   type: sgd
   nesterov: True
-  decay: 0.00005
+  decay: 0.0005

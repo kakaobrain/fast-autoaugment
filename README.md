@@ -6,7 +6,7 @@ Official [Fast AutoAugment](https://arxiv.org/abs/1905.00397) implementation in 
 - Fast AutoAugment speeds up the search time by orders of magnitude while maintaining the comparable performances.
 
 <p align="center">
-<img src="./img/search.jpg" height=350>
+<img src="etc/search.jpg" height=350>
 </p>
 
 ## Results
@@ -45,6 +45,12 @@ Notes
 * But with recent our code clean-up and bugfixes, we've found that the baseline performs similar to the baseline even using 224x224.
 * When we use 224x224, resnet-200 performs **20.0 / 5.2**. Download link for the trained model is [here](https://arena.kakaocdn.net/brainrepo/fast-autoaugment/imagenet_resnet200_res224.pth).
 
+We have conducted additional experiments with EfficientNet.
+
+| Model | Baseline   | AutoAugment |   | Our Baseline(Batch) | +Fast AA |
+|-------|------------|-------------|---|---------------------|----------|
+| B0    | 23.2       | 22.7        |   | 22.96               | 22.68    |
+
 ### SVHN Test
 
 Search : **1.5 GPU Hours**
@@ -52,7 +58,6 @@ Search : **1.5 GPU Hours**
 |                                  | Baseline | AutoAug / Our | Fast AutoAugment  |
 |----------------------------------|---------:|--------------:|--------:|
 | Wide-Resnet28x10                 | 1.5      | 1.1           | 1.1     |
-
 
 ## Run
 
@@ -89,9 +94,15 @@ $ python FastAutoAugment/train.py -c confs/resnet200_b512.yaml --aug fa_reduced_
 
 By adding --only-eval and --save arguments, you can test trained models without training.
 
+If you want to train with multi-gpu/node, use `torch.distributed.launch` such as
+
+```bash
+$ python -m torch.distributed.launch --nproc_per_node={num_gpu_per_node} --nnodes={num_node} --master_addr={master} --master_port={master_port} --node_rank={0,1,2,...,num_node} FastAutoAugment/train.py -c confs/efficientnet_b4.yaml --aug fa_reduced_imagenet
+```
+
 ## Citation
 
-If you use any part of this code in your research, please cite our [paper](https://arxiv.org/abs/1905.00397).
+If you use this code in your research, please cite our [paper](https://arxiv.org/abs/1905.00397).
 
 ```
 @inproceedings{lim2019fast,
@@ -104,8 +115,6 @@ If you use any part of this code in your research, please cite our [paper](https
 
 ## Contact for Issues
 - Ildoo Kim, ildoo.kim@kakaobrain.com
-- Sungbin Lim, sungbin.lim@kakaobrain.com
-
 
 ## References & Opensources
 

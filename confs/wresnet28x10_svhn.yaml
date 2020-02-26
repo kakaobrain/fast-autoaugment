@@ -3,13 +3,13 @@ model:
 dataset: svhn
 aug: fa_reduced_svhn
 cutout: 20
-batch: 512
+batch: 128
 epoch: 200
 lr: 0.01
 lr_schedule:
   type: 'cosine'
   warmup:
-    multiplier: 4
+    multiplier: 1
     epoch: 5
 optimizer:
   type: sgd

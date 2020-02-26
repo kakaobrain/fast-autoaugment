@@ -1,0 +1,21 @@
+model:
+  type: efficientnet-b4
+  condconv_num_expert: 1  # if this is greater than 1(eg. 4), it activates condconv.
+dataset: imagenet
+aug: fa_reduced_imagenet
+cutout: 0
+batch: 32    # per gpu
+epoch: 350
+lr: 0.002     # 0.256 for 4096 batch
+lr_schedule:
+  type: 'efficientnet'
+  warmup:
+    multiplier: 1
+    epoch: 5
+optimizer:
+  type: rmsprop
+  decay: 0.00001
+  clip: 0
+  ema: 0.9999
+  ema_interval: -1
+lb_smooth: 0.1

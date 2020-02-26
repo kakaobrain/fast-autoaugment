@@ -1,11 +1,16 @@
 import logging
+
+import numpy as np
 import os
 
+import math
+import random
 import torch
 import torchvision
 from PIL import Image
 
 from torch.utils.data import SubsetRandomSampler, Sampler, Subset, ConcatDataset
+import torch.distributed as dist
 from torchvision.transforms import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
 from theconf import Config as C
@@ -14,6 +19,7 @@ from FastAutoAugment.archive import arsaug_policy, autoaug_policy, autoaug_paper
 from FastAutoAugment.augmentations import *
 from FastAutoAugment.common import get_logger
 from FastAutoAugment.imagenet import ImageNet
+from FastAutoAugment.networks.efficientnet_pytorch.model import EfficientNet
 
 logger = get_logger('Fast AutoAugment')
 logger.setLevel(logging.INFO)
@@ -28,7 +34,7 @@ _IMAGENET_PCA = {
 _CIFAR_MEAN, _CIFAR_STD = (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
 
 
-def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=False, target_lb=-1):
+def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, multinode=False, target_lb=-1):
     if 'cifar' in dataset or 'svhn' in dataset:
         transform_train = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -41,8 +47,20 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
             transforms.Normalize(_CIFAR_MEAN, _CIFAR_STD),
         ])
     elif 'imagenet' in dataset:
+        input_size = 224
+        sized_size = 256
+
+        if 'efficientnet' in C.get()['model']['type']:
+            input_size = EfficientNet.get_image_size(C.get()['model']['type'])
+            sized_size = input_size + 32    # TODO
+            # sized_size = int(round(input_size / 224. * 256))
+            # sized_size = input_size
+            logger.info('size changed to %d/%d.' % (input_size, sized_size))
+
         transform_train = transforms.Compose([
-            transforms.RandomResizedCrop(224, scale=(0.08, 1.0), interpolation=Image.BICUBIC),
+            EfficientNetRandomCrop(input_size),
+            transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
+            # transforms.RandomResizedCrop(input_size, scale=(0.1, 1.0), interpolation=Image.BICUBIC),
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(
                 brightness=0.4,
@@ -55,11 +73,12 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
         ])
 
         transform_test = transforms.Compose([
-            transforms.Resize(256, interpolation=Image.BICUBIC),
-            transforms.CenterCrop(224),
+            EfficientNetCenterCrop(input_size),
+            transforms.Resize((input_size, input_size), interpolation=Image.BICUBIC),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
+
     else:
         raise ValueError('dataset=%s' % dataset)
 
@@ -84,7 +103,7 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
             transform_train.transforms.insert(0, Augmentation(autoaug_paper_cifar10()))
         elif C.get()['aug'] == 'autoaug_extend':
             transform_train.transforms.insert(0, Augmentation(autoaug_policy()))
-        elif C.get()['aug'] in ['default', 'inception', 'inception320']:
+        elif C.get()['aug'] in ['default']:
             pass
         else:
             raise ValueError('not found augmentations. %s' % C.get()['aug'])
@@ -183,25 +202,24 @@ def get_dataloaders(dataset, batch, dataroot, split=0.15, split_idx=0, horovod=F
         train_sampler = SubsetRandomSampler(train_idx)
         valid_sampler = SubsetSampler(valid_idx)
 
-        if horovod:
-            import horovod.torch as hvd
-            train_sampler = torch.utils.data.distributed.DistributedSampler(train_sampler, num_replicas=hvd.size(), rank=hvd.rank())
+        if multinode:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(Subset(total_trainset, train_idx), num_replicas=dist.get_world_size(), rank=dist.get_rank())
     else:
         valid_sampler = SubsetSampler([])
 
-        if horovod:
-            import horovod.torch as hvd
-            train_sampler = torch.utils.data.distributed.DistributedSampler(valid_sampler, num_replicas=hvd.size(), rank=hvd.rank())
+        if multinode:
+            train_sampler = torch.utils.data.distributed.DistributedSampler(total_trainset, num_replicas=dist.get_world_size(), rank=dist.get_rank())
+            logger.info(f'----- dataset with DistributedSampler  {dist.get_rank()}/{dist.get_world_size()}')
 
     trainloader = torch.utils.data.DataLoader(
-        total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=32, pin_memory=True,
+        total_trainset, batch_size=batch, shuffle=True if train_sampler is None else False, num_workers=8, pin_memory=True,
         sampler=train_sampler, drop_last=True)
     validloader = torch.utils.data.DataLoader(
-        total_trainset, batch_size=batch, shuffle=False, num_workers=16, pin_memory=True,
+        total_trainset, batch_size=batch, shuffle=False, num_workers=4, pin_memory=True,
         sampler=valid_sampler, drop_last=False)
 
     testloader = torch.utils.data.DataLoader(
-        testset, batch_size=batch, shuffle=False, num_workers=32, pin_memory=True,
+        testset, batch_size=batch, shuffle=False, num_workers=8, pin_memory=True,
         drop_last=False
     )
     return train_sampler, trainloader, validloader, testloader
@@ -244,6 +262,87 @@ class Augmentation(object):
                     continue
                 img = apply_augment(img, name, level)
         return img
+
+
+class EfficientNetRandomCrop:
+    def __init__(self, imgsize, min_covered=0.1, aspect_ratio_range=(3./4, 4./3), area_range=(0.08, 1.0), max_attempts=10):
+        assert 0.0 < min_covered
+        assert 0 < aspect_ratio_range[0] <= aspect_ratio_range[1]
+        assert 0 < area_range[0] <= area_range[1]
+        assert 1 <= max_attempts
+
+        self.min_covered = min_covered
+        self.aspect_ratio_range = aspect_ratio_range
+        self.area_range = area_range
+        self.max_attempts = max_attempts
+        self._fallback = EfficientNetCenterCrop(imgsize)
+
+    def __call__(self, img):
+        # https://github.com/tensorflow/tensorflow/blob/9274bcebb31322370139467039034f8ff852b004/tensorflow/core/kernels/sample_distorted_bounding_box_op.cc#L111
+        original_width, original_height = img.size
+        min_area = self.area_range[0] * (original_width * original_height)
+        max_area = self.area_range[1] * (original_width * original_height)
+
+        for _ in range(self.max_attempts):
+            aspect_ratio = random.uniform(*self.aspect_ratio_range)
+            height = int(round(math.sqrt(min_area / aspect_ratio)))
+            max_height = int(round(math.sqrt(max_area / aspect_ratio)))
+
+            if max_height * aspect_ratio > original_width:
+                max_height = (original_width + 0.5 - 1e-7) / aspect_ratio
+                max_height = int(max_height)
+                if max_height * aspect_ratio > original_width:
+                    max_height -= 1
+
+            if max_height > original_height:
+                max_height = original_height
+
+            if height >= max_height:
+                height = max_height
+
+            height = int(round(random.uniform(height, max_height)))
+            width = int(round(height * aspect_ratio))
+            area = width * height
+
+            if area < min_area or area > max_area:
+                continue
+            if width > original_width or height > original_height:
+                continue
+            if area < self.min_covered * (original_width * original_height):
+                continue
+            if width == original_width and height == original_height:
+                return self._fallback(img)      # https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/preprocessing.py#L102
+
+            x = random.randint(0, original_width - width)
+            y = random.randint(0, original_height - height)
+            return img.crop((x, y, x + width, y + height))
+
+        return self._fallback(img)
+
+
+class EfficientNetCenterCrop:
+    def __init__(self, imgsize):
+        self.imgsize = imgsize
+
+    def __call__(self, img):
+        """Crop the given PIL Image and resize it to desired size.
+
+        Args:
+            img (PIL Image): Image to be cropped. (0,0) denotes the top left corner of the image.
+            output_size (sequence or int): (height, width) of the crop box. If int,
+                it is used for both directions
+        Returns:
+            PIL Image: Cropped image.
+        """
+        image_width, image_height = img.size
+        image_short = min(image_width, image_height)
+
+        crop_size = float(self.imgsize) / (self.imgsize + 32) * image_short
+
+        crop_height, crop_width = crop_size, crop_size
+        crop_top = int(round((image_height - crop_height) / 2.))
+        crop_left = int(round((image_width - crop_width) / 2.))
+        return img.crop((crop_left, crop_top, crop_left + crop_width, crop_top + crop_height))
 
 
 class SubsetSampler(Sampler):
