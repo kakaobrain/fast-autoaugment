@@ -1,7 +1,7 @@
+import pathlib
 import sys
 
-
-sys.path.append('/data/private/fast-autoaugment-public')    # TODO
+sys.path.append(str(pathlib.Path(__file__).parent.parent.absolute()))
 
 import itertools
 import json

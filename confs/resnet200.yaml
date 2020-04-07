@@ -16,3 +16,4 @@ optimizer:
   nesterov: True
   decay: 0.0001
   clip: 0
+  ema: 0
