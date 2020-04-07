@@ -1,8 +1,7 @@
-git+https://github.com/wbaek/theconf
+git+https://github.com/wbaek/theconf@de32022f8c0651a043dc812d17194cdfd62066e8
 git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git@08f7d5e
 git+https://github.com/ildoonet/pystopwatch2.git
 git+https://github.com/hyperopt/hyperopt.git
-git+https://github.com/kakaobrain/torchlars
 
 pretrainedmodels
 tqdm

@@ -18,3 +18,4 @@ optimizer:
   type: sgd
   nesterov: True
   decay: 0.00005
+  ema: 0
