@@ -60,7 +60,7 @@ def run_epoch(model, loader, loss_fn, optimizer, desc_default='', epoch=0, write
         if optimizer:
             loss += wd * (1. / 2.) * sum([torch.sum(p ** 2) for p in params_without_bn])
             loss.backward()
-            if C.get()['optimizer']['clip'] > 0:
+            if C.get()['optimizer'].get('clip', 5.0) > 0:
                 nn.utils.clip_grad_norm_(model.parameters(), C.get()['optimizer']['clip'])
             optimizer.step()
             optimizer.zero_grad()
